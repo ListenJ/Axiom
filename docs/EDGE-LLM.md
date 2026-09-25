@@ -8,7 +8,7 @@
 确定性 fast path → 边缘 LLM slow path → 失败静默回退（行为退化为接入前）
 ```
 
-> **默认关闭（2026-09-18 起）**：下表所有 `EDGE_*` 能力开关**未设置即关闭**，运行时默认只走内部规则路径，不隐式调用任何辅助 LLM。仅用户显式设为 `1` / `true` / `yes` 后才放行，授权逐能力生效，不存在"一开全开"。判定实现见 `src/local-llm/edge-client.ts:52`（`isEdgeEnabled`）与 `src/agents/prompt-optimizer.ts:253`（`isRewriteEnabled`），回归防线见 `tests/unit/llm-default-off-policy.test.ts`。
+> **默认关闭（2026-09-18 起）**：下表所有 `EDGE_*` 能力开关**未设置即关闭**，运行时默认只走内部规则路径，不隐式调用任何辅助 LLM。仅用户显式设为 `1` / `true` / `yes` 后才放行，授权逐能力生效，不存在"一开全开"。判定实现见 `src/local-llm/edge-client.ts`（`isEdgeEnabled`）与 `src/agents/prompt-optimizer.ts`（`isRewriteEnabled`），回归防线见 `tests/unit/llm-default-off-policy.test.ts`。
 
 ## 部署
 

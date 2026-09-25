@@ -32,13 +32,13 @@
 ## 二、缺口（本轮发现，按影响排序）
 
 ### G1（最高）触发面不含开发分支 ⇒ 本分支的 CI **根本不会跑**
-`ci.yml:3-7` 只监听 `main`/`master`。当前工作分支 `codex/knowledge-unify-2026-09-17`
+`ci.yml` 只监听 `main`/`master`。当前工作分支 `codex/knowledge-unify-2026-09-17`
 **既非 main/master、也没有 PR 指向 main/master** ⇒ **上述 7 个 job 一个都不会触发**。
 ⇒ 直接影响用户诉求：**"在 CI 加一个目录"若不修触发面，加了也不会为当前工作产出任何结果。**
 
 ### G2 零 Windows 覆盖
 `ci.yml` 7 个 job **全部 `ubuntu-latest`**；全仓唯一使用 `windows-latest` 的是
-`.github/workflows/visual-snapshot.yml:36,68`，且**只跑视觉快照**。
+`.github/workflows/visual-snapshot.yml`，且**只跑视觉快照**。
 ⇒ 与"目标平台含 Windows"不匹配：平台相关代码（路径分隔符、磁盘探测、文件原子重写、JSONL I/O）**无 Windows 回归**。
 
 ### G3 门禁与报告的分层不一致
@@ -151,7 +151,7 @@ CI 方案原本要"跑一个目录"。实施前实测该假设，结果**不成�
 
 **根因**：新增的路由级断言用例在**模块加载期**调用 `mock.module()` 替换 `agent-evals/real-usage.js`。
 Bun 是「**先加载全部测试文件、再执行**」，故该替换会污染**同进程**的其它测试文件 ——
-正是 `tests/proxy-fetch-hardening.test.ts:11` 早已警告过的坑。
+正是 `tests/proxy-fetch-hardening.test.ts` 早已警告过的坑。
 **在 `afterAll` 里调 `mock.restore()` 无效**（已实测）：污染发生在**执行之前**，清理来不及。
 
 **修法（已落地）**：把真正需要 mock 的用例改名为 **`chat-capture-session.case.ts`**（刻意不是 `*.test.ts`，

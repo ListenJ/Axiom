@@ -53,21 +53,23 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 | ID | 名称 | 角色 | 开关 | 默认值 |
 |----|------|------|------|--------|
 | ND-01 | 设置项语义检索 | decision | EDGE_SETTINGS_SEARCH | 1 |
-| ND-02 | 意图标签 LLM 改写（决定是否触发检索） | decision | EDGE_PROMPT_OPTIMIZER | 1 |
-| ND-03 | 检索 query 边缘改写 | decision | EDGE_KNOWLEDGE_ASSIST | 1 |
-| ND-04 | 知识采集质量判定（边缘 LLM） | decision | EDGE_KNOWLEDGE_ASSIST | 1 |
-| ND-05 | 近重复去重判定（边缘 LLM） | decision | EDGE_KNOWLEDGE_ASSIST | 1 |
+| ND-02 | 意图标签 LLM 改写（决定是否触发检索） | decision | EDGE_PROMPT_OPTIMIZER | 0 |
+| ND-03 | 检索 query 边缘改写 | decision | EDGE_KNOWLEDGE_ASSIST | 0 |
+| ND-04 | 知识采集质量判定（边缘 LLM） | decision | EDGE_KNOWLEDGE_ASSIST | 0 |
+| ND-05 | 近重复去重判定（边缘 LLM） | decision | EDGE_KNOWLEDGE_ASSIST | 0 |
 | ND-06 | 共形 p 值占质量分 accuracy 权重 0.4 | decision | — | alpha=0.1（常量，不可配置） |
 | ND-07 | 共形幻觉判定 isHallucination = pValue < alpha | decision | — | alpha=0.1（构造参数） |
-| ND-08 | 工具调用风险边缘初筛（low 即放行，fail-open） | decision | EDGE_RISK_MONITOR | 1 |
-| ND-09 | 知识结构化抽取（边缘 LLM 生成） | generation | EDGE_KNOWLEDGE_ASSIST | 1 |
-| ND-10 | 记忆摘要/蒸馏（边缘 LLM 生成） | generation | EDGE_MEMORY_ASSIST | 1 |
+| ND-08 | 工具调用风险边缘初筛（low 即放行，fail-open） | decision | EDGE_RISK_MONITOR | 0 |
+| ND-09 | 知识结构化抽取（边缘 LLM 生成） | generation | EDGE_KNOWLEDGE_ASSIST | 0 |
+| ND-10 | 记忆摘要/蒸馏（边缘 LLM 生成） | generation | EDGE_MEMORY_ASSIST | 0 |
 | ND-11 | 提示词改写/增强（LLM 生成） | generation | PROMPT_REWRITE | 未设置即开启（!off(readString("PROMPT_REWRITE"))） |
 | ND-12 | Thompson Sampling 模型路由 | scheduling | — | arms=[] 时惰性（未配置臂不参与采样） |
 | ND-13 | 上下文向量记忆层（cosine 相似度检索） | dormant | — | 无独立开关；需配置 embedding 角色模型方生效，且当前 4 个入口零调用方 |
 | ND-14 | 意识流 episodic 向量检索与向量聚类（cosine） | dormant | — | 无开关；embedding 由调用方注入，仓库内当前无调用方传入向量 |
-| ND-15 | 共享 cosine 相似度核（ND-01 / ND-13 / ND-14 复用的确定性纯函数） | kernel | — | 无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream） |
+| ND-15 | 共享 cosine 相似度核（ND-01 / ND-13 / ND-14 / ND-17 / ND-18 复用的确定性纯函数） | kernel | — | 无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream、knowledge semantic-index） |
 | ND-16 | 记忆检索可选语义层 | retrieval | MEMORY_SEMANTIC_SEARCH | 0 |
+| ND-17 | 知识库语义召回候选（余弦查询腿） | retrieval | AXIOM_EMBEDDING_CONSENT | ask（未授权即零调用：不建表、不写向量、不发起请求） |
+| ND-18 | 知识库语义混排层（max 混排 + 稳定 tie-breaker） | retrieval | AXIOM_EMBEDDING_CONSENT | ask（未授权即纯词法序） |
 <!-- END:nondeterminism-registry -->
 
 ### 四大不可替代核心
@@ -1543,7 +1545,7 @@ MCP tool: cognitive_state
 | `DRE_DB_PATH` | `"./data/dre.db"` | SQLite 数据库路径 |
 | `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | LLM API 地址（OpenAI 兼容；默认本机，可指向 Ollama / 云端） |
 | `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型（OpenAI 兼容端点可填云端模型） |
-| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向非 `127.0.0.1`/`localhost` 端点时必填，否则 `src/dre/config.ts:158` 告警；本机端点可省略） |
+| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向非 `127.0.0.1`/`localhost` 端点时必填，否则 `src/dre/config.ts` 告警；本机端点可省略） |
 | `DRE_LLM_TEMPERATURE` | `0` | 推理温度 |
 | `DRE_LLM_TOP_K` | `1` | Top-K 采样 |
 | `DRE_LLM_SEED` | `42` | 随机种子 (确定性) |

@@ -10,11 +10,18 @@
  * 处置：检索键 = 用户原始查询；embedding 只走本地，不可用降级关键词。
  * 本测试双路验证：静态（链已不存在）+ 行为（原始查询被透传），防链被重新接回。
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, afterAll } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+// mock.module 是进程级原地改写（跨文件泄漏）：在任何 mock 之前逐属性展开快照真实现，
+// 套件结束后回灌模块注册表（同 tests/consciousness.test.ts 模式；namespace 对象
+// 本身会被原地改写，必须展开为独立快照对象）。
+import * as realVaultModule from "../../src/memory/vault-manager.js";
+import * as realUnifiedSearchModule from "../../src/crawl/unified-search.js";
 
 const REPO = join(import.meta.dir, "..", "..");
+const REAL_VAULT_EXPORTS = { ...realVaultModule };
+const REAL_UNIFIED_SEARCH_EXPORTS = { ...realUnifiedSearchModule };
 const src = (rel: string) => readFileSync(join(REPO, rel), "utf-8");
 
 // ─────────────────────────────────────────────────────────
@@ -84,4 +91,11 @@ describe("retrieveKnowledge 检索键确定性", () => {
     expect(captured[0]).toBe(q);
     expect(captured.every((c) => c === q)).toBe(true);
   });
+});
+
+afterAll(() => {
+  // mock.module 是进程级原地改写：套件结束后回灌真实现，防止 VaultManager 空类与
+  // unified-search 假实现泄漏到同进程后续测试文件（2026-09-26 归一全量发现的跨文件污染源）。
+  mock.module(join(REPO, "src", "memory", "vault-manager.js"), () => REAL_VAULT_EXPORTS);
+  mock.module(join(REPO, "src", "crawl", "unified-search.js"), () => REAL_UNIFIED_SEARCH_EXPORTS);
 });

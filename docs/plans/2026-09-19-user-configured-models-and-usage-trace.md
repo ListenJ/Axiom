@@ -13,15 +13,15 @@
 
 ### 1.1 协议适配器**已存在**（这一半不用从零做）
 
-- `src/utils/api-key-store.ts:19,42` —— `adapter: ApiAdapter`，注释「adapter 字段标识 provider 使用的 API 协议」。
-- 协议取值：`openai` / `anthropic` / `gemini` / `opencode`（`api-key-store.ts:278`）。
-- `src/router/models/providers.ts:7-12` —— router 侧 `PROVIDER_CONFIG` **由 api-key-store 派生**（注释明写"唯一事实源"，杜绝双份漂移）。
+- `src/utils/api-key-store.ts` —— `adapter: ApiAdapter`，注释「adapter 字段标识 provider 使用的 API 协议」。
+- 协议取值：`openai` / `anthropic` / `gemini` / `opencode`（`api-key-store.ts`）。
+- `src/router/models/providers.ts` —— router 侧 `PROVIDER_CONFIG` **由 api-key-store 派生**（注释明写"唯一事实源"，杜绝双份漂移）。
 
 ⇒ "本地设置好对应的协议"**已有架构落点**，缺的是"**用户可自行新增一个 provider 条目**"。
 
 ### 1.2 但"新增自定义 provider"**当前不支持**（关键缺口）
 
-`src/routes/api-keys.ts:94-115` 的 `POST /api-keys`：
+`src/routes/api-keys.ts` 的 `POST /api-keys`：
 - body 确实接受 `{ provider, apiKey, baseURL }`（`:102`）；
 - **但 `:109` `if (!isKnownProvider(provider))` → 400 `Unknown provider`**（`:110-114`）。
 
@@ -30,19 +30,19 @@
 ### 1.3 siliconflow 是**深度耦合**，不是一处常量
 
 实测命中（`src/` 内，节选）：
-`src/router/models/registry.ts:201,218,375,392,460,477,494,618,671,806`（10 处模型条目）、
-`src/router/models/providers.ts:12`、`src/utils/api-key-store.ts:70-72`、`src/utils/env.ts:189`、
-`src/cli.ts:94,103,151,278`、`src/main.ts:379,385`、`src/cron/scheduler.ts:49`、
-`src/memory/bootstrap.ts:234`、`src/router/model-advisor.ts:112,208,211`、
-`src/router/dynamic-model-assigner.ts:164,176`、`src/router/reasoning-effort.ts:94`、
-`src/db/codegraph-sync.ts:140`、`src/tui/install-wizard.ts:442`、`src/router/models/types.ts:7`。
+`src/router/models/registry.ts`（10 处模型条目）、
+`src/router/models/providers.ts`、`src/utils/api-key-store.ts`、`src/utils/env.ts`、
+`src/cli.ts`、`src/main.ts`、`src/cron/scheduler.ts`、
+`src/memory/bootstrap.ts`、`src/router/model-advisor.ts`、
+`src/router/dynamic-model-assigner.ts`、`src/router/reasoning-effort.ts`、
+`src/db/codegraph-sync.ts`、`src/tui/install-wizard.ts`、`src/router/models/types.ts`。
 
 ⇒ "去掉 siliconflow 等免费模型"的影响面**远超知识库任务**，且**语义有歧义**（见 Q1），
 在 Q1 落定前**不动**（规则 0.6：范围不清即停机请求决策）。
 
 ### 1.4 token 用量追踪**已存在**（需求 4 的地基）
 
-`src/router/token-tracker.ts:1-45` —— 记录 `promptTokens / completionTokens / totalTokens`、
+`src/router/token-tracker.ts` —— 记录 `promptTokens / completionTokens / totalTokens`、
 `model / provider / role / taskType / latencyMs / success / fallbackUsed / costUsd / cacheHitTokens / cacheMissTokens / cacheHit`；
 存储独立 SQLite `./data/token-usage.db`；提供按模型/角色/时间范围的多维聚合。
 
@@ -51,21 +51,21 @@
 ### 1.5 但**轨迹里没有 token 字段**（需求 4 的真实缺口）
 
 - `src/utils/agent-trace.ts`（**72 行**）中 `grep token|Token|role|category|model` → **零命中**。
-- `src/routes/traces.ts:4-16` —— `GET /traces`（最近 50 条）与 `GET /traces/:id`，数据源即 `agent-trace.js`。
+- `src/routes/traces.ts` —— `GET /traces`（最近 50 条）与 `GET /traces/:id`，数据源即 `agent-trace.js`。
 
 ⇒ 需把 `TokenTracker` 的记录**关联到 trace**，并新增**分类**维度（分类集合待 Q3 定）。
 
 ### 1.6 设置面已有落点
 
-`src/core/settings-catalog.ts:42` `SETTINGS_CATALOG` → `src/routes/settings.ts:27` 对外暴露 `{ sections, items }`。
+`src/core/settings-catalog.ts` `SETTINGS_CATALOG` → `src/routes/settings.ts` 对外暴露 `{ sections, items }`。
 
 ### 1.7 删除 `127.0.0.1:9001` 的影响面（**小且封闭**）
 
 实测依赖方仅 3 个文件（+1 处注释）：
 - `src/local-llm/edge-embeddings.ts`（模块本体，`:14` 硬编码 `http://127.0.0.1:9001`）
-- `src/core/settings-search.ts:12`（唯一运行时消费者）
-- `tests/settings-search.test.ts`（182 行）
-- `src/utils/proxy-fetch.ts:57`（**注释**中提到该模块，非依赖）
+- `src/core/settings-search.ts`（唯一运行时消费者）
+- `tests/settings-search.test.ts`
+- `src/utils/proxy-fetch.ts`（**注释**中提到该模块，非依赖）
 
 ⇒ 删除可行，但**须按规则 4 归档**，且要决定 `settings-search` 语义腿的去向（见 Q4）。
 
@@ -73,14 +73,14 @@
 
 ### 1.8 专项审计：「api-key-store 是唯一事实源」这一自称是否成立
 
-**被审主张**（`src/router/models/providers.ts:1-6` 原文）：
+**被审主张**（`src/router/models/providers.ts` 原文）：
 > "Provider configurations — 兼容层（**唯一事实源**：src/utils/api-key-store.ts）… 启动时派生，**杜绝双份漂移**。"
 
 **裁定：不一致（该表述在系统级不成立；仅在 router 兼容层这一对关系上成立）。**
 
 **支持"部分成立"的证据**：
-- `providers.ts:11-38` 经 `getProviderConfig()` 从 api-key-store 派生，且 `getProviderConfig` 缺失时**抛错**（`:33-35`）。
-- 存在守护测试 `tests/utils/provider-config-convergence.test.ts:24-31`：遍历 `PROVIDER_CONFIG`，断言每项在 api-key-store 中存在且 `baseURL`/`apiKeyEnv` **逐字段相等**。
+- `providers.ts` 经 `getProviderConfig()` 从 api-key-store 派生，且 `getProviderConfig` 缺失时**抛错**（`:33-35`）。
+- 存在守护测试 `tests/utils/provider-config-convergence.test.ts`：遍历 `PROVIDER_CONFIG`，断言每项在 api-key-store 中存在且 `baseURL`/`apiKeyEnv` **逐字段相等**。
 
 **证伪"唯一/杜绝漂移"的证据（实测计数）**：
 - `"*_API_KEY"` 字面量在 `src/` 内的分布：`api-key-store.ts` **17** 处；其**之外**约 **90** 处，其中
@@ -88,12 +88,12 @@
   `src/utils/env.ts` 6、`src/main.ts` 6、`src/routes/models.ts` 5、`src/memory/bootstrap.ts` 4、`src/cron/scheduler.ts` 4 等。
 - provider `baseURL` 在 api-key-store 之外的硬编码：`src/cli/setup.ts` 7、`src/router/model-advisor.ts` 5、
   `src/routes/models.ts` 3、`src/cron/scheduler.ts` 3、`src/cli.ts` 3、`src/main.ts` 2、`src/core/health-checker.ts` 2 等。
-- **另有一张字段更多的独立 provider 表**：`src/router/model-advisor.ts:110-120` 持有
+- **另有一张字段更多的独立 provider 表**：`src/router/model-advisor.ts` 持有
   `{ name, baseURL, apiKeyEnv, models[], pricing }` —— 其中 `models[]`/`pricing` **是 api-key-store 没有的字段**，
   故它是"更富"的第二事实源，而非子集。
 
 **守护测试的覆盖缺口（两条，均实测）**：
-1. **单向**：`provider-config-convergence.test.ts:25` 只遍历 `PROVIDER_CONFIG`，**未**断言反向
+1. **单向**：`provider-config-convergence.test.ts` 只遍历 `PROVIDER_CONFIG`，**未**断言反向
    （api-key-store 有、router 漏）；新增 api-key-store provider 而漏加 router 名单时**不会失败**。
 2. **穷尽性无机制**：`ALL_MODEL_PROVIDERS` 原为 `: ModelProvider[]` 注解 —— 该注解把元素类型**拓宽**为
    `ModelProvider`，任何 `Exclude<ModelProvider, …>` 断言都会恒为 `never`（**恒真**）。
@@ -101,7 +101,7 @@
 
 **本次已做的修正（切片 B 的前置）**：
 - `providers.ts` 头部改为**精确表述**：说明单一事实源只覆盖**传输字段**、只在 router 兼容层成立，并列出外围多表清单。
-- 将"人工保持一致"升级为**编译期穷尽性断言**（`providers.ts:42-46`），且**必须**配合
+- 将"人工保持一致"升级为**编译期穷尽性断言**（`providers.ts`），且**必须**配合
   `as const satisfies readonly ModelProvider[]`（`:38`）——否则断言恒真（本人在验证中**先写出了恒真版本**，
   经可证伪探针发现并修正，详见 ops log）。
 - **未做**：外围约 90 处字面量的收敛（属独立 T3，见切片 B 前置）。
@@ -124,17 +124,17 @@
 
 **(2) 我上一轮的一处表述需要更正（结论不得强于证据）**
 我称轨迹"跑完就查不到"是"真实可用性缺口"，该措辞**不准确**。实测：这是 **B3-Medium 审计的有意修复**，且有测试锁定 ——
-`tests/agent-trace-bounded.test.ts:2-7` 头部即写明"审计症状：completeTrace/failTrace 不删 activeTraces 条目 → 长进程内 trace 随任务数无界增长"。
+`tests/agent-trace-bounded.test.ts` 头部即写明"审计症状：completeTrace/failTrace 不删 activeTraces 条目 → 长进程内 trace 随任务数无界增长"。
 本轮新鲜执行证据：`bun test tests/agent-trace-bounded.test.ts` → **3 pass / 0 fail**（含 `getTrace(...)` 断言为 `null`、`getAllTraces()` 增量归零）。
 ⇒ 准确定性：**这是"有界内存"与"可回看历史"之间的有意取舍**，不是疏漏。
 ⇒ **对方案 C 的硬约束：C 不得回退 B3-Medium 的修复**（内存表仍须有界），持久化只能落在**磁盘侧**。
 
 **(3) 关键资产：`real-usage` JSONL 采集管线（可复用，勿重建）**
-- `src/agent-evals/real-usage.ts:29` `REAL_USAGE_PATH` = `data/real-usage-traces.jsonl`（env 可覆盖）。
+- `src/agent-evals/real-usage.ts` `REAL_USAGE_PATH` = `data/real-usage-traces.jsonl`（env 可覆盖）。
 - `:96-120` `captureRealUsageTrace()` —— 批处理队列 + per-target 串行写链，避免并发交错。
 - `:133-151` `loadRealUsageTraces()` —— 逐行解析、坏行告警跳过。
-- **已接线生产**：`src/agent-evals/auto-evolve.ts:4` 注明"captureRealUsageTrace **已接线 chat 三处** → data/real-usage-traces.jsonl"。
-- 记录形状：`RealUsageTrace extends TaskTrace`（`self-evolve/types.ts:68-73` = `{id, task, plan?, success}`）+ `{model?, latencyMs?, timestamp?, source?, feedback?}`。
+- **已接线生产**：`src/agent-evals/auto-evolve.ts` 注明"captureRealUsageTrace **已接线 chat 三处** → data/real-usage-traces.jsonl"。
+- 记录形状：`RealUsageTrace extends TaskTrace`（`self-evolve/types.ts` = `{id, task, plan?, success}`）+ `{model?, latencyMs?, timestamp?, source?, feedback?}`。
 
 **(4) ⚠️ 兼容性陷阱（若误用会导致"静默无记录"）**
 `loadRealUsageTraces` 的收行条件是 **`:143` `typeof obj.id === "string" && typeof obj.task === "string"`**。
@@ -208,7 +208,7 @@
   同时**必须**为文件增加**保留上限**（现有 `real-usage` 为纯追加、无上限；不回退内存有界的同时，不能把泄漏搬到磁盘）。
   保留策略需与 §4 的未决项一并定（按条数/按体积/按时间）。
 - **A4｜taskId 贯通到 token 记录**：`TokenUsageRecord` 增加显式 `taskId?`；由调用方**显式传入**
-  （需改 `src/router/model-router.ts:164-183` 的 `meta` 形态 —— 属接口变更，改前回 Plan 报备）。
+  （需改 `src/router/model-router.ts` 的 `meta` 形态 —— 属接口变更，改前回 Plan 报备）。
 - **A5｜读取面**：`GET /traces/:id` 在轨迹已出表时，改为从 JSONL + TokenTracker 组装
   「步骤（若有）+ 按 category 的 token 用量」；`GET /traces` 暴露历史列表（受 A3 上限约束）。
 - 产出：A2/A3/A4/A5 各自的红→绿用例；"已完成任务可回看其分类用量"可被端到端验证。
@@ -220,7 +220,7 @@
 
 **切片 B｜自定义 provider（写入同一事实源，Q2）**
 - 在 `api-key-store.ts` 增加用户自定义条目：**协议（openai/anthropic/gemini/opencode）+ base_url + api key + 模型名 + 思考等级 + 上下文窗口**。
-- 放开 `src/routes/api-keys.ts:109` 的 `isKnownProvider` 限制（改为受校验的"已知 ∪ 用户自定义"）。
+- 放开 `src/routes/api-keys.ts` 的 `isKnownProvider` 限制（改为受校验的"已知 ∪ 用户自定义"）。
 - 产出：用户可自行添加模型端点，且**不产生第二个事实源**。
 
 **切片 C｜按 Q1=(a) 移除 siliconflow 等免费模型**
@@ -233,12 +233,12 @@
 **切片 D｜删除 `127.0.0.1:9001`（Q4）** —— 🟡 **部分完成（2026-09-20，随知识库语义层切片 1 执行）**
 - ✅ **embedding 侧已完成**：按规则 4 归档 `src/local-llm/edge-embeddings.ts` → `archive/edge-embeddings-removal-2026-09-20/`，
   登记 `archive/ARCHIVE-LOG.md`（并显式推翻 2026-09-18 归档里"保留不动"的结论），随后 `git rm`。
-- ⚠️ **9001 并未从仓库消失**：`src/local-llm/edge-client.ts:29` 仍**默认** `http://127.0.0.1:9001` —— 那是**边缘 LLM 通道**，
-  2026-09-18 归档记录明确「保留不动 …edge-client.ts（LLM 调用通道）」。用户的删除指令指向 `edge-embeddings.ts:14`，
+- ⚠️ **9001 并未从仓库消失**：`src/local-llm/edge-client.ts` 仍**默认** `http://127.0.0.1:9001` —— 那是**边缘 LLM 通道**，
+  2026-09-18 归档记录明确「保留不动 …edge-client.ts（LLM 调用通道）」。用户的删除指令指向 `edge-embeddings.ts`，
   故本次**只删 embedding 侧**；**LLM 通道是否也弃用 9001 需用户单独裁定**（当前默认关闭：`isEdgeEnabled()` 未设置即关）。
-- `src/core/settings-search.ts:12` 的语义腿：按 §2.1 的分层策略处置（先退化为词法；同义词扩展层见切片 F）。
+- `src/core/settings-search.ts` 的语义腿：按 §2.1 的分层策略处置（先退化为词法；同义词扩展层见切片 F）。
 - **必须**输出 §2.1 末的影响披露文案（区分召回质量 vs 延迟）。
-- 同步 `tests/settings-search.test.ts`、`src/utils/proxy-fetch.ts:57` 注释与相关文档。
+- 同步 `tests/settings-search.test.ts`、`src/utils/proxy-fetch.ts` 注释与相关文档。
 
 **切片 E｜文档口径收敛**
 - 与 `docs/plans/2026-09-19-knowledge-semantic-layer.md` 切片 1 合并执行，避免两轮文档漂移。
@@ -276,7 +276,7 @@
   **当前磁盘仍是纯追加、无上限** —— 未做前**不得**宣称"磁盘已有界"。
 - **未做（A3c）**：`chat.ts` 的 4 个采集点（`:171`/`:241`/`:694`/`:741`）**尚未传 `sessionId`**
   ⇒ 现阶段所有记录都按**独立单元**（`o:<id>`）参与，**会话原子与豁免实际不生效**。
-  必须在 A3c 把 `normalizedSessionId`（`chat.ts:111`，经 `src/db/session-store.ts:29 normalizeSessionId`）传入后才算"联合会话处理"落地。
+  必须在 A3c 把 `normalizedSessionId`（`chat.ts`，经 `src/db/session-store.ts normalizeSessionId`）传入后才算"联合会话处理"落地。
 - **未做（A3d）**：策略默认值的 env 化（`maxBytes`/`retentionMs`/`activeWindowMs`/`minKeepRecords`）。
   纯函数只接受 policy 入参，**默认值尚未接线**，故现在**不可**说"可通过环境变量配置"。
 
@@ -304,7 +304,7 @@
               ┌─ 副作用边界：原子重写文件 ─┐
 ```
 ⇒ **只要 signals 相同，policy 必相同**；调用方**必须记录 signals**，一次裁剪决策即可完整复现。
-⇒ 复用既有先例：磁盘探测见 `src/core/health-checker.ts:232-233`（`statfsSync`）。
+⇒ 复用既有先例：磁盘探测见 `src/core/health-checker.ts`（`statfsSync`）。
 
 **自适应规则（具名常量集中在 `POLICY_BOUNDS`，不散落魔法数）**
 

@@ -75,6 +75,8 @@ export function startVramProbe(opts?: VramProbeOptions): () => void {
 
   void tick();
   const timer = setInterval(() => void tick(), intervalMs);
+  // 后台维护类定时器（2026-09-21 unref 门禁）：不把短命进程钉住；常驻服务不受影响。
+  timer.unref();
 
   return () => {
     stopped = true;

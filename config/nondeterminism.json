@@ -8,8 +8,8 @@
   "defaults": {
     "isEdgeEnabled": {
       "file": "src/local-llm/edge-client.ts",
-      "value": "1",
-      "$note": "env 未设置即视为开启：isEdgeEnabled() → readString(flag, \"1\")"
+      "value": "0",
+      "$note": "env 未设置即视为关闭（2026-09-26 归一采 ku 线默认关闭策略）：isEdgeEnabled() → readString(flag) 无默认值，仅显式授权（\"1\"/\"true\"/\"yes\" 等非零值）放行"
     }
   },
   "entries": [
@@ -32,7 +32,7 @@
       "role": "decision",
       "switch": "EDGE_PROMPT_OPTIMIZER",
       "switchFile": "src/agents/intent-enhancer.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/services/chat.ts",
       "provenance": false,
@@ -45,7 +45,7 @@
       "role": "decision",
       "switch": "EDGE_KNOWLEDGE_ASSIST",
       "switchFile": "src/knowledge/edge-assist.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/services/knowledge.ts",
       "provenance": false,
@@ -58,7 +58,7 @@
       "role": "decision",
       "switch": "EDGE_KNOWLEDGE_ASSIST",
       "switchFile": "src/knowledge/edge-assist.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/knowledge/collector.ts",
       "provenance": false,
@@ -71,7 +71,7 @@
       "role": "decision",
       "switch": "EDGE_KNOWLEDGE_ASSIST",
       "switchFile": "src/knowledge/edge-assist.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/knowledge/collector.ts",
       "provenance": false,
@@ -110,7 +110,7 @@
       "role": "decision",
       "switch": "EDGE_RISK_MONITOR",
       "switchFile": "src/agents/risk-monitor.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/mcp/tool-registry.ts",
       "provenance": false,
@@ -123,7 +123,7 @@
       "role": "generation",
       "switch": "EDGE_KNOWLEDGE_ASSIST",
       "switchFile": "src/knowledge/edge-assist.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/knowledge/pipeline.ts",
       "provenance": true,
@@ -136,7 +136,7 @@
       "role": "generation",
       "switch": "EDGE_MEMORY_ASSIST",
       "switchFile": "src/memory/distiller.ts",
-      "default": "1",
+      "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/memory/edge-assist.ts",
       "provenance": false,
@@ -197,11 +197,11 @@
     },
     {
       "id": "ND-15",
-      "name": "共享 cosine 相似度核（ND-01 / ND-13 / ND-14 复用的确定性纯函数）",
+      "name": "共享 cosine 相似度核（ND-01 / ND-13 / ND-14 / ND-17 / ND-18 复用的确定性纯函数）",
       "role": "kernel",
       "switch": null,
       "switchFile": "src/utils/math.ts",
-      "default": "无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream）",
+      "default": "无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream、knowledge semantic-index）",
       "defaultVia": "presence",
       "codeFile": "src/utils/math.ts",
       "provenance": false,
@@ -220,6 +220,32 @@
       "provenance": true,
       "provenanceField": "semanticScore",
       "fallback": "纯关键词 search()（fail-open）"
+    },
+    {
+      "id": "ND-17",
+      "name": "知识库语义召回候选（余弦查询腿）",
+      "role": "retrieval",
+      "switch": "AXIOM_EMBEDDING_CONSENT",
+      "switchFile": "src/knowledge/embedding-consent.ts",
+      "default": "ask（未授权即零调用：不建表、不写向量、不发起请求）",
+      "defaultVia": "presence",
+      "codeFile": "src/knowledge/semantic-index.ts",
+      "provenance": true,
+      "provenanceField": "semanticScore（候选 score=余弦，最终排序由 rankWithSemanticRecall 裁定）",
+      "fallback": "无候选 → 纯词法检索"
+    },
+    {
+      "id": "ND-18",
+      "name": "知识库语义混排层（max 混排 + 稳定 tie-breaker）",
+      "role": "retrieval",
+      "switch": "AXIOM_EMBEDDING_CONSENT",
+      "switchFile": "src/knowledge/embedding-consent.ts",
+      "default": "ask（未授权即纯词法序）",
+      "defaultVia": "presence",
+      "codeFile": "src/knowledge/semantic-layer.ts",
+      "provenance": true,
+      "provenanceField": "semanticScore",
+      "fallback": "确定性词法序"
     }
   ]
 }

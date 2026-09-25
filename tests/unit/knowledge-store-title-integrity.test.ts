@@ -10,12 +10,17 @@
  *
  * 本测试在 vault 模块边界注入 fake（契约同真实 vault：存在且未 overwrite 则抛）。
  */
-import { describe, it, expect, mock } from "bun:test";
+import { describe, it, expect, mock, afterAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+// mock.module 是进程级原地改写（跨文件泄漏）：在任何 mock 之前逐属性展开快照真实现，
+// 套件结束后回灌模块注册表（同 tests/consciousness.test.ts 模式；namespace 对象
+// 本身会被原地改写，必须展开为独立快照对象）。
+import * as realVaultModule from "../../src/memory/vault-manager.js";
 
 const REPO = join(import.meta.dir, "..", "..");
+const REAL_VAULT_EXPORTS = { ...realVaultModule };
 
 const written: Array<{ path: string; overwrite: boolean }> = [];
 const fakeVault = {
@@ -97,4 +102,10 @@ describe("A6-3: 重复摄取同一标题幂等（不抛异常）", () => {
       cleanup();
     }
   });
+});
+
+afterAll(() => {
+  // mock.module 是进程级原地改写：套件结束后回灌真实现，防止 VaultManager 空类
+  // 泄漏到同进程后续测试文件（2026-09-26 归一全量发现的跨文件污染源）。
+  mock.module(join(REPO, "src", "memory", "vault-manager.js"), () => REAL_VAULT_EXPORTS);
 });

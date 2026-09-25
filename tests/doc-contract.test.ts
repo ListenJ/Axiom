@@ -175,8 +175,14 @@ describe("D0 口径扫描范围自证", () => {
     //   docs/reviews/2026-09-25-memory-tree.md / -memory-knowledge-unification.md（记忆与统一性审计）
     //   docs/reviews/2026-09-25-audit-round2.md / -round3.md / -round4.md（轮 2-4 深审）
     // 均为证据/评审性质：保留问题原话与实测读数，不得被口径规则改写。
+    // 55→58（2026-09-26，逐件点名）：ku 线归一（knowledge-unify-2026-09-17）并入 4 件评审/盘点证据件：
+    //   docs/reviews/2026-09-17-independent-full-audit.md（ku 线独立全量审计）
+    //   docs/reviews/2026-09-18-audit-claims-verification.md（ku 线审计主张核验）
+    //   docs/reviews/2026-09-19-shared-mutable-state-inventory.md（ku 线共享可变状态盘点）
+    //   docs/reviews/2026-09-20-env-sensitive-assertions-inventory.md（ku 线 env 敏感断言盘点）
+    // 均为证据/盘点性质：保留问题原话与实测读数，不得被口径规则改写。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(55);
+    expect(exempted.length).toBeLessThanOrEqual(58);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 
@@ -434,8 +440,6 @@ describe("D3 文档引用存活", () => {
       "docs/BROWSER-AGENT-STRATEGY-2026-08-09.md",
       "docs/COMPREHENSIVE-GUIDE.md",
       "docs/LIMITATIONS.md",
-      // ADR-007：C-0 删掉的 src/utils/path-safety.ts 在文内仍被叙述，故按墓碑口径点名。
-      "docs/decisions/ADR-007-safefs-single-source-and-configurable-root.md",
       "docs/functional-check-2026-08-16-sensenova.md",
       // 2026-08-11 前端修缮计划引用的 chat-panels/rightbar 随 Chat 页移除（2026-09-25），墓碑点名。
       "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
@@ -501,11 +505,15 @@ describe("D5 非确定组件登记与代码一致", () => {
     expect(problems).toEqual([]);
   });
 
-  it("isEdgeEnabled 默认开启这一事实被登记锁定", () => {
+  it("isEdgeEnabled 默认关闭这一事实被登记锁定（2026-09-26 归一：ku 线默认关闭策略胜出）", () => {
     const helper = registry.defaults.isEdgeEnabled;
-    // 通用 helper：默认值写在 readString(flag, "1") —— 未设置即视为开启
-    expect(read(helper.file)).toMatch(/readString\(flag,\s*"1"\)/);
-    expect(helper.value).toBe("1");
+    // 通用 helper：readString(flag) 不带默认值 —— 未设置即 "" → false（默认关闭）；
+    // 仅显式授权（"1"/"true"/"yes" 等非零值）放行。旧行为 readString(flag, "1")（未设置即开启）已随归一废除，
+    // 与 LIMITATIONS 边缘 LLM 条目、tests/unit/llm-default-off-policy.test.ts 一致。
+    const src = read(helper.file);
+    expect(src).toMatch(/const v = readString\(flag\)\.trim\(\)\.toLowerCase\(\)/);
+    expect(src).toMatch(/return v !== "" && v !== "0" && v !== "false" && v !== "no"/);
+    expect(helper.value).toBe("0");
   });
 });
 

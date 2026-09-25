@@ -4802,3 +4802,13 @@
   ③B0（外围约 90 处 provider 字面量收敛）仍未做。
 - **不做项**：未改 provider 注册/校验语义；未给自定义 provider 加"区域变体"概念；未动前端。
 - **Commit**：`dbfefd7`
+
+## 2026-09-26 — chore(migration): Windows→Linux 迁移前的归一 WIP 检查点推送 Gitea
+
+- **任务**：本机即将转为 Linux 系统，把当前工作树的全部未提交改动固化并推送 `internal`，使新机器 `git clone` 后可续做主干归一。分级 **T2**（检查点提交+推送，无业务语义变更）。
+- **改动清单**：工作树 25 个已修改文件（11 docs/config + 2 源文件 `src/dre/llm/client.ts`/`src/dre/runtime/scheduler.ts` + 12 tests）+ 本条 ops log。均为 `docs/superpowers/plans/2026-09-26-trunk-unification-ku-merge.md` 执行序第 4–5 步（ku 线归一裁决 + 门禁复跑）的进行中产物，非本轮新增改动。
+- **验证结果（实测，如实）**：`bunx tsc --noEmit` → **exit 2，1 条报错**：`tests/unit/adaptive-proxy-exit.test.ts(83,11) TS2339 Property 'skip' does not exist on type '(err?: unknown) => void'`；已核对 `git show HEAD:` 版本该行不存在 ⇒ 报错来自工作区 WIP，**本轮不修**（属计划第 5 步收尾）。`bun test` 全量、doc-contract、audit:runtime 未跑——理由：检查点目的为不丢工作，门禁红已知且登记。
+- **推送面**：`internal codex/main-unify-2026-09-26`（新分支，HEAD 比 `internal/main` `0ba2cb45` 超集 +319 提交、落后 0）、`internal codex/laya-audit-chain-2026-09-25`（原领先远端 2 提交）、`git lfs push --all`（100 个 LFS 基线对象）。**未动 `internal/main`**：计划第 6 步要求全部门禁绿后才 `push internal HEAD:main`，当前 tsc 红。
+- **迁移缺口（git 拉不到，已登记待用户裁决）**：`.env`（规则 11 禁入库）、`deploy/`（含 `LINUX-SMOKE.md`、`systemd/`、`reverse-proxy.md`，被 `.gitignore:149` 整目录忽略，仅 `deploy/pm2/*` 曾强加入库）、根 `Dockerfile`/`Dockerfile.lightpanda`/`docker-compose.yml`（`.gitignore` "不上传 GitHub" 段）、`native/Cargo.lock`、`docs/reports/`（被 `reports/` 通配连带忽略，规则 5 证据链接指向它）、`reports/*.md` 审计产物、`data/*.db|json|jsonl` 运行时状态、`archive/`(230M)、`axiom-memory/`(122M)、`openclaw-memory/`(33M)、`*.traineddata`、`src-tauri/`。
+- **后续项**：①`docs/operations-log.md` 本月条目 297 条 > 规则 5 的 200 条阈值，需按 `docs/operations-log/2026-09.md` 拆分（与迁移无关，未混入本提交）；②`C:\Users\18336\.axiom\axiom-secrets\` 与 `C:\Users\18336\.qoder\` 记忆不在仓库内，须随迁移单独导出。
+- **Commit**：`PLACEHOLDER-MIGRATION-CHECKPOINT`

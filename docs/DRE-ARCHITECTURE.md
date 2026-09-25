@@ -10,7 +10,7 @@
 - **可追溯**：认知闭环每步产生类型化 trace；突触写操作全链 verify hash；意识流 trace hash。
 - **可回放**：固定种子 + 事件日志（EventBus 保留最近 1000 条）。
 - **防幻觉**：三段甄别（预筛 → 网络校验 → LLM 自推理）；反思教训写入长期记忆；Vault 原件双写校验。
-- **硬件无关**：内存准入由调度器以进程堆占用（`process.memoryUsage().heapUsed`）对照可配置预算（`setBudget({ maxMemoryMB })`）判定，不探测具体硬件（`src/dre/runtime/scheduler.ts:50,65,76`）。
+- **硬件无关**：内存准入由调度器以进程堆占用（`process.memoryUsage().heapUsed`）对照可配置预算（`setBudget({ maxMemoryMB })`）判定，不探测具体硬件（`src/dre/runtime/scheduler.ts`）。
 
 ## 二、分层架构（判断，依据模块职责）
 

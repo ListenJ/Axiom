@@ -22,6 +22,13 @@ process.env.REAL_USAGE_PATH = JSONL;
 
 const { handleTraceDetail, handleTraceList } = await import("../../src/routes/traces.js");
 const { getTokenTracker } = await import("../../src/router/token-tracker.js");
+// 2026-09-26 归一修复：getTokenTracker() 是惰性单例，绑定**首次调用时**的 TOKEN_USAGE_DB。
+// bun test 先加载全部测试文件再执行 —— 若不加这一行，执行阶段的其他文件（或本文件
+// beforeAll 之前的任何路径）可能先触发单例创建（当时 env 未设 → 绑定生产
+// ./data/token-usage.db），record+flush 把测试数据写进生产库并跨全量运行滚动累积
+// （实测生产库残留 3 次运行 × 2 条）。在加载阶段（env 已设、其余文件尚未执行）抢先
+// 初始化，强制单例绑定本文件的临时库。
+getTokenTracker();
 const { captureRealUsageTrace } = await import("../../src/agent-evals/real-usage.js");
 const { startTrace, addStep } = await import("../../src/utils/agent-trace.js");
 
@@ -46,7 +53,13 @@ function makeCtx(pathname: string) {
   } as never;
 }
 
-const TASK_ID = "task-a5-completed";
+const TASK_ID = `task-a5-completed-${process.pid}-${Date.now()}`;
+// 2026-09-26 归一修复：taskId 运行唯一化。getTokenTracker() 是惰性单例，绑定**首次调用时**
+// 的 TOKEN_USAGE_DB —— bun test 的文件加载/执行时序下，先前文件（routes/settings-search、
+// stats 等）可能已条件性触发单例创建（当时 env 未设 → 绑生产 ./data/token-usage.db），
+// 导致本文件的 record+flush 落入先前绑定的库并跨运行滚动累积（实测生产库残留 3 次运行
+// × 2 条；加载阶段抢先初始化也只能降低而非消除该时序依赖）。taskId 每次进程唯一后，
+// 断言永远只读本进程写入的记录 —— 不论单例最终绑定哪个库，读数恒为 120。
 
 beforeAll(async () => {
   const tracker = getTokenTracker();

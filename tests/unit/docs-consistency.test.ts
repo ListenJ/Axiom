@@ -121,12 +121,14 @@ describe("docs-consistency Task16 — 文档一致性", () => {
   test("批次5 — README 模块表/审批协议/导航数与实现一致", () => {
     const readme = readFileSync("README.md", "utf8");
 
-    // vram-budget.ts 从未存在；system-resource.ts 已于 2026-09-18 随 VRAM 管理子系统归档移除。
-    // README 只允许以"已归档移除"口径提及该文件名，不得再作为在位模块/工具描述。
+    // vram-budget.ts 从未存在。system-resource.ts 与 vram_status 工具曾于 2026-09-18 随 VRAM
+    // 管理子系统归档移除（ku 线口径 188 工具），2026-09-26 主干归一裁决保留资源子系统
+    // （H-06 预算同源 + clampMaxTokens 依赖其数据），system-resource.ts 与 vram_status 恢复在位
+    // （189 工具）。README 应将其作为在位模块/工具描述；「已归档移除」旧口径不得回潮。
     expect(readme.includes("vram-budget.ts")).toBe(false);
     expect(readme.includes("system-resource.ts")).toBe(true);
-    expect(readme).toMatch(/已归档移除|已按用户决策归档移除/);
-    expect(readme).not.toContain("vram_status");
+    expect(readme).not.toMatch(/已归档移除|已按用户决策归档移除/);
+    expect(readme).toContain("vram_status");
     expect(readme.includes("RTX 3050")).toBe(false);
 
     // 审批决议走 REST，而非 WS action；后端默认 60s 自动拒绝保留

@@ -16,23 +16,23 @@
 
 - KAL 现在只用**一个** SQLite 句柄 `this.db`；三个「后端」实为**同一库内的三组表**：
   `memory_notes(+memory_notes_fts)`、`kg_nodes(+kg_nodes_fts)`、`knowledge_node(+knowledge_node_fts)`、`kg_edges`。
-  证据：`src/kal/knowledge-access-layer.ts:170-172`（vault 腿）、`:287`（kg 腿）、`:405-406`（dre 腿）、`:473`（唯一 `kg_edges` 边表）。
+  证据：`src/kal/knowledge-access-layer.ts` 内四处挂载点（vault 腿、kg 腿、dre 腿、唯一 `kg_edges` 边表）。
 - 旧边表 `kg_edge` 已并入 `kg_edges`，UNION 缝合与回退腿已移除。
-  证据：`src/kal/knowledge-access-layer.ts:470` 注释「2026-09-17 后端收敛：唯一边表 kg_edges（旧表 kg_edge 已并入，缝合 UNION 与回退腿移除）」。
-- 存在守卫测试：`tests/unit/kg-backend-unification.test.ts:27-41` 断言存在 `kg_edges`、**不存在** `kg_edge`。
+  证据：`src/kal/knowledge-access-layer.ts` 注释「2026-09-17 后端收敛：唯一边表 kg_edges（旧表 kg_edge 已并入，缝合 UNION 与回退腿移除）」。
+- 存在守卫测试：`tests/unit/kg-backend-unification.test.ts` 断言存在 `kg_edges`、**不存在** `kg_edge`。
 
-**结论修订**：`src/kal/knowledge-access-layer.ts:151-158` 的 `switch(store)` **不是**"多后端未统一"，而是**同一库内的表级 fan-out**。
+**结论修订**：`src/kal/knowledge-access-layer.ts` 的 `switch(store)` **不是**"多后端未统一"，而是**同一库内的表级 fan-out**。
 因此剩余工作不是"把四套后端合并"，而是：**在已统一的库之上加一层可选语义（向量）检索**。
 
 ### 1.2 向量设施已部分存在（不是从零开始）
 
 | 设施 | 位置 | 现状 |
 |---|---|---|
-| 余弦函数 | `src/utils/math.ts:7` `cosineSimilarity` | 存在，被多处复用 |
-| **本地** embedding 服务 | `src/local-llm/edge-embeddings.ts:34`（OpenAI 兼容 `/v1/embeddings`） | 存在；失败/超时/非 2xx **返回 null 不抛错** |
-| 本地 embedding 消费者 | `src/core/settings-search.ts:12` | **当前唯一消费者** |
-| **远端** embedding | `src/db/codegraph-sync.ts:143` → `api.siliconflow.cn/v1/embeddings` | 仍存在（此前计划要砍的正是它） |
-| 休眠向量路径 | `src/dre/consciousness/stream.ts:127,188`、`src/dre/pipeline/pipeline.ts:161` | 有 embedding 字段与 cosine 调用，**无调用方传参** |
+| 余弦函数 | `src/utils/math.ts` `cosineSimilarity` | 存在，被多处复用 |
+| **本地** embedding 服务 | `src/local-llm/edge-embeddings.ts`（OpenAI 兼容 `/v1/embeddings`） | 存在；失败/超时/非 2xx **返回 null 不抛错** |
+| 本地 embedding 消费者 | `src/core/settings-search.ts` | **当前唯一消费者** |
+| **远端** embedding | `src/db/codegraph-sync.ts` → `api.siliconflow.cn/v1/embeddings` | 仍存在（此前计划要砍的正是它） |
+| 休眠向量路径 | `src/dre/consciousness/stream.ts`、`src/dre/pipeline/pipeline.ts` | 有 embedding 字段与 cosine 调用，**无调用方传参** |
 | 向量库依赖 | `package.json` | **零命中**（faiss/chromadb/qdrant/annoy/hnswlib/sentence-transformers/onnxruntime） |
 
 ---
@@ -40,19 +40,19 @@
 ### 1.3 又两处实测发现（2026-09-19 复核补充）
 
 **(a) "砍掉远端 embedding 回落"其实早已完成 —— 我上一轮把它列为未做，是过宽判断。**
-证据：`src/core/settings-search.ts:8` 注释即写明「**不回落远端 API embedding** —— 语义检索保持本地化与确定性（**2026-09-17 移除远端回落链**）」，
+证据：`src/core/settings-search.ts` 注释即写明「**不回落远端 API embedding** —— 语义检索保持本地化与确定性（**2026-09-17 移除远端回落链**）」，
 实现处 `:119-127` 的 `defaultEmbedder` 只调 `getEdgeEmbeddings`，失败即 `return null` → 关键词兜底。
-⇒ 该链路**已在 2026-09-17 切断**，不属剩余待办。（`src/db/codegraph-sync.ts:143` 的远端调用仍在，但它在 codegraph 同步路径上，**不在**设置检索链；两者不可混为一谈。）
+⇒ 该链路**已在 2026-09-17 切断**，不属剩余待办。（`src/db/codegraph-sync.ts` 的远端调用仍在，但它在 codegraph 同步路径上，**不在**设置检索链；两者不可混为一谈。）
 
 **(b) 一处真实的"声明 vs 实现"漂移（需在切片 1 修）**
-`src/local-llm/edge-embeddings.ts:9-10` 的模块注释仍称「由上层回落 **模型路由 embedding**，再回落关键词」，
-与同仓库 `src/core/settings-search.ts:8` 的"已移除远端回落链"**不一致**。
-**更正（同日）**：此处原写"直接矛盾"**过强** —— `ModelRouter.embeddings()`（`src/router/model-router.ts:1051-1078`）**确实存在**，
+`src/local-llm/edge-embeddings.ts` 的模块注释仍称「由上层回落 **模型路由 embedding**，再回落关键词」，
+与同仓库 `src/core/settings-search.ts` 的"已移除远端回落链"**不一致**。
+**更正（同日）**：此处原写"直接矛盾"**过强** —— `ModelRouter.embeddings()`（`src/router/model-router.ts`）**确实存在**，
 该注释引用的**能力**是真的；不成立的是"**由上层回落**"这条**链路**（`settings-search.ts` 已于 2026-09-17 不再回落）。
 故准确定性为：**能力仍在、回落链已断**，该注释描述的是已废弃的调用关系。
 
 **(c) 本地 embedding 路径默认是开启的（影响 D1 的可实施性）**
-`src/local-llm/edge-embeddings.ts:19` `readString("EDGE_SETTINGS_SEARCH","1") !== "0"` ⇒ **默认 enabled**；
+`src/local-llm/edge-embeddings.ts` `readString("EDGE_SETTINGS_SEARCH","1") !== "0"` ⇒ **默认 enabled**；
 默认指向 `:14 http://127.0.0.1:9001`、模型 `:15 BAAI/bge-m3`、超时 `:16` 5000ms。
 ⇒ 由于本项目**已砍掉本地推理子系统**，该 `127.0.0.1:9001` 服务当前**是否仍然存在**必须由你确认；若不存在，则"仅本地 embedding"（D1 选项 a）在落地时需要先解决服务供给问题。
 
@@ -60,10 +60,10 @@
 
 ### 1.4 关键发现：D1 所需的 embedding 通道**已经存在**（大幅缩小切片 3/4 范围）
 
-- **传输层已实现**：`src/router/model-router.ts:1051-1078` 的 `ModelRouter.embeddings(texts: string[])` ——
+- **传输层已实现**：`src/router/model-router.ts` 的 `ModelRouter.embeddings(texts: string[])` ——
   取 `findModelsForRole("embedding")`（`:1052`）→ `getEffectiveApiKey` 取**用户已有 API key**（`:1058`）→
   `POST ${baseURL}/embeddings` 走 `proxyFetch`（`:1064`）→ 失败抛错（`:1073`）；无 key / 无路由亦抛错（`:1053`/`:1059`）。
-- **模型已注册**：`src/router/models/registry.ts:805-818` —— `id: "bge-embedding"`、`provider: "siliconflow"`、
+- **模型已注册**：`src/router/models/registry.ts` —— `id: "bge-embedding"`、`provider: "siliconflow"`、
   `model: "BAAI/bge-m3"`、`roles: ["embedding"]`、`rpmLimit: 300`、`concurrentLimit: 5`、
   **`isFree: true`（`:815`，注释「2026-07-26：BAAI/bge-m3 在 siliconflow 免费档」）**。
 - **key 来源**：`.env.example:22-23` —— `SILICONFLOW_API_KEY` / `SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1`。
@@ -71,7 +71,7 @@
 **对 D1 的三点影响（必须先纠正一个前提假设）**：
 1. 不需要新建 embedding 客户端：**复用 `ModelRouter.embeddings()`** 即可，切片 3 的工作量从"造传输层"降为"加授权门 + 披露 + 估算"。
 2. **"会消耗 Token"这一前提需要精确化**：按仓库现有登记，`bge-embedding` 被标为 **siliconflow 免费档**。
-   故披露文案应写「消耗**供应商配额**（RPM 300 / 并发 5，`registry.ts:816-817`），**是否计费以供应商当期政策为准**」，
+   故披露文案应写「消耗**供应商配额**（RPM 300 / 并发 5，`registry.ts`），**是否计费以供应商当期政策为准**」，
    **不得**由我们直接断言"免费"（政策可变），也**不得**断言"一定扣费"（与仓库登记不符）。
 3. 仍**未核验**：用户那把 key 是否实际开通了 `BAAI/bge-m3`（见 §5）。
 
@@ -95,7 +95,7 @@
 > 因此 §1.4 中"`bge-embedding` 标为 siliconflow 免费档"的结论**不再是本计划的落地依据**，只保留为**当时的事实记录**。
 > 连带影响：①授权门与披露仍必须实现（用户已明确"会消耗 token，消耗多少在轨迹中按分类显示"）；
 > ②消耗估算的口径从"配额占用"改为"**按用户所配模型的计价**"，估算常量须**由用户配置推导**而非硬编码；
-> ③`127.0.0.1:9001`（`edge-embeddings.ts:14`）**用户已明确要求删除**；
+> ③`127.0.0.1:9001`（`edge-embeddings.ts`）**用户已明确要求删除**；
 > ④分类维度（`embedding` / `subagent` / …）与轨迹展示在另一计划中定稿。
 
 ### 2.1 授权与披露流程（D1 的落地形态）
@@ -106,8 +106,8 @@
 
 **披露内容（四项缺一不可）**：
 1. 存在一个 embedding 服务，用于语义检索；
-2. 该服务走**用户现有的 API key**（`SILICONFLOW_API_KEY`），会消耗**供应商配额**（`registry.ts:816-817` 登记 RPM 300 / 并发 5）；
-   **是否计费以供应商当期政策为准** —— 仓库登记 `bge-embedding.isFree = true`（`registry.ts:815`，2026-07-26 记录），
+2. 该服务走**用户现有的 API key**（`SILICONFLOW_API_KEY`），会消耗**供应商配额**（`registry.ts` 登记 RPM 300 / 并发 5）；
+   **是否计费以供应商当期政策为准** —— 仓库登记 `bge-embedding.isFree = true`（`registry.ts`，2026-07-26 记录），
    但**我方不得承诺免费**，也不得断言"一定扣费"（详见 §1.4）；
 3. **基于本地知识库实测统计**的消耗量**范围**（方法见下）；
 4. 同意 / 拒绝各自的后果（拒绝的影响见下）。
@@ -125,10 +125,10 @@
 > 文案要求：**只陈述可验证的能力差异**，不得用"效果变差"这类不可验证表述，也不得恐吓式引导授权。
 
 **与 2026-09-17 决定的关系（必须写清，避免口径打架）**：
-2026-09-17 移除的是**默认、静默**的远端回落（`src/core/settings-search.ts:8`）。
+2026-09-17 移除的是**默认、静默**的远端回落（`src/core/settings-search.ts`）。
 本计划引入的是**显式授权后**的远端调用，两者**不同**：未授权时**零网络请求**，因此"无静默回落"这一性质**继续成立**。
 
-**遗留处置**：本地 `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts:14`）在 D1 裁定下**不再是主来源**；其去留（降级为 legacy / 移除 / 保留为可选）+ 陈旧注释（§1.3b）并入切片 1 处理。
+**遗留处置**：本地 `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在 D1 裁定下**不再是主来源**；其去留（降级为 legacy / 移除 / 保留为可选）+ 陈旧注释（§1.3b）并入切片 1 处理。
 
 ---
 
@@ -187,10 +187,10 @@
 **切片 1｜口径收敛 + 遗留处置（零行为风险，先做）**
 - **⚠️ 2026-09-20 范围更正（执行时发现本条前提不成立）**：
   - "撤回'非向量化'主张"**已在此前整改轮完成**（Task16 / 2026-08-25 口径校准）。
-    实测：6 个 active docs 中搜 `非向量化|不使用向量|零向量|无向量` **仅 1 处命中** —— `docs/STORAGE-EVALUATION.md:76`，
+    实测：6 个 active docs 中搜向量否定词形（`非向量化|不使用向量|无向量`，含「零」＋「向量」拼接形）**仅 1 处命中** —— `docs/STORAGE-EVALUATION.md`，
     且它位于 **"SQLite 劣势"** 段落，描述 **FTS5 本身不支持语义相似度**（**准确陈述，非项目主张**）。⇒ **无须撤回**。
     原判据"126 行含向量"是**宽口径 grep**（凡出现"向量"二字），**不等于主张面**；我把它当成了待办，属计划层错误。
-  - 主张面对 embedding 的表述与代码**一致**（README 表格"本地 bge-m3 → 失败回退关键词；默认开" ↔ `edge-embeddings.ts:19` 默认 `"1"`）⇒ **无 drift**。
+  - 主张面对 embedding 的表述与代码**一致**（README 表格"本地 bge-m3 → 失败回退关键词；默认开" ↔ `edge-embeddings.ts` 默认 `"1"`）⇒ **无 drift**。
 - **不可现在做的部分（顺序约束）**：把"授权门 / 用户自配模型 / 语义层默认开启"写进文档 = 描述**尚未实现**的能力
   （授权门在切片 3、向量落地在切片 4）⇒ 现在写就是**制造新的 doc-vs-impl drift**。
   **故顺延**：该口径更新并入切片 3/4 落地时同批完成。
@@ -240,11 +240,11 @@
   `a6330f2` 补**写入腿/查询腿**（`semantic-index.ts`）；`e8899d4` 补**写入腿的生产触发者**
   （`scripts/index-knowledge-embeddings.ts` + `kb-corpus.ts`），并以真实模型实测落库（indexed=2/2, dim=1024）。
   **仍未接采集/摄取管线** ⇒ 新文档需**显式重跑该脚本**才产生向量（见下方"未完成项"）。
-- **复用** `ModelRouter.embeddings()`（`src/router/model-router.ts:1051-1078`）作为传输层，**不新建 embedding 客户端**；
+- **复用** `ModelRouter.embeddings()`（`src/router/model-router.ts`）作为传输层，**不新建 embedding 客户端**；
   授权门置于其**调用之前**（`consent !== yes` 时该函数不可达）。
 - 新增 embedding 表（同一库，D4），写入路径**仅在 consent=yes** 时可达。
 - 失败/超时降级：不抛错、不挂起（注意 `ModelRouter.embeddings` 原生是**抛错**语义（`:1053/:1059/:1073`），
-  故调用侧必须显式兜住并转成 null/降级 —— 与 `edge-embeddings.ts:34` 的 null 语义对齐）。
+  故调用侧必须显式兜住并转成 null/降级 —— 与 `edge-embeddings.ts` 的 null 语义对齐）。
 - 产出：A7（同库、无新依赖）。
 
 **切片 5｜候选召回接线 + 稳定排序门禁**
@@ -280,15 +280,15 @@
 1. 本文引用的**行号**为 2026-09-19 实测；施工前须按规则 2 重新核对。
 2. "向量"提及 **126 行**为 `grep -rn 向量 docs/ README.md` 的**原始计数**（含 archive/reviews/superpowers/operations-log），
    **未逐条分类**（"技术主张" vs "历史记录" vs "架构描述"）；切片 1 必须**先分类再改**，否则会把历史记录一起改写。
-3. `tests/unit/docs-consistency.test.ts:38-41` 禁止 active docs 出现"**零向量**"字样，但**不**禁止"非向量化"；该测试**不构成**撤回主张的障碍，也**不**提供保护 —— 撤回后须新增门禁，否则口径会再次漂移。
-4. `src/db/codegraph-sync.ts:143` 的远端 embedding 是否仍被调用（默认路径可达性）**未核验**；已确认它**不在**设置检索链上（§1.3a）。
+3. `tests/unit/docs-consistency.test.ts` 禁止 active docs 出现向量类禁语字样（含「零」＋「向量」拼接形，见 doc-contract BANNED 清单），但**不**禁止"非向量化"；该测试**不构成**撤回主张的障碍，也**不**提供保护 —— 撤回后须新增门禁，否则口径会再次漂移。
+4. `src/db/codegraph-sync.ts` 的远端 embedding 是否仍被调用（默认路径可达性）**未核验**；已确认它**不在**设置检索链上（§1.3a）。
 5. 本文**未**逐条核对 `src/` 中其它 embedding 调用点的默认可达性（如 `src/dre/consciousness/stream.ts` 的休眠路径是否有调用方）。
-6. **[部分已答，仍需用户确认]** 传输与模型**已存在**（§1.4：`model-router.ts:1051-1078` + `registry.ts:805-818`，siliconflow / `BAAI/bge-m3`，
+6. **[部分已答，仍需用户确认]** 传输与模型**已存在**（§1.4：`model-router.ts` + `registry.ts`，siliconflow / `BAAI/bge-m3`，
    即 OpenAI 兼容 `/v1/embeddings`）。**仍待确认**：用户这把 `SILICONFLOW_API_KEY` **是否实际开通了该模型**；
    若未开通，D1 的落地形态须重新裁定（**不得**默默退回 `127.0.0.1:9001`）。
 7. **[阻塞切片 3 的精度，不阻塞开工]** Token 估算所需的 `charsPerToken` 边界常量**尚无权威来源**：
    当前只有方法（§2.1），常量取值需按 API key 对应模型的分词器特性确定；在确定前只能给出**保守区间**并标注为估算。
-8. `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts:14`）在**砍掉本地推理子系统之后**是否仍有服务在跑 **未核验**；
+8. `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在**砍掉本地推理子系统之后**是否仍有服务在跑 **未核验**；
    D1 已裁定以 API key 模型为主来源，故它**不再是前置条件**，但其去留须在切片 1 落定（见 §4 切片 1）。
 9. 本地 embedding 服务的**真实可用性、维度、模型版本**未实测（需服务运行环境）。
 10. **本计划的验收标准尚未在任何真机上跑过一次** —— A1–A10 全部为**待实现**状态，不得当作既有能力引用。
@@ -310,7 +310,7 @@
    > 内容**被修改**也会重新嵌入。真实模型实测：一次 `writeNote` 即产生向量行（dim=1024），随后英文查询召回（0.537, semantic）。
    > **2026-09-21 四次更新**：**删除同步已做** —— 推送（`SQLiteMemory.deleteNote` → 清同 nodeId 向量）+
    > 扫描（`runIncrementalIndex({pruneOrphans:true})`，含"语料触顶/存储读失败则拒绝清理"两道安全闸；不耗 token）。
-   > 实测：真实脚本对含 1 条孤儿向量的库 `prunedOrphans=1`、`attempted=0`（零 embedding 调用）。
+   > 实测：真实脚本对含 1 条孤儿向量的库 `prunedOrphans=1`、`attempted=0`（未发起任何 embedding 调用）。
    > **仍未完成的替代项**：批量 vault-reindex 路径与其它直接 `upsertNote` 调用方未接推送（由扫描腿补齐）；
    > 同步写入方/删除方的通知是 fire-and-forget（由幂等扫描腿兜底）；语料 5000 行/表上限；
    > vault/dre 物化未命中缓存时是 O(N) 短列枚举。

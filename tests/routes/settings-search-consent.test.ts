@@ -44,7 +44,7 @@ function makeCtx(body: unknown) {
 }
 
 describe("POST /settings/search · embedding 授权门", () => {
-  it("未授权（默认 ask）⇒ **零 embedding 调用**，且返回确定性关键词结果", async () => {
+  it("未授权（默认 ask）⇒ **不发起任何 embedding 调用**，且返回确定性关键词结果", async () => {
     let calls = 0;
     const spy = spyOn(router, "embeddings").mockImplementation(async (texts: string[]) => {
       calls++;

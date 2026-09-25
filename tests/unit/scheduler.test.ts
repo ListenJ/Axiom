@@ -1,13 +1,26 @@
 /**
  * Task 6: scheduler memory throttling H-M2-05（2026-09-18 改造）
  *
- * 内存准入数据源由 ResourceBudgetManager（已随 VRAM 管理子系统移除）改为
- * 进程堆占用；此处用 setBudget({ maxMemoryMB }) 直接驱动准入边界。
+ * 内存准入：maxMemoryMB 的权威源是 ResourceBudgetManager（H-06 同源同步；
+ * 2026-09-26 归一恢复 —— ku 线曾移除同源并改为纯堆占用），currentMemoryMB
+ * 反映进程堆占用。此处用 setBudget({ maxMemoryMB }) 直接驱动准入边界
+ * （经 H-06 同步写回权威源）。
  * 修复前症状：hasResources 恒 true / currentMemoryMB 恒 0 → 限流形同虚设。
  */
 import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import { scheduler } from "../../src/dre/runtime/scheduler";
+import { getResourceBudgetManager } from "../../src/dre/system-resource";
 import { logger } from "../../src/utils/logger";
+
+// 2026-09-26 归一：setBudget({ maxMemoryMB }) 经 H-06 同源同步写回 ResourceBudgetManager
+//（权威源），用例结束后必须恢复，避免污染同进程后续测试文件的预算断言。
+let originalMaxMemory = getResourceBudgetManager().getResource().maxMemory;
+beforeEach(() => {
+  originalMaxMemory = getResourceBudgetManager().getResource().maxMemory;
+});
+afterEach(() => {
+  getResourceBudgetManager().updateResource({ maxMemory: originalMaxMemory });
+});
 
 describe("scheduler memory throttling H-M2-05", () => {
   beforeEach(() => {
@@ -58,9 +71,9 @@ describe("scheduler memory throttling H-M2-05", () => {
     expect(status.budget.currentMemoryMB).toBeGreaterThan(0);
   });
 
-  test("maxMemoryMB 默认为 4096 且经 setBudget 可配置", () => {
+  test("maxMemoryMB 与 ResourceBudgetManager 同源（H-06，2026-09-26 归一恢复）且经 setBudget 可配置", () => {
     scheduler.reset();
-    expect(scheduler.getStatus().budget.maxMemoryMB).toBe(4096);
+    expect(scheduler.getStatus().budget.maxMemoryMB).toBe(getResourceBudgetManager().getResource().maxMemory);
     scheduler.setBudget({ maxMemoryMB: 8192 });
     expect(scheduler.getStatus().budget.maxMemoryMB).toBe(8192);
   });

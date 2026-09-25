@@ -276,8 +276,8 @@ describe("Architecture Integrity", () => {
     expect(violations).toHaveLength(0);
   });
 
-  // ── Test 9: no directory imports from > 8 other directories ────────
-  it("no top-level directory imports from more than 8 other directories", () => {
+  // ── Test 9: no directory imports from > 9 other directories ────────
+  it("no top-level directory imports from more than 9 other directories", () => {
     const files = walkDir(srcDir);
     const tops = new Set<string>();
     for (const f of files) {
@@ -286,11 +286,13 @@ describe("Architecture Integrity", () => {
     }
     // Integration modules are exempt — they bridge multiple subsystems by design
     const EXEMPT = new Set(["mcp", "routes", "agents"]);
+    // 2026-09-26 主干归一：services 编排层新增对 knowledge 层的合法依赖（ku 线知识语义索引
+    // 装配 knowledge-embedding-index / knowledge-index-hook），fan-in 上限 8→9。
     const violations: string[] = [];
     for (const t of tops) {
       if (EXEMPT.has(t)) continue;
       const imps = dirImports(t);
-      if (imps.size > 8) {
+      if (imps.size > 9) {
         violations.push(`${t}: ${imps.size} -> ${Array.from(imps).sort().join(", ")}`);
       }
     }

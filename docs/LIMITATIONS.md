@@ -92,7 +92,7 @@
 
 ## 5. 确定性边界逐模块披露（G-04）
 
-> **G-04 硬约束**（`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md:16`）：
+> **G-04 硬约束**（`docs/superpowers/plans/2026-08-21-audit-remediation-playbook.md`）：
 > 若代码涉及 `Date.now()/Math.random()/Map` 遍历顺序，必须在 `docs/LIMITATIONS.md` 明确披露不确定性边界；不得宣称"确定性"。
 > 本节即该项披露。**本文档此前仅有"将在对应章节按 G-04 披露"的占位承诺，长期未兑现**，本节为补齐。
 
@@ -113,10 +113,10 @@
 ### 5.2 全量普查结果（非抽样，可复现）
 
 普查覆盖 `src/dre/**` 与 `src/knowledge/**` 全部 `.ts` 文件，**先剥离 `//` 与块注释**再匹配
-（首轮未剥注释时把 `knowledge-port.ts:261` 的**说明性注释**误计为调用，已修正；这也是本节数字与其它文档不一致时的口径来源）。
+（首轮未剥注释时把 `knowledge-port.ts` 的**说明性注释**误计为调用，已修正；这也是本节数字与其它文档不一致时的口径来源）。
 
 **计数口径**：「命中文件数」= 该模式命中过的去重文件数；「命中处数」= 命中**行数**
-（同一行出现多次只计 1，例如 `context-engine.ts:240` 一行内有 2 次 `Date.now()` → 计 1 处）；
+（同一行出现多次只计 1，例如 `context-engine.ts` 一行内有 2 次 `Date.now()` → 计 1 处）；
 「合计」的文件数为各模式的**并集**，不逐行相加。
 
 | 不确定源 | 命中文件数 | 命中处数（= 命中行数） |
@@ -176,8 +176,8 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 
 **① 排序路径普遍显式补齐 tie-breaker，Map 插入序未泄漏进排序结果 —— 这是做得对的部分。**
 
-`src/dre/retrieval/deterministic-retrieval-engine.ts:493`、`:778`、`src/dre/runtime/atom-engine.ts:286`、
-`src/dre/runtime/knowledge-network.ts:491`、`src/dre/runtime/world-state.ts:224` 五处均为
+`src/dre/retrieval/deterministic-retrieval-engine.ts`（2 处）、`src/dre/runtime/atom-engine.ts`、
+`src/dre/runtime/knowledge-network.ts`、`src/dre/runtime/world-state.ts` 五处均为
 `sort((a, b) => b.score - a.score || a.id.localeCompare(b.id))`，且代码注释显式写明
 「使顺序不依赖 Map 插入历史（同一输入两次调用顺序完全一致 —— 确定性底线）」。
 
@@ -189,11 +189,11 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 **③ 原为唯一缺 tie-breaker 的排序点 —— 已于 2026-09-18 修复（提交 `1411cd9` 之后的本轮）。**
 
 修复前为 `.sort((a, b) => b.fusionScore - a.fusionScore)`（无次级排序键）；
-其输入经由 `groups`（`Map`，`:204`）按 `results` 数组插入序展开（`:166`、`:205`），
+其输入经由 `groups`（`Map`）按 `results` 数组插入序展开，
 而 `Array.prototype.sort` 在现代 JS 中稳定，故**同分项的相对顺序取决于调用方传入的 `results` 顺序** ——
 与 ① 中的 5 处相比属**实现不一致**而非设计取舍。
 
-现为（`:181`）：
+现为：
 
 ```ts
 .sort((a, b) => b.fusionScore - a.fusionScore || a.id.localeCompare(b.id))
@@ -207,32 +207,32 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 
 **④ 响应体普遍内嵌耗时字段，字节级"同输入同输出"不成立。**
 
-`deterministic-retrieval-engine.ts:266,287,322,621`（`latencyMs`）、`src/dre/port/knowledge-port.ts:367,372`
-（`latencyMs`）、`src/dre/pipeline/cognitive-pipeline.ts:33`（`durationMs`）。
+`deterministic-retrieval-engine.ts`（`latencyMs`）、`src/dre/port/knowledge-port.ts`
+（`latencyMs`）、`src/dre/pipeline/cognitive-pipeline.ts`（`durationMs`）。
 即使语义结果完全一致，两次调用的字节序列也不同。
 
 **⑤ 自动生成的实体 ID 含时间戳与随机片段，逐次运行不同。**
 
-`src/dre/reasoning/graph.ts:104,120,148,176,319`（`前缀-Date.now()-randomUUID().slice(0,8)`）、
-`src/dre/runtime/scheduler.ts:118`、`src/dre/runtime/event-bus.ts:105,112`、
-`src/dre/runtime/knowledge-network.ts:164,338,368,397,605`、`src/dre/runtime/rule-engine.ts:90`、
-`src/dre/mental-model/pool.ts:270,323`、`src/dre/actor/system.ts:184,198,300,373,447`、
-`src/dre/pipeline/task-graph.ts:303`、`src/dre/runtime/atom-engine.ts:90`、`src/dre/port/types.ts:183`。
+`src/dre/reasoning/graph.ts`（`前缀-Date.now()-randomUUID().slice(0,8)`）、
+`src/dre/runtime/scheduler.ts`、`src/dre/runtime/event-bus.ts`、
+`src/dre/runtime/knowledge-network.ts`、`src/dre/runtime/rule-engine.ts`、
+`src/dre/mental-model/pool.ts`、`src/dre/actor/system.ts`、
+`src/dre/pipeline/task-graph.ts`、`src/dre/runtime/atom-engine.ts`、`src/dre/port/types.ts`。
 这些 ID 会进入各自模块的输出。
 
 **⑥ 重试时序非确定（有意为之）。**
 
-`src/dre/port/types.ts:172`：`computeBackoff` 的抖动 `(Math.random() * 2 - 1) * jitterDelta`。
+`src/dre/port/types.ts`：`computeBackoff` 的抖动 `(Math.random() * 2 - 1) * jitterDelta`。
 目的是防惊群，但意味着**重试发生时刻逐次不同**，可观测的时间序列不可复现。
 
 **⑦ 检索结果的缓存新鲜度依赖墙上时钟。**
 
-`src/dre/retrieval/deterministic-retrieval-engine.ts:545,562`：`queryCache` 以 `Date.now()` 计 TTL。
+`src/dre/retrieval/deterministic-retrieval-engine.ts`：`queryCache` 以 `Date.now()` 计 TTL。
 同一 query 在数据变更后的短时间内可能返回缓存（旧）或重算（新）结果 —— 与**时间**相关而非与输入相关。
 
 **⑧ 已修复 1 处（本轮）：知识节点 ID 改为内容寻址。**
 
-`src/dre/port/knowledge-port.ts:261` 原为时间戳+随机，现为 `deriveNodeId()`
+`src/dre/port/knowledge-port.ts` 原为时间戳+随机，现为 `deriveNodeId()`
 （`sha256(标题 + content + domain)` 前 16 hex）。同内容恒得同 ID，并同时修复了重复摄取产生重复节点的问题。
 该处已从 §5.2 的命中中消失（普查可复核）。
 
@@ -241,9 +241,9 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 | # | 声明 | 裁定 | 依据 |
 | --- | --- | --- | --- |
 | ① | `run()` 与 `POST /dre/run` 为"**纯确定性**" | **部分一致** | 检索/排序/合并的**语义结果**在同一 locale 下可复现（5.3①），但响应内嵌耗时（5.3④）、实体 ID 随机（5.3⑤）、重试时序随机（5.3⑥）、缓存与时间相关（5.3⑦）；`hybrid-fusion` 缺 tie-breaker 已于本轮修复（5.3③，TDD 复现 2 fail → 0 fail） |
-| ② | 「LLM 仅作为确定性管道的补全器」 | **部分一致** | 结构上成立（LLM 分支带 `DRE_LLM_SEED=42`，`AXIOM-ARCHITECTURE.md:1521`），但 LLM 补全分支的输出**不保证**同输入同输出（模型侧无确定性保证），仅管道侧确定 |
+| ② | 「LLM 仅作为确定性管道的补全器」 | **部分一致** | 结构上成立（LLM 分支带 `DRE_LLM_SEED=42`，`AXIOM-ARCHITECTURE.md`），但 LLM 补全分支的输出**不保证**同输入同输出（模型侧无确定性保证），仅管道侧确定 |
 | ③ | 本项目"确定性"定位（README/DRE） | **部分一致** | 成立范围：**入参 → 语义结果**（排序/合并/打分）在同机同 locale 下可复现。不成立范围：**字节级响应**、**跨 locale/ICU/运行时版本**、**实体 ID**、**重试时序**、**缓存新鲜度**、**任何含 LLM 的分支** |
-| ④ | 路由层非确定"属设计" | **一致** | `docs/AXIOM-ARCHITECTURE.md:1293` 已显式排除，且 `src/router/thompson-router.ts:157-182` 确为采样实现 —— 声明与实现方向一致 |
+| ④ | 路由层非确定"属设计" | **一致** | `docs/AXIOM-ARCHITECTURE.md` 已显式排除，且 `src/router/thompson-router.ts` 确为采样实现 —— 声明与实现方向一致 |
 
 **给使用者的可操作口径**：本项目可承诺的是
 「**给定同一份已入库数据、同一运行环境（locale/ICU/运行时版本一致）、忽略响应中的时间戳与随机 ID 字段时，

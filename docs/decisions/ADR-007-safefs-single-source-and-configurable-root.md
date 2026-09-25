@@ -3,7 +3,7 @@
 - 日期：2026-09-23 ｜ 状态：**提案，待批准** ｜ 决策人：项目经理（用户）
 - 背景：`docs/SECURITY-MEASURES.md` §2.7.5 的 C 组（"写盘未经 `safeFs`"）。本轮勘察实测出的三件事**改变了问题形状**，故先记录事实再记决定：
   1. 文档称 6 个裸写点，**实测 4 个** —— `src/memory/knowledge-graph-builder.ts` 对 `fs.`/`writeFile`/`mkdir`/`Database`/`INSERT` 零命中，该声明不可复现。
-  2. `src/utils/safe-fs.ts` 头注释（L4-L11）声称"两份互不复用的路径守卫"已由它终结，但 **`isPathSafe()`（`src/utils/path-safety.ts`，现已删除）至今仍是一套独立实现** <!-- doc-caliber:absent: src/utils/path-safety.ts -->（自做 `path.relative(cwd,…)` + `startsWith("..")` + 自有 realpath 与父目录 realpath）。`src/mcp/tools/filesystem.ts` 头部那条注释本身也确认："utils/path-safety.ts 仍在 docker-sandbox 的挂载白名单里使用"。实测收敛面极小：**全仓（`src/` + `tests/`）只有 1 处 import** —— 在 `src/sandbox/docker-sandbox.ts` 的 import 区，调用点 1 处 —— `assertMountDirAllowed` 里；同文件导出的 `resolvePath` **零消费者**（`src/agent-evals/real-usage.ts` 里那个同名符号是它自己的局部函数）；且 `tests/` 下**没有任何测试 import 过 `path-safety`** ⇒ 第二份守卫目前处于无自身测试的状态。
+  2. `src/utils/safe-fs.ts` 头注释（L4-L11）声称"两份互不复用的路径守卫"已由它终结，但 **`isPathSafe()`（`src/utils/path-safety.ts`，C-0 时已删除；2026-09-26 归一以新实现回归，见文末归一裁决）至今仍是一套独立实现**（自做 `path.relative(cwd,…)` + `startsWith("..")` + 自有 realpath 与父目录 realpath）。`src/mcp/tools/filesystem.ts` 头部那条注释本身也确认："utils/path-safety.ts 仍在 docker-sandbox 的挂载白名单里使用"。实测收敛面极小：**全仓（`src/` + `tests/`）只有 1 处 import** —— 在 `src/sandbox/docker-sandbox.ts` 的 import 区，调用点 1 处 —— `assertMountDirAllowed` 里；同文件导出的 `resolvePath` **零消费者**（`src/agent-evals/real-usage.ts` 里那个同名符号是它自己的局部函数）；且 `tests/` 下**没有任何测试 import 过 `path-safety`** ⇒ 第二份守卫目前处于无自身测试的状态。
   2b. 两份文件**各自声称自己是唯一来源**：`path-safety.ts` 文件头写"唯一围栏语义源"、并写"工具层不各自发明第二套围栏"；`safe-fs.ts` 文件头写"文件系统特权的唯一执行点"，而其头部注释块正是在叙述"原有两份互不复用的守卫"如何被终结。三个声明互不自洽 —— 这是文档层面的口径事故，C-0 完成后应随之收敛（`filesystem.ts` 那句"与本工具无关"的注释也一并退休）。
   3. 落点 env（`OBSIDIAN_VAULT_PATH=./axiom-memory`、`DATABASE_PATH=./data/agent.db`、`skillDirRel`）默认 cwd 相对，但都是**可被运维改成任意绝对路径的普通 env**，且无 `AXIOM_HOME` 一类收口项 ⇒ `safeFs`"根固定 `process.cwd()`、roots 只收窄"与真实部署不兼容。
 
@@ -11,7 +11,7 @@
 
 把 C 拆成三刀，**顺序即依赖顺序**：
 
-- **C-0 收敛第二份守卫（不引入任何新抽象）**：`assertMountDirAllowed` 里的挂载栅栏改走 `safeFs.authorizePath`；`src/utils/path-safety.ts` 整体下线（两个导出均无其他消费者）。 <!-- doc-caliber:absent: src/utils/path-safety.ts -->
+- **C-0 收敛第二份守卫（不引入任何新抽象）**：`assertMountDirAllowed` 里的挂载栅栏改走 `safeFs.authorizePath`；`src/utils/path-safety.ts` 整体下线（两个导出均无其他消费者）。
   - **清单方向已核**：`path-safety.ts` 的 4 条 `DENIED_SEGMENTS` 是 `permissions.ts` 锚点清单的**真子集** —— `.env`、`.git`、`data/*.db`、`data/model-config.json` 四条在 `EXECUTION_ANCHORS` 里都有对应项；而 `permissions.ts` 另有 `.ssh`/`sudoers`/`crontab`/`systemd`/`authorized_keys`/`id_rsa`/`.axiom\/axiom-secrets`/`ld.so.preload`/`.github/workflows` 等约 10 项它没有。⇒ **切换只会更严，不会放松**。
   - **唯一真实行为差异（必须在 C-0 内显式裁决）**：`path-safety.ts` 的 `isPathSafe` 在"目标与其父目录都无法 realpath"时**保守放行（fail-open）**，注释写明理由是"新建文件属合法场景"；而 `safe-fs.ts` 的 `realAncestor` 逐跳锚定是 fail-closed 方向。docker 挂载目录**允许尚不存在** ⇒ 直接切换可能把合法的新目录判拒。处置：要么在 C-0 内为该场景保留一条显式的"不存在即按解析后路径判定"分支并写测试锁住，要么改成"拒绝 + 上层创建后再校验"，二者都要留证据，**不得靠"统一了"当作理由略过**。
 - **C-1 `safeFsFor(policy)` 薄工厂 + 4 个写点绑定**：工厂只接受根政策，内部转调 `authorizePath` / `decideCapability`，**不得含任何自己的路径判断**；落点根取自该功能**已有的** env，缺省仍为 cwd ⇒ 合法部署下行为不变。
@@ -49,7 +49,7 @@
 
 1. **"唯一真实行为差异是 fail-open"这句错了。** 用 12 条语料实跑三侧判定（`isPathSafe` / `authorizePath(fs.read)` / `authorizePath(fs.write)`）：
    **结论不一致只有 2 条，且方向全部是 safe-fs 更严** —— `<cwd>/.ssh` 与 `<cwd>/.axiom/axiom-secrets` 旧实现**放行**、单源后由 `EXECUTION_ANCHORS` 里的 `.ssh` 与 `.axiom/axiom-secrets` 两条锚点拦下；
-   其余 10 条（含"根内不存在的单层/多层目录"）三侧一致。⇒ `src/utils/path-safety.ts` 那处 fail-open **不构成迁移障碍**， <!-- doc-caliber:absent: src/utils/path-safety.ts -->
+   其余 10 条（含"根内不存在的单层/多层目录"）三侧一致。⇒ `src/utils/path-safety.ts` 那处 fail-open **不构成迁移障碍**，
    safe-fs 的 `realAncestor()` 在整条链都不存在时返回 null 并跳过 realpath 复核，两侧对"尚不存在的路径"行为相同。C-0 因此**不需要额外分支**。
    能力取 `fs.read` 的依据是该挂载本身是只读的（`dockerSandbox.execute` 拼 `-v ${mountDir}:/workspace:ro` 那行），不是随手挑的。
 2. **"全仓第二份守卫只剩 docker 一处"这句也错了，实际是三份。** 施工时按 `realpathSync` / `startsWith("..")` 反查发现：
@@ -57,7 +57,7 @@
    |---|---|---|---|
    | `withinAny()` | `src/utils/safe-fs.ts` | 9 个文件（权威） | 权威清单本身（14 条 `anchor()`） |
    | `isWithinAnyRoot()` | `src/knowledge/document-ingest.ts` | 1（`assertReadableFile`） | 另有 `INGEST_DENIED_SEGMENTS`（`.env`/`.git` 2 条）——**第三份敏感段清单**，且是 permissions 的子集 |
-   | `isPathSafe()` | path-safety.ts（已删除，见本 ADR 上文） | — | **本 ADR C-0 已删除**（归档 `archive/safefs-single-source-2026-09-23/`） |
+   | `isPathSafe()` | path-safety.ts（C-0 时已删除；2026-09-26 归一随文件回归并恢复判定实现） | 1（`src/sandbox/execution-guard.ts`，ku 沙箱统一层） | **`isPathSafe` 判定已随归一回退并在册**（归一裁决保留 ku 沙箱统一层的现役消费者，见文末归一裁决；2026-09-23 旧实现归档 `archive/safefs-single-source-2026-09-23/`） |
    | `escapesBase()` | `src/utils/platform.ts` | **0（只有自身测试引用）** | 无清单，纯判定 |
 
    ⇒ 两处修正结论：**C-0 只完成 1/3**；`document-ingest` 那份**不能并进 C-0**，因为它的 roots 是
@@ -95,3 +95,15 @@ C-1 原写"落点根取自该功能已有的 env，缺省仍为 cwd ⇒ 合法�
 | **P-3 维持现状** | 4 个写点继续裸 `fs`，只登记 | 收紧面不增；§2.7.5 的 C 组条目继续挂着 |
 
 推荐 **P-1**：它不放宽任何不变式，且把"合法的外部落点"变成显式配置而非隐式豁免；代价是一次配置核查与测试夹具改造，都可验证、可回滚。
+
+## 归一裁决（2026-09-26，主干归一合并 ku 线）
+
+ku 线（knowledge-unify-2026-09-17）在 `src/utils/path-safety.ts` 独立发展出一份 containment 原语 `isWithinBase(base, target)`，
+`src/sandbox/execution-guard.ts` 等 13+ 文件依赖它。归一裁决：**文件回归，且随文件一并恢复 `isPathSafe` 判定实现**
+（cwd 围栏 + 敏感段拒绝 + symlink realpath 校验；ku 线从未实现过第二份敏感路径清单，其清单语义仍是 permissions 锚点的子集）。
+`src/sandbox/execution-guard.ts`（其 `execution-guard` 内的值围栏分支）是 `isPathSafe` 的现役消费者（ku 沙箱统一层），这是合并产生的**新事实**：
+与本 ADR C-0 的「`isPathSafe` 判定下线」相反，作为登记的归一结构变更记录在案；C-0 的其余实质
+（挂载栅栏走 `authorizePath`、`safe-fs` 仍是 I/O 特权唯一执行点）不受影响；上文"现已删除"等叙述按 2026-09-23 当时事实保留。
+文内原有的三处墓碑注释哨兵（HTML 注释形态，指向本文件路径的反向断言）随之移除 —— D3 墓碑断言以"文件存在于工作树"为准，文件复活后墓碑失效。
+单源原则不变：权威判定仍在 `src/utils/permissions.ts`（锚点清单）与 `src/utils/safe-fs.ts`（I/O 点）；
+`path-safety.ts` 不含任何敏感段清单，不得再长出第二份清单（三条机器判据之结构门继续适用）。

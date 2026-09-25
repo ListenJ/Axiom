@@ -70,11 +70,12 @@ describe("generateConstrained 拒绝采样（temp0 空转修复）", () => {
     expect(result.verdict).toBe("accept");
   });
 
-  it("静态断言：maxTokens 默认 2048（512 已移除；资源预算钳制已随 VRAM 子系统移除）", () => {
+  it("静态断言：maxTokens 默认 2048（512 已移除；clampMaxTokens 预算钳制于 2026-09-26 归一随资源子系统恢复）", () => {
     const source = readFileSync(join(import.meta.dir, "../src/dre/llm/client.ts"), "utf8");
     expect(source).toContain("maxTokens: 2048");
     expect(source).not.toContain("maxTokens: 512");
-    // 2026-09-18：clampMaxTokens / 资源预算二次钳制随 system-resource.ts 一并移除
-    expect(source).not.toContain("clampMaxTokens");
+    // 2026-09-18：clampMaxTokens / 资源预算二次钳制曾随 system-resource.ts 一并移除（ku 线口径）；
+    // 2026-09-26 主干归一裁决保留资源子系统（H-06 同源同步 + canRun 阻断依赖其数据），双层钳制恢复
+    expect(source).toContain("clampMaxTokens");
   });
 });
