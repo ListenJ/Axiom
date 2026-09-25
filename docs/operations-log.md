@@ -2440,4 +2440,4 @@
 - **验证结果**：单测 35 pass/0 fail；architecture-integrity 25/25、doc-contract（含 D0 新口径）+ env 门 + 单测合并 97 pass/0 fail；tsc --noEmit 零错。
 - **偏差与未做**：Laya 3 条 AUTO 仅是处置决定记录，实际砍除（归档分支 + git rm）待人批准后按规则 4/9 另行施工；P4/P5/P7 交人；深审主体（入口链细读、dre/、router/）在轮 2。
 - **回滚**：laya-triage.ts 类型改动向前兼容（choice 增必填 instructions/criteria——旧 spec 均为 noul 不受影响）；其余为新增文档/测试，整体 revert 即回滚。
-- **Commit**：`<待回填>`
+- **Commit**：8aac4d2c
