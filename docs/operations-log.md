@@ -2492,4 +2492,4 @@
 - **验证结果**：semantic-layer+backend 单测 6/0；全门 148/0（memory+arch+doc-contract+env+laya+audit-chain 21 文件）；audit:runtime 16/16；tsc 零错。活体：端点未起（http=000）时 vault:search 0.64s 完成、纯 fts5-match 路径（本地 ECONNREFUSED 即刻 fail-open）；.env 已置 MEMORY_SEMANTIC_SEARCH=1，用户起 bge-m3 端点后语义增强自动生效。
 - **偏差与未做**：chat 重路由（U1）仍待裁决；VaultManager 自身连接未并入 backend（文件/watcher 生命周期独立，WAL 同库并发安全——已在 backend.ts 头注释如实划界）；embeddings_cache 首启全库嵌入 183 篇（分块 32）。
 - **回滚**：全部为新增文件/可选参数/新表；revert 即回滚，embeddings_cache 可 DROP。
-- **Commit**：`<待回填>`
+- **Commit**：291f7db5
