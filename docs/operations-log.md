@@ -4831,4 +4831,4 @@
 - **核验**：逐单元包内文件数与源侧 `find` 计数**全等**（4965/71105/3374/408/15039/1/4）；抽查回解 sha256 与源相同；u1 解出后 `git rev-parse` 得 tip `d54f87d7`、`fsck --dangling` 得 59 条 ⇒ 悬空提交随归档一并钉住。**两条假红判据点名更正**：首轮 `u5/u6b` 报 MISMATCH、`u6` 报 SKIP，原因是随机行号越界、相对单元路径在 `cd` 后失效、条目 `./` 前缀未映射到正确源根——非数据不匹配；确定性取点复跑后三单元全部 OK（已追加登记进 `verify.log`）。
 - **旧归档判定**：`D:\Axiom-from-linux-20260922\`（916M）**需保留**。实测其 git/LFS 面已被 Gitea 完整覆盖（bundle 75 head 全在现行 ref 可达集，唯一 head 0；LFS 105↔105 双向差集 0），但数据面**独有且无第二份**：载荷 `model-outputs` 28,780 个文件名与现行 71,066 个交集为 0、抽样 8 件在仓库与 `D:\data` 均无同名、Linux 期 6 个轮转 `agent.log*`（66M）不在现行 `data/logs/`、`qoder-projects.tar.gz` 186 件是旧机会话转录；且源机已退役，该目录即唯一副本。
 - **未决/后续**：①该 916M 是否纳入 `E:\Axiom` 归档（待用户裁定）；②`adaptive-proxy-exit.test.ts:83` 的 tsc 红未修；③`bun test` 串行全量本轮未跑；④ops log 本月 297 条 > 200 阈值待按月拆分。
-- **Commit**：`PLACEHOLDER-ARCHIVE7`
+- **Commit**：`73e45d91`（已推送，按规则 9 以本记录维护提交回填）
