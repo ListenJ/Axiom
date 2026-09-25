@@ -4822,3 +4822,13 @@
 - **门禁（实测）**：doc-contract **35 pass / 0 fail**、audit:runtime **16 通过 / 0 警告 / 0 失败**、architecture-integrity **25 pass / 0 fail**；`bunx tsc --noEmit` 仍为**唯一已知红** `tests/unit/adaptive-proxy-exit.test.ts:83`（上一条已登记，本轮不修）。`bun test` 串行全量未跑——理由同上一条（检查点，门禁红已定位且登记）。
 - **登记不改的副作用**：`tests/doc-contract.test.ts` 的 `LOCAL_ONLY_DOC_DIRS` 注释把 `docs/reports/` 描述为"gitignore 命中且 `git ls-files` 为 0"，本提交后该实测前提不再成立；豁免按路径前缀生效（D12 实测仍绿），故不改测试，留作后续核验项。
 - **Commit**：`3e26e48b`（已推送，按规则 9 以本记录维护提交回填，非 amend）
+
+## 2026-09-26 — chore(migration): E:\Axiom 数据载荷归档 7 单元 + 旧 from-linux 归档必要性判定
+
+- **任务**：本机转 Linux 前，把 git 带不走的运行时状态、记忆库与凭据归档到独立卷并核验完整。分级 **T3**（数据运维 + 用户三项裁定：强加入库 / `main` 不动 / tar+校验清单落非系统盘）。
+- **产物**：`E:\Axiom\`（与 C: 系统盘、D: 仓库卷均不同卷）= `MANIFEST.md` + `SHA256SUMS.txt` + `archive.log` + `verify.log` + `units/` 7 个 tar.gz，压缩后 **791 MB / 825,431 文件条目**：u1 `.git`(232M)、u2 `data/`+`axiom-memory.db*`(77M)、u3 两个记忆库(106M)、u4 `archive/`+`reports/`+`vendor/`+工具态+去缓存的 native/src-tauri(156M)、u5 `C:\Users\18336\.qoder`(218M)、u6 `.env`、u6b `.axiom/axiom-secrets`。
+- **排除面（可重建，实测依据）**：`node_modules/` 601M、`dist/` 607M、`native/target/` 2.5G、`src-tauri/target/` 5.3G（去缓存后仅 309K）、`.codegraph/` 52M、`.tmp*/` 239M、各覆盖率/测试产物——新克隆实测 `bun install` 5.9 秒 144 包、`bunx tsc` 报错与本树逐字一致。
+- **核验**：逐单元包内文件数与源侧 `find` 计数**全等**（4965/71105/3374/408/15039/1/4）；抽查回解 sha256 与源相同；u1 解出后 `git rev-parse` 得 tip `d54f87d7`、`fsck --dangling` 得 59 条 ⇒ 悬空提交随归档一并钉住。**两条假红判据点名更正**：首轮 `u5/u6b` 报 MISMATCH、`u6` 报 SKIP，原因是随机行号越界、相对单元路径在 `cd` 后失效、条目 `./` 前缀未映射到正确源根——非数据不匹配；确定性取点复跑后三单元全部 OK（已追加登记进 `verify.log`）。
+- **旧归档判定**：`D:\Axiom-from-linux-20260922\`（916M）**需保留**。实测其 git/LFS 面已被 Gitea 完整覆盖（bundle 75 head 全在现行 ref 可达集，唯一 head 0；LFS 105↔105 双向差集 0），但数据面**独有且无第二份**：载荷 `model-outputs` 28,780 个文件名与现行 71,066 个交集为 0、抽样 8 件在仓库与 `D:\data` 均无同名、Linux 期 6 个轮转 `agent.log*`（66M）不在现行 `data/logs/`、`qoder-projects.tar.gz` 186 件是旧机会话转录；且源机已退役，该目录即唯一副本。
+- **未决/后续**：①该 916M 是否纳入 `E:\Axiom` 归档（待用户裁定）；②`adaptive-proxy-exit.test.ts:83` 的 tsc 红未修；③`bun test` 串行全量本轮未跑；④ops log 本月 297 条 > 200 阈值待按月拆分。
+- **Commit**：`PLACEHOLDER-ARCHIVE7`
