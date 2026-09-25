@@ -2515,3 +2515,13 @@
 - **偏差与未做**：model-router.ts 1180L 全文未读（轮 3）；dre/ 其余 ~50 文件、agents/mcp/routes/utils 等未深审；门学费：kal-determinism console 按约定登记 CLI 白名单。
 - **回滚**：harness 与报告为新增文件，revert 即回滚。
 - **Commit**：1f03996e
+
+## 2026-09-25 07:25 +0800 — T1 轮 3 深审：dre/ 系统性采样（模块 2/7）+ MCP 工具层（模块 3）
+
+- **任务**：轮 3 两段——dre/（50 文件 18,643 行）编排核心精读+全目录系统扫描；MCP 工具层注册表与高风险面。级别 T1 审计。
+- **交付**：`docs/reviews/2026-09-25-audit-round3.md`。
+- **dre/ 裁定**：actor ask 带 5s 超时/降级（无重试，单发查询语义）、无死锁面；Math.random 8 处全为 ID 生成非决策内容；actor init 失败 fail-open 与"DRE 为增强能力"口径一致；reflection fire-and-forget 有 catch 无静默吞错。constraint/solver 未全文精读（如实标注，轮 4）。
+- **模块 3 裁定**：注册表四重护栏（能力强制声明 I1/S3、payload 可裁决 S-8、同名幂等 L4、guard 包裹）；写面单缝（write-tool）；"懒加载"声称**部分一致**——启动期 eager 注册 189 工具，按需性由 exposure 过滤承载（tool-registry.ts:292）。
+- **覆盖率**：深审约 2.8%（2.4%→2.8%）；dre/ 段系统覆盖。轮 4 计划：solver+deterministic-retrieval-engine 全文、model-router 1180L、routes/ 输入校验、F7 二分。
+- **回滚**：报告为新增文件。
+- **Commit**：`<待回填>`
