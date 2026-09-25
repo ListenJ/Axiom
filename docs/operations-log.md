@@ -2564,3 +2564,14 @@
 - **偏差与未做**：模块 4/6/11、model-router 行级、F7 二分、e2e-visual 重摄未做（如实登记）；"审核尚未完成"声明继续有效。
 - **回滚**：报告为新增文件。
 - **Commit**：bace9d3d
+
+## 2026-09-25 14:40 +0800 — T1 轮 6 深审：模块 4/6 一致 + F7 二分推进（群聚族定位）
+
+- **任务**：轮 6 三段——模块 4 网络搜索全链、模块 6 摄取管线 zero-LLM 核验、F7 四分法定位。级别 T1 审计。
+- **交付**：`docs/reviews/2026-09-25-audit-round6.md`。
+- **模块 4 裁定：一致**。四项清单全有实现：①内容清洗唯一出口（审计 D-1 修复，sanitizeSearchResultsForContext 三重钳制，缓存写入也是钳制后）；②两层去重+域名多样性上限（L12b 3/域）；③相关性阈值+稳定排序；④四层降级（逐引擎 catch→bing-html 兜底→匿名三件套→便捷面组合）。
+- **模块 6 裁定：一致**。zero-LLM 主路径（useLLF=false→仅 TF-IDF）+异常分支兜底链（edge→GLM→TF-IDF）+document-ingest 零 LLM 引用；KG writer 幂等（hash-id INSERT OR REPLACE + FTS IGNORE + schema.ts:55 rowid 陷阱规避）。与轮 1 对照表 #3 升级为双通道验证。
+- **F7 二分推进**：四分法 6 次串行——Q2 红=性能衰减计时（复跑消失）、Q3 红=GitHub 爬取网络超时（30008/15015ms）、**Q4 [s-z] 16 红收缩至 services/tool-loop.test.ts 群聚族**（runToolLoop×4+SkillRegistry×2+pdf-worker×3 互现，红集随运行漂移）。定性：确定性群聚中心+计时/网络敏感混合；下轮审计 tool-loop.test.ts mock 纪律（同 91 红排查法）。
+- **覆盖率**：深读 26 篇 ≈3.1%；模块 4/6 系统覆盖。强约束清单仅剩模块 11（运行批）与行级收尾。
+- **回滚**：报告为新增文件。
+- **Commit**：`<待回填>`
