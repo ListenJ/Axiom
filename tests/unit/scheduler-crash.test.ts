@@ -28,9 +28,11 @@ describe("scheduler crash", () => {
   afterEach(() => {
     (Database.prototype as any).run = origRun;
     (Database.prototype as any).query = origQuery;
-    (globalThis as any).fetch = _originalFetch;
-    // restore to mock for next import if needed
-    (globalThis as any).fetch = async () => ({ ok: true } as unknown as Response);
+    // F7 修复（2026-09-25）：原版在还原后又立刻把 fetch 重新覆盖为 {ok:true} 桩
+    // ——restore 成了死代码，整个进程其余测试文件（pdf-worker 等）拿到的都是
+    // 无 .json() 的假 Response（res.json is not a function 的根因）。
+    // beforeEach 已在每个用例前重新打桩，afterEach 只需还原真实 fetch。
+    globalThis.fetch = _originalFetch;
   });
 
   test("healthCheckTask handles SQLITE_BUSY without throwing", async () => {

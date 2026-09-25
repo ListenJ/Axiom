@@ -2575,3 +2575,13 @@
 - **覆盖率**：深读 26 篇 ≈3.1%；模块 4/6 系统覆盖。强约束清单仅剩模块 11（运行批）与行级收尾。
 - **回滚**：报告为新增文件。
 - **Commit**：cbc6975f
+
+## 2026-09-25 15:10 +0800 — T2 F7 完全收口：scheduler-crash fetch 桩泄漏修复——串行 0 红
+
+- **任务**：F7 残余 4 红（pdf-worker×3 + retrieval-workflows 场景 1）二分定位与修复。级别 T2。
+- **二分过程（修正方法论）**：发现此前 pair/四分命令用目录参数（tests/services）时 **bun 按子串匹配把 dist/tests/ 下 174 份陈旧编译副本拉进运行**（堆栈实证 dist\tests\services\tool-loop.test.js + 陈旧 dist\src 运行时）——前期 pair 红部分是 dist 幽灵。清除 dist/tests 后用 `./tests/<dir>` 前缀重做干净二分：G2→G3→G3b→unit→单文件，**锁定 tests/unit/scheduler-crash.test.ts**。
+- **根因**：该文件 afterEach 在"还原 fetch"后**立刻重新覆盖**为 `{ok:true}` 桩（还原成死代码）——桩无 `.json()`，泄漏持续整个进程其余测试文件（pdf-worker.ts:35 `res.json is not a function` 指纹吻合）；retrieval-workflows 场景 1 的 layerSum=2.0 亦同源（桩改变检索子结果）。
+- **修复**：删除 afterEach 重打桩死代码行（beforeEach 已负责每用例前打桩，afterEach 只还原真实 fetch）——consciousness.test.ts:194-207 纪律的最后一块补齐。
+- **验证结果**：**全量串行 4340 pass / 0 fail / 34 skip（418 文件）——自本轮审计以来首次 0 红**；scheduler-crash+pdf-worker 对 3 红→0 红；scheduler-crash 自身 9/0。
+- **回滚**：备份 .tmp/backups/tests/unit-scheduler-crash.ts；revert 即还原（但会回到 4 红态，不建议）。
+- **Commit**：`<待回填>`
