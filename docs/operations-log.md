@@ -2462,4 +2462,4 @@
 - **登记遗留**：索引孤儿 1 行（09-23 测试残留）；00-Knowledge 无 PARA 映射分支（syncFromVault 兜底 resources、引擎侧 123 篇 uncategorized）；`projects/` 不合 PARA 正名；wiki-link 仅 2 条（蒸馏从未真实运行）。openclaw-memory 与 axiom-memory.db 的处置建议已写入文档 §四，**交用户批准**（记忆内容不自动删）。
 - **验证结果**：单测 9/0（archiver 3 新+6 旧）；七文件门 106/0；audit:runtime 16/16；tsc 零错。
 - **回滚**：archiver dryRun 为可选参数向后兼容；CLI 命令为纯新增；归档移动可整体移回（ARCHIVE-LOG 有清单）。
-- **Commit**：`<待回填>`
+- **Commit**：c5e38d6c
