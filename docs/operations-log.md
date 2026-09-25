@@ -2525,3 +2525,13 @@
 - **覆盖率**：深审约 2.8%（2.4%→2.8%）；dre/ 段系统覆盖。轮 4 计划：solver+deterministic-retrieval-engine 全文、model-router 1180L、routes/ 输入校验、F7 二分。
 - **回滚**：报告为新增文件。
 - **Commit**：d666c978
+
+## 2026-09-25 07:40 +0800 — T1 轮 4 深审：约束求解/确定性检索（模块 7 收口）+ 路由输入校验（模块 10）
+
+- **任务**：轮 4 三段。级别 T1 审计。
+- **交付**：`docs/reviews/2026-09-25-audit-round4.md`。
+- **模块 7 裁定**：constraint/solver（Map 插入序迭代+稳定排序+零随机源）与 deterministic-retrieval-engine（关键词+图谱联合打分、tie-break 全 id 升序、Date.now 仅缓存 TTL）**确定性成立**——dre/ 段三大决策/检索核心全部一致，模块 7 在 dre/ 段收口。
+- **模块 10 发现**：R1 Medium——36 路由仅 chat.ts 有 zod（M11 面），其余直接解构 body 透传（agents.ts:55-97 temperature/timeout 无校验）；已知未触发恶性后果（外层有尺寸上限+流量分类+写面 SafeFs），整改建议按流量排序分批上 zod，交用户排期（审计轮不动手）。
+- **覆盖率**：深读 23 篇全文 + routes/dre 系统扫描 ≈ 2.8%。轮 5 候选：model-router 全文、mcp 剩余 20 域、utils/agents、F7 二分、e2e-visual 重摄。
+- **回滚**：报告为新增文件。
+- **Commit**：`<待回填>`
