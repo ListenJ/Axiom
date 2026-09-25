@@ -2524,4 +2524,4 @@
 - **模块 3 裁定**：注册表四重护栏（能力强制声明 I1/S3、payload 可裁决 S-8、同名幂等 L4、guard 包裹）；写面单缝（write-tool）；"懒加载"声称**部分一致**——启动期 eager 注册 189 工具，按需性由 exposure 过滤承载（tool-registry.ts:292）。
 - **覆盖率**：深审约 2.8%（2.4%→2.8%）；dre/ 段系统覆盖。轮 4 计划：solver+deterministic-retrieval-engine 全文、model-router 1180L、routes/ 输入校验、F7 二分。
 - **回滚**：报告为新增文件。
-- **Commit**：`<待回填>`
+- **Commit**：d666c978
