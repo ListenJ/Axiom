@@ -2463,3 +2463,12 @@
 - **验证结果**：单测 9/0（archiver 3 新+6 旧）；七文件门 106/0；audit:runtime 16/16；tsc 零错。
 - **回滚**：archiver dryRun 为可选参数向后兼容；CLI 命令为纯新增；归档移动可整体移回（ARCHIVE-LOG 有清单）。
 - **Commit**：c5e38d6c
+
+## 2026-09-25 04:10 +0800 — T2 记忆侧收尾：孤儿树/旁库处置 + PARA 归类两侧修正 + 索引孤儿行清理
+
+- **任务**：按记忆树文档 §四/§五 建议继续（用户批准）。级别 T2（用户数据面处置 + 归类映射修正）。
+- **执行**：①`openclaw-memory/`（41 文件孤儿树，code-indexer 实写 axiom-memory 侧）`git rm -r` 退跟踪——归档分支 `codex/archive-2026-09-25`（c916de27 含全量）+ 本分支历史可达，ARCHIVE-LOG 留痕；②旁库 `axiom-memory.db/-wal/-shm`（4 行测试残留，核验零消费者：VaultManager 缺省经 resolveSqliteMemoryDbPath 落 data/agent.db）移入 `archive/side-db-2026-09-25/`（未删除）；③PARA 归类缺口两侧同修——`sqlite-memory.ts syncFromVault` 与 `deterministic-search.ts getParaCategory` 补 `00-Knowledge→knowledge`（后者连带补 `memory` 分支）；④`deleteNote` 清掉 09-23 测试孤儿行（索引 184→183）。
+- **验证结果**：reindex 后 SQLite `byCategory={archives:44,knowledge:122,meta:16,resources:1}`，引擎 PARA 分布同值（123 uncategorized 清零）；活体检索抽查 `vault:search 记忆` 正常返回；audit:runtime 16/16；memory+门 20 文件 142/0；tsc 零错。
+- **偏差与未做**：`projects/` 正名（牵连写入路径）与蒸馏真实运行仍开放登记；旁库移入 archive/ 属本地归档（gitignore 内），若需服务端留存可后续入归档分支。
+- **回滚**：openclaw-memory 经归档分支/历史可达，`git revert` 即还原；映射为纯增分支；孤儿行内容已在 ARCHIVE-LOG 引用记录（root-scatter 归档留有同源笔记）。
+- **Commit**：`<待回填>`

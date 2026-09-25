@@ -67,18 +67,18 @@
 - 结果：44 篇移入 `axiom-memory/05-Archives/03-Resources/search-results/`（源目录清零，**0 删除**）；live 区 139 + 归档区 44 = 183 篇自洽。
 - `vault:reindex` 复核：183 篇同步、索引 184→184 幂等无漂移。
 
-## 四、双库与双树澄清（P7 的答案）
+## 四、双库与双树澄清（P7 的答案——**已按建议执行，2026-09-25 04:05**）
 
-1. **`axiom-memory.db`（根目录 4 行）不是运行时数据面**：真索引是 `data/agent.db`（`DATABASE_PATH` 默认值，`sqlite-memory.ts:30` 显式解析顺序 SQLITE_MEMORY_DB → DATABASE_PATH → ./data/agent.db）。根目录这份是 2026-09-23 一次显式 dbPath 运行（e2e/手动）留下的旁库，4 行全是测试/爬取残留。**建议**：确认无引用后按规则 4 移出工作区（`main.ts:242` 注释里的 `./axiom-memory.db` 是"不传参时的默认值"，配置中心已单源为 `./data/agent.db`，旁库无消费者）——交用户批准后处置。
-2. **`openclaw-memory/` 整树是孤儿**：运行时零引用（code-indexer 写 axiom-memory 侧），21 份 code-index 是被运行时再生副本取代的陈旧快照，memory/ 日志停在 2026-06。**建议**：同 P2/P3 程序处理（归档分支 + git rm + ARCHIVE-LOG）；因属记忆内容，交用户批准后执行。
-3. 在此之前，`vault:reindex`/`vault:search` 均不受两份残留影响（它们不在 vault 路径与 DB 路径上）。
+1. ~~**`axiom-memory.db`（根目录 4 行）不是运行时数据面**~~ **✅ 已处置**：核验零消费者（`VaultManager` 缺省经 `resolveSqliteMemoryDbPath` 落 `data/agent.db`，`main.ts:242` 注释所指"默认"是陈旧口径）后，三个文件移入 `archive/side-db-2026-09-25/`（未删除）。
+2. ~~**`openclaw-memory/` 整树是孤儿**~~ **✅ 已处置**：`git rm -r`（41 文件退跟踪）；归档分支 `codex/archive-2026-09-25`（c916de27 含全量）+ 本分支历史可达；ARCHIVE-LOG 已留痕。
+3. 两份残留均不在 vault 路径与 DB 路径上，处置前后的 `vault:reindex`/`vault:search` 行为不受影响。
 
-## 五、登记的遗留（不擅自处置）
+## 五、遗留清单（2026-09-25 04:05 更新：2 项已修，2 项仍开放）
 
-1. **索引孤儿 1 行**：`03-Resources/atomic-notes/手动笔记标题.md`——文件已不在 vault 的 09-23 测试遗留行（`SQLiteMemory.deleteNote` 可清，留待下轮卫生批处理）。
-2. **00-Knowledge 的 PARA 归类缺口**：`syncFromVault` 的映射表没有 `00-Knowledge` 分支 ⇒ 122 篇全部兜底为 `resources`（检索不受影响，`--para` 过滤会混桶）；同期 `VaultManager.stats()` 引擎侧把 123 篇记为 `uncategorized`——两套归类器都需要补 `00-*` 语义（下轮小修）。
-3. **`projects/` 不合 PARA 正名**（应为 `01-Projects/`）：重命名会动运行时写入路径（skill-promoter/distiller 等引用面前后一致后才能动），登记待裁。
-4. **wiki-link 仅 2 条**：Zettelkasten 关联面几乎为零，蒸馏器（distill）从未在真实流量上跑过——属"记忆生长"侧的后续课题，与遗忘（本轮已闭环）相对。
+1. ~~**索引孤儿 1 行**~~ **✅ 已清**：`deleteNote` 移除 09-23 测试残留行，索引 184→183。
+2. ~~**00-Knowledge 的 PARA 归类缺口**~~ **✅ 已修**：`syncFromVault`（sqlite-memory.ts）与引擎 `getParaCategory`（deterministic-search.ts）两侧都补 `00-Knowledge → knowledge` 分支；reindex 后两侧一致——SQLite `byCategory = {archives:44, knowledge:122, meta:16, resources:1}`，引擎 PARA 分布同值（此前 123 uncategorized 清零）。
+3. **`projects/` 不合 PARA 正名**（应为 `01-Projects/`）：重命名会动运行时写入路径（skill-promoter/distiller 等引用面前后一致后才能动），登记待裁。现状：那 1 篇笔记兜底为 `resources`。
+4. **wiki-link 仅 2 条**：Zettelkasten 关联面几乎为零，蒸馏器（distill）从未在真实流量上跑过——属"记忆生长"侧的后续课题，与遗忘（已闭环）相对。
 
 ## 六、验证
 

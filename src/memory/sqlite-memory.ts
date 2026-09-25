@@ -627,6 +627,7 @@ export class SQLiteMemory {
             else if (relativePath.startsWith("03-Resources")) paraCategory = "resources";
             else if (relativePath.startsWith("04-Conversations")) paraCategory = "conversations";
             else if (relativePath.startsWith("05-Archives")) paraCategory = "archives";
+            else if (relativePath.startsWith("00-Knowledge")) paraCategory = "knowledge";
             else if (relativePath.startsWith("00-Meta")) paraCategory = "meta";
             else if (relativePath.startsWith("memory/")) paraCategory = "memory";
 

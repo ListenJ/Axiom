@@ -586,7 +586,9 @@ export class DeterministicSearchEngine {
     else if (parts[0] === "04-Conversations") cached = "conversations";
     else if (parts[0] === "05-Archives") cached = "archives";
     else if (parts[0] === "05-Tasks") cached = "tasks";
+    else if (parts[0] === "00-Knowledge") cached = "knowledge";
     else if (parts[0] === "00-Meta") cached = "meta";
+    else if (parts[0] === "memory") cached = "memory";
     else cached = "uncategorized";
     this.paraCache.set(notePath, cached);
     if (this.paraCache.size > this.PARA_CACHE_MAX) {
