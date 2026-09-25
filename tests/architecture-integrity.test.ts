@@ -107,6 +107,9 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     // decision/audit-chain.ts 同属 CLI 入口（bun run audit:chain / --stages-only）：
     // stage 台账打到终端是交付物；扫描实现体不打字。
     "decision/audit-chain.ts",
+    // eval/kal-determinism.ts CLI 入口：KAL 确定性 harness（src/eval/kal-determinism.ts），
+    // 比对结果/差异打到终端是交付物。
+    "eval/kal-determinism.ts",
     "core/health-checker.ts",
     "launcher.ts",
     "agent-evals/run.ts",

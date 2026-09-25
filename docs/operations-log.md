@@ -2503,3 +2503,15 @@
 - **偏差与未做**：后端 /chat API 与会话数据保留（agent 管道与 Sessions 页历史）；chat→KAL 全量重路由（KnowledgeUnit 形状适配）开放；e2e-visual 全量重摄未跑（playwright 需起服务，属运行批）。
 - **回滚**：git revert 本提交即还原（删除文件经归档分支 codex/archive-2026-09-25 与历史可达）。
 - **Commit**：eae4b92a
+
+## 2026-09-25 07:10 +0800 — T1 轮 2 深审：KAL 确定性闭环 + 入口链全文 + 模块 8/9 对应物 + O(1) 核验
+
+- **任务**：轮 2 深审四段（按骨架树 §五 计划）。级别 T1 审计（不修代码）。
+- **交付**：`src/eval/kal-determinism.ts`（确定性 harness，新增）+ `docs/reviews/2026-09-25-audit-round2.md`（轮 2 报告：发现 L1-L4/M1-M3 + 模块 8/9 裁定 + 覆盖率账本）。
+- **模块 5 遗留闭环**：KAL 查询确定性——3 查询样本（含空结果路径）× 各 N=5 跨进程，规范化输出逐字节一致（harness 可重跑）。
+- **入口链发现**：L1 Medium——launcher agentMode 空转（帮助承诺 agent 能力，实现仅预热后挂起）；L2 Low——ProcessManager 启动校验竞态（proc.killed 不反映子进程自行退出）；L3/L4 Info；M1 Low——main.ts SPA_ROUTES 残留 "/chat" 陈旧项；M2/M3 Info。正面：安全链逐项有实现（socket peer 鉴权/CSWSH/流量分类/限流/fail-closed/审计覆盖/14 条有序关机钩子）；静态资产鉴权豁免带防绕过护栏（疑似当场核销）。
+- **模块 8/9 裁定**：一致。SR：5% 防抖+双阈值滞回 500MB+缓变逃逸修复+多维预算（bytesPerToken 校准史）；LC：D1 预算门先于网络请求、熔断/重试分类、temp=0 缓存。前提修正：审计清单"KV cache 卸载"前提不存在，以预算门替代（如实结案）。O(1) 两处声称（http-router Trie / capability-registry 索引）实现属实。
+- **覆盖率**：深审约 21/891 core ≈ 2.4%（1.6%→2.4%）；机械化通道维持 100%。
+- **偏差与未做**：model-router.ts 1180L 全文未读（轮 3）；dre/ 其余 ~50 文件、agents/mcp/routes/utils 等未深审；门学费：kal-determinism console 按约定登记 CLI 白名单。
+- **回滚**：harness 与报告为新增文件，revert 即回滚。
+- **Commit**：`<待回填>`
