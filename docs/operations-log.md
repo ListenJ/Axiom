@@ -4812,3 +4812,13 @@
 - **迁移缺口（git 拉不到，已登记待用户裁决）**：`.env`（规则 11 禁入库）、`deploy/`（含 `LINUX-SMOKE.md`、`systemd/`、`reverse-proxy.md`，被 `.gitignore:149` 整目录忽略，仅 `deploy/pm2/*` 曾强加入库）、根 `Dockerfile`/`Dockerfile.lightpanda`/`docker-compose.yml`（`.gitignore` "不上传 GitHub" 段）、`native/Cargo.lock`、`docs/reports/`（被 `reports/` 通配连带忽略，规则 5 证据链接指向它）、`reports/*.md` 审计产物、`data/*.db|json|jsonl` 运行时状态、`archive/`(230M)、`axiom-memory/`(122M)、`openclaw-memory/`(33M)、`*.traineddata`、`src-tauri/`。
 - **后续项**：①`docs/operations-log.md` 本月条目 297 条 > 规则 5 的 200 条阈值，需按 `docs/operations-log/2026-09.md` 拆分（与迁移无关，未混入本提交）；②`C:\Users\18336\.axiom\axiom-secrets\` 与 `C:\Users\18336\.qoder\` 记忆不在仓库内，须随迁移单独导出。
 - **Commit**：`8bf8cccf`（记录维护提交回填本 hash 时，检查点提交已推送，故按规则 9 追加维护提交而非 amend）
+
+## 2026-09-26 — chore(migration): Linux 部署与构建资产强加入库（迁移缺口的 git 侧闭合）
+
+- **任务**：用户裁定「全部强加入库」——把被 `.gitignore` 整目录吃掉、但转 Linux 后施工要用的资产纳入 git。分级 **T2**。
+- **实测更正（推翻上一条的判断）**：原清单把根 `Dockerfile`/`Dockerfile.lightpanda`/`docker-compose.yml` 列为"git 拉不到"是**误判**。`.gitignore:131-133` 确实命中（`git check-ignore --no-index` 实测），但三者早已被跟踪（`git ls-files` = 1，历史提交 `0a77efb3`、`016dc978`），跟踪文件不受忽略规则影响 ⇒ 本条无需动作，上一条对应描述作废。
+- **改动（`git add -f`，5 个新文件）**：`deploy/LINUX-SMOKE.md`、`deploy/reverse-proxy.md`、`deploy/systemd/axiom.service`、`native/Cargo.lock`、`docs/reports/2026-09-12-runtime-go-n2-swap-verification.md`。
+- **规则 11 审计（逐个，入库前）**：compose 只用 `${VAR}` 占位与公共镜像名；systemd 单元只有 `EnvironmentFile=-/opt/openclaw-fusion/.env` 指针；`LINUX-SMOKE.md:14` 的 `smoke-test-token-…` 为冒烟脚本示例值（非真实凭据）；`reverse-proxy.md` 用 `axiom.example.com` 与 `$AXIOM_AUTH_TOKEN` 占位；`Cargo.lock` 仅 crates.io 源。`docs/reports/` 那份含 `192.168.0.111/.110`——按 F-2 地址脱敏口径属"历史留痕只登记不修改"，与已跟踪的 `docs/operations-log.md`（17 处私网地址）同类，保持原文。
+- **门禁（实测）**：doc-contract **35 pass / 0 fail**、audit:runtime **16 通过 / 0 警告 / 0 失败**、architecture-integrity **25 pass / 0 fail**；`bunx tsc --noEmit` 仍为**唯一已知红** `tests/unit/adaptive-proxy-exit.test.ts:83`（上一条已登记，本轮不修）。`bun test` 串行全量未跑——理由同上一条（检查点，门禁红已定位且登记）。
+- **登记不改的副作用**：`tests/doc-contract.test.ts` 的 `LOCAL_ONLY_DOC_DIRS` 注释把 `docs/reports/` 描述为"gitignore 命中且 `git ls-files` 为 0"，本提交后该实测前提不再成立；豁免按路径前缀生效（D12 实测仍绿），故不改测试，留作后续核验项。
+- **Commit**：`PLACEHOLDER-FORCEADD`
