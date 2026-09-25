@@ -2472,3 +2472,14 @@
 - **偏差与未做**：`projects/` 正名（牵连写入路径）与蒸馏真实运行仍开放登记；旁库移入 archive/ 属本地归档（gitignore 内），若需服务端留存可后续入归档分支。
 - **回滚**：openclaw-memory 经归档分支/历史可达，`git revert` 即还原；映射为纯增分支；孤儿行内容已在 ARCHIVE-LOG 引用记录（root-scatter 归档留有同源笔记）。
 - **Commit**：b08f2050
+
+## 2026-09-25 04:35 +0800 — T1/T2 统一性审计：记忆/知识库后端与收集接口（存储已统一、查询三面并存）
+
+- **任务**：回答"记忆系统是否统一收回到统一知识库后端接口、收集接口是否统一稳定"。级别 T1 审计 + T2 小清理。记忆生长/自进化未动。
+- **方法**：KAL 接口面通读（594L）+ 全调用方 grep + data/ 七库盘点 + 两种独立稳定性验证（静态 WAL/容错/单例 + 动态 reindex/search/门）。
+- **裁定**：①DB 层已统一（merge-knowledge-dbs 把 code-index/dre/knowledge 三碎片库并进 data/agent.db，33 表）；②收集单缝且稳定（collector→isCollected 去重→storeAsVaultNote，knowledge_sources 为记账表）；③**查询面不统一（U1 Medium）**：KAL query()（vault+kg+dre 扇出+O3-F5 归一化+O3-F4 单数表回退）唯一消费方是 mcp kg-tools:16，chat 走 services/knowledge.ts 独立管线（privacy 门+edge 改写+web 回退），kg CLI 直连 enhanced 只读——三查询口径并存，统一化属 T3 重路由**交裁决**；④KAL 扇出不含 knowledge_sources（U2：记账表无检索读者，语义自洽，登记）；⑤data/knowledge.db merge 残骸已移 archive/side-db-2026-09-25/（U3）。
+- **稳定性验证**：静态——两 SQLite 面 WAL、单例三件套经 lazy-singleton、KAL 每查询点 try/catch/回退；动态——reindex 183×2、vault:search 活体抽查、audit:runtime 16/16。两法一致：运行期稳定，无吞错无脏读。
+- **交付**：`docs/reviews/2026-09-25-memory-knowledge-unification.md`（U1-U6 分级 + 对用户三问的直接回答）。
+- **偏差与未做**：U1 统一化重路由（chat 改走 KAL 或 retrieveKnowledge 变 KAL 前端）属 T3 待裁决；U4 多代表结构（entities/kg_edge 单数等）迁移登记待 KG 治理。
+- **回滚**：knowledge.db 在 archive/ 可原位移回；无代码改动。
+- **Commit**：`<待回填>`
