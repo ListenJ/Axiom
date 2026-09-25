@@ -2428,3 +2428,16 @@
 - **偏差与未做**：残余 4 条未修（二分成本 ~8×4 分钟，收益递减）；`bun run test`（--parallel=8）口径未重跑（其掩盖面即本轮修复面）；CI（Linux 容器）侧读数仍未测。
 - **回滚**：8 个测试文件 + `.env.example` + README/LIMITATIONS 备份于 `.tmp/backups/`（验证通过后已删）；逐文件 revert 即回滚。
 - **Commit**：c1f0b7bd
+
+## 2026-09-25 03:05 +0800 — T2 骨架架构树 + Laya 砍除决策轮 + 重审轮 1（模块 1）起步
+
+- **任务**：按用户指示暂停全量深审，先做骨架——①整理架构树；②识别砍除候选并生成选项交 Laya 决策；③整理完成后开始重审。级别 T2。
+- **工具**：主 agent Bash（git ls-files/du/grep 引用面）+ Laya 真模型决策轮（WSL/CUDA）。
+- **交付**：`docs/reviews/2026-09-25-skeleton-architecture-tree.md`（分层树 + Mermaid + P1–P7 候选 + 重审轮 1 结果）；`docs/decisions/laya/prune-triage.json`（7 决策：5 triage choice + 2 engineering 护栏）。
+- **Laya 决策轮实跑**（真模型 bf16/CUDA）：P1 工作区残留→AUTO `delete_now`(0.198)、P2 src-tauri→AUTO `archive_then_cut`(0.298)、P3 harmonyos→AUTO `archive_then_cut`(0.295)；P4 根散件 margin 0.089、P5 工具状态 margin 0.006 ⇒ 交人；P7 双记忆树 + 执行删除 ⇒ engineering 领域封杀（护栏：自动链不删文件，删除动作未注册）。**两次形状发现**：laya 真库要求每题带 `instructions`、choice 选项字段叫 `criteria` 而非 `options`（choice 首次过真模型即被 ValueError 打回）——已对照 `laya/agent.py _check_question` 修 `LayaQuestion` 类型 + 单测夹具 + spec。
+- **重审轮 1（模块 1 架构一致性）**：M1-1 Low——6 个 src 模块存在但 ARCHITECTURE.md 零提及（agent-evals/codeindex/computer-use/decision/semantic/terminal）；M1-3 树分类修正——crawl 从 L2 编排移入 L2.5 采集带（`data-pipeline.ts:40` 直引 vault-manager）；M1-4/M1-5/M1-7 Pass——kal 依赖面最小（仅 sqlite+logger+node-id）、L3/L4 零 agents/routes/mcp 反向边、decision 零回穿；M1-2 自查撤回两条误读（constants/cron 实际存在，uniq 截断造成）。
+- **门变更**：doc-contract D0 豁免上限 45→50——三份新证据件逐件点名（审计链报告/骨架树/Jev 调研），恢复 4 个余量；D0 其余断言未动。
+- **验证结果**：单测 35 pass/0 fail；architecture-integrity 25/25、doc-contract（含 D0 新口径）+ env 门 + 单测合并 97 pass/0 fail；tsc --noEmit 零错。
+- **偏差与未做**：Laya 3 条 AUTO 仅是处置决定记录，实际砍除（归档分支 + git rm）待人批准后按规则 4/9 另行施工；P4/P5/P7 交人；深审主体（入口链细读、dre/、router/）在轮 2。
+- **回滚**：laya-triage.ts 类型改动向前兼容（choice 增必填 instructions/criteria——旧 spec 均为 noul 不受影响）；其余为新增文档/测试，整体 revert 即回滚。
+- **Commit**：`<待回填>`

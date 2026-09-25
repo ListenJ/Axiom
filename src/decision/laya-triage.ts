@@ -31,10 +31,15 @@ export const NON_DELEGABLE_DOMAINS: readonly LayaDomain[] = ["numeric", "enginee
 /**
  * 问题规格 —— 与 laya `RLAgent.predict(state, questions)` 的真实入参同形：
  * questions 是**以 key 索引的对象**，不是字符串数组（传数组会 `AttributeError: 'list' object has no attribute 'keys'`）。
+ * 真库契约（laya/agent.py `_check_question`，2026-09-25 对照源码确认）：**每道题都必须带
+ * `instructions`**；choice 的选项字段叫 **`criteria`**（label→描述 的 dict，或 label 列表）——
+ * 早期类型写成 `options` 且 choice 只在 fake runner 单测里跑过、从未过真模型，首次实跑即
+ * 被 `ValueError` 打回。裁决逻辑读的 `probabilities` 以 criteria 的 label 为键。
  */
 export type LayaQuestion =
-  | { type: "choice"; options: Record<string, string> }
-  | { type: "noul" | "score"; instructions: string; criteria?: string[] };
+  | { type: "choice"; criteria: Record<string, string> | string[]; instructions: string }
+  | { type: "score"; criteria: string[]; instructions: string }
+  | { type: "noul"; instructions: string; criteria?: Record<string, string> };
 
 export interface LayaAnswer {
   type: "choice" | "score" | "noul";

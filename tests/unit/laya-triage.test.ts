@@ -17,7 +17,7 @@ import {
   type LayaQuestion,
 } from "../../src/decision/laya-triage.js";
 
-const choiceQ: Record<string, LayaQuestion> = { "next step?": { type: "choice", options: { a: "甲", b: "乙" } } };
+const choiceQ: Record<string, LayaQuestion> = { "next step?": { type: "choice", criteria: { a: "甲", b: "乙" }, instructions: "下一步选哪个？" } };
 const approvalQ: Record<string, LayaQuestion> = {
   approval: { type: "noul", instructions: "该动作是否需要用户批准后才可执行？" },
 };
@@ -148,7 +148,7 @@ describe("闸门规则（与 laya_gate.py 同口径）", () => {
       decisions: [{
         id: "d-mixed", domain: "escalation",
         questions: {
-          "next step?": { type: "choice", options: { a: "甲", b: "乙" } },
+          "next step?": { type: "choice", criteria: { a: "甲", b: "乙" }, instructions: "下一步选哪个？" },
           approval: { type: "noul", instructions: "该动作是否需要用户批准后才可执行？" },
         },
         optionBlastRadius: { a: "destructive", b: "local_reversible" },

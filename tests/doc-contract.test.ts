@@ -167,10 +167,14 @@ describe("D0 口径扫描范围自证", () => {
   it("在册面不塌方、豁免面不扩张", () => {
     const spec = specDocs();
     const exempted = caliberDocs().filter((f) => HISTORY.test(f));
-    // 实测：caliberDocs 108 篇 = 规范件 67 + 证据件 41。上限只留 4 个余量：
-    // 再往下豁免就得逐件点名并说明理由，不能靠把正则写宽。
+    // 上限只留 4 个余量：再往下豁免就得逐件点名并说明理由，不能靠把正则写宽。
+    // 45→50（2026-09-25，逐件点名）：本轮新增证据件
+    //   docs/reviews/2026-09-25-auto-audit-chain-report.md（全自动审计链首轮报告）
+    //   docs/reviews/2026-09-25-skeleton-architecture-tree.md（骨架架构树 + Laya 砍除决策轮）
+    //   docs/research/system-one-decision-model-skills-2026-09-25.md（Jev→Laya 调研，规则 10.3 知识件）
+    // 三份都是证据/评审性质：保留问题原话与实测读数，不得被口径规则改写。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(45);
+    expect(exempted.length).toBeLessThanOrEqual(50);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 
