@@ -4832,3 +4832,13 @@
 - **旧归档判定**：`D:\Axiom-from-linux-20260922\`（916M）**需保留**。实测其 git/LFS 面已被 Gitea 完整覆盖（bundle 75 head 全在现行 ref 可达集，唯一 head 0；LFS 105↔105 双向差集 0），但数据面**独有且无第二份**：载荷 `model-outputs` 28,780 个文件名与现行 71,066 个交集为 0、抽样 8 件在仓库与 `D:\data` 均无同名、Linux 期 6 个轮转 `agent.log*`（66M）不在现行 `data/logs/`、`qoder-projects.tar.gz` 186 件是旧机会话转录；且源机已退役，该目录即唯一副本。
 - **未决/后续**：①该 916M 是否纳入 `E:\Axiom` 归档（待用户裁定）；②`adaptive-proxy-exit.test.ts:83` 的 tsc 红未修；③`bun test` 串行全量本轮未跑；④ops log 本月 297 条 > 200 阈值待按月拆分。
 - **Commit**：`73e45d91`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-26 — chore(migration): 旧 from-linux 载荷原样纳入归档并做八项核验
+
+- **任务**：用户对 `D:\Axiom-from-linux-20260922\`（916M）的处置选**原样纳入 `E:\Axiom`**。分级 **T2**（纯复制+核验，D 盘原件零改动）。
+- **改动**：整目录复制到 `E:\Axiom\legacy-linux-payload\`；核验与驱动脚本入 `E:\Axiom\scripts\`；`E:\Axiom\MANIFEST.md` 增 §七判定与 §八核验表。归档根现 `du` 计 1.7G（791M 单元 + 819M 旧载荷）。
+- **核验（实测，八条）**：副本 28,845 件 / 858,900,971 字节与源侧**全等**；副本内三份自带清单逐件校验 `: OK` = 28,793 / 24 / 1、FAILED 全 0；**变异对照**（往 `parts/archive-main-redacted.tar.gz` 注 1 字节）得 rc=1、FAILED=1，复原后 24 全 OK ⇒ 前几条不是空判据；**源侧未触碰**（D 盘原件复跑 24 件清单 rc=0、`parts/*.tar.gz` mtime 仍为 2026-09-22 23:04:42）。
+- **点名更正（自身缺陷）**：首版驱动 `rc_src=${PIPESTATUS[0]}; rc_dst=${PIPESTATUS[1]}` 同行赋值——前一个赋值会把 `PIPESTATUS` 重置为单元素，`set -u` 下取 `[1]` 直接终止脚本，导致"复制已完成、核验一步没跑"却只留下一行 START 日志；已用独立核验脚本补跑并在 `MANIFEST.md` §八 记录该坑。另一次同类误判：在非 git 目录跑 `git cat-file`/`git ls-remote`，报错输出空集，差点把"bundle 75 head 全部丢失"当成事实——回到仓库内重测得唯一 head = 0。
+- **判定固化**：该目录**需保留**——git/LFS 面冗余（75/75 head 已在现行可达集、LFS 105↔105 双向差集 0），数据面独有（`model-outputs` 与现行树交集 0、66M Linux 期 `agent.log*` 无副本、旧机会话转录 186 件），且源机已退役 ⇒ 唯一副本。
+- **未决/后续**：`adaptive-proxy-exit.test.ts:83` tsc 红未修；`bun test` 串行全量未跑；`internal/main` 仍未推（按计划第 6 步等门禁绿）；ops log 本月条目待按月拆分。
+- **Commit**：`PLACEHOLDER-LEGACYCOPY`
