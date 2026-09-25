@@ -73,6 +73,7 @@ export async function prepareChatContext(
   let intentInfo: PreparedContext["intentInfo"] = null;
   let codegraphContext = "";
   let knowledgeContext = "";
+  let kalFacts: FactEntry[] = [];
   let tokenBudgetReport: TokenBudgetReport | null = null;
   let readStats: ReadResponse | null = null;
 
@@ -206,6 +207,27 @@ export async function prepareChatContext(
               }
             })(),
           );
+          // U1 收口（ADR-010 后）：KAL 统一查询面（vault+kg+dre 扇出）成为第三证据
+          // 通道——零 LLM、确定性（kal-determinism N≥5 实测）。失败即跳过（fail-open），
+          // 不阻断既有两通道。
+          parallelTasks.push(
+            (async () => {
+              try {
+                const { getKnowledgeBackend } = await import("../db/knowledge-backend.js");
+                const kr = await getKnowledgeBackend().kal.query({
+                  query: lastUserMsg.content,
+                  limit: 5,
+                });
+                kalFacts = kr.results.map((u) => ({
+                  text: `${u.title} — ${u.snippet}`.slice(0, 300),
+                  source: `kal:${u.store}`,
+                  confidence: Math.min(Math.max(u.relevance, 0), 1),
+                }));
+              } catch (err) {
+                logger.debug("KAL evidence channel failed", { error: (err as Error).message });
+              }
+            })(),
+          );
         }
         await Promise.all(parallelTasks);
       }
@@ -230,7 +252,8 @@ export async function prepareChatContext(
 
   // P0-C（2026-08-29）：本次请求检索证据 → 请求级事实库（纯函数，每请求独立，
   // 不写 main.ts 全局单例）。未走检索路径时两上下文均为空串 → 空数组。
-  const evidence = buildFactBaseFromRetrieval({ knowledgeContext, codegraphContext });
+  // U1 收口：concat KAL 第三通道事实（vault+kg+dre 扇出，零 LLM；失败时为空数组）。
+  const evidence = buildFactBaseFromRetrieval({ knowledgeContext, codegraphContext }).concat(kalFacts);
 
   return {
     chatMessages,
