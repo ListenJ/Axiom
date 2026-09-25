@@ -2553,3 +2553,14 @@
 - **登记剩余**：memory-api/marketplace/consciousness/knowledge-graph/api-keys 等低危读面（.catch(()=>({})) 已兜）留第三批；F7 二分、e2e-visual 重摄仍开放。
 - **回滚**：三文件备份 .tmp/backups/src/routes/；共享缝为新增文件，revert 即回滚。
 - **Commit**：e63bec79
+
+## 2026-09-25 14:10 +0800 — T1/T2 轮 5：R1 第三批判定收口 + model-router 结构化深读
+
+- **任务**：R1 第三批（低危读面 5 文件 8 点）逐点核验裁定 + model-router.ts（1180L）结构化深读。级别 T1 审计。
+- **交付**：`docs/reviews/2026-09-25-audit-round5.md`（R1 线收口 + 模块 2/3 router 段裁定 + 轮 1-5 模块状态总表）。
+- **R1 第三批裁定**：8 点全部有等价手写护栏（必填/typeof/清单匹配白名单/参数化 SQL/审计 F 防穿越）——按规则 1 登记收口不强行 zod；唯一实质残留 kg/search 与 research/run 数值参数面（Low）随手改收敛。**R1 整改线收口：高危写/执行面 zod 全覆盖 ✅**。
+- **model-router 裁定（一致）**：fallback 链（excludeModels 累积+黑名单过滤+结构化降级）、逐模型熔断+maxRetries、thompson 仅平级 tie-break 不推翻确定性排序、语义缓存（temp=0 轻任务 cacheFirstRoute）、chatStream native→buffered 降级+全模型耗尽结构化返回。模块 2/3 router 段一致。
+- **覆盖率**：深读 24 篇全文 ≈2.9%；轮 1-5 模块状态总表落档（1/2/3/5/8/9/10 深审覆盖，4/6/11 待运行批，13 增量表）。
+- **偏差与未做**：模块 4/6/11、model-router 行级、F7 二分、e2e-visual 重摄未做（如实登记）；"审核尚未完成"声明继续有效。
+- **回滚**：报告为新增文件。
+- **Commit**：`<待回填>`
