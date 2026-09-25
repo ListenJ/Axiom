@@ -2502,4 +2502,4 @@
 - **验证结果**：前端 vitest **310/310**（60 文件）、`tsc -b && vite build` 绿、audit:frontend blocking=0；后端全门 113/0（doc-contract 含墓碑登记表、memory、arch、env）；audit:runtime 16/16；tsc 零错。
 - **偏差与未做**：后端 /chat API 与会话数据保留（agent 管道与 Sessions 页历史）；chat→KAL 全量重路由（KnowledgeUnit 形状适配）开放；e2e-visual 全量重摄未跑（playwright 需起服务，属运行批）。
 - **回滚**：git revert 本提交即还原（删除文件经归档分支 codex/archive-2026-09-25 与历史可达）。
-- **Commit**：`<待回填>`
+- **Commit**：eae4b92a
