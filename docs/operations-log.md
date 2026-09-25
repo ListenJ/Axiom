@@ -4821,4 +4821,4 @@
 - **规则 11 审计（逐个，入库前）**：compose 只用 `${VAR}` 占位与公共镜像名；systemd 单元只有 `EnvironmentFile=-/opt/openclaw-fusion/.env` 指针；`LINUX-SMOKE.md:14` 的 `smoke-test-token-…` 为冒烟脚本示例值（非真实凭据）；`reverse-proxy.md` 用 `axiom.example.com` 与 `$AXIOM_AUTH_TOKEN` 占位；`Cargo.lock` 仅 crates.io 源。`docs/reports/` 那份含 `192.168.0.111/.110`——按 F-2 地址脱敏口径属"历史留痕只登记不修改"，与已跟踪的 `docs/operations-log.md`（17 处私网地址）同类，保持原文。
 - **门禁（实测）**：doc-contract **35 pass / 0 fail**、audit:runtime **16 通过 / 0 警告 / 0 失败**、architecture-integrity **25 pass / 0 fail**；`bunx tsc --noEmit` 仍为**唯一已知红** `tests/unit/adaptive-proxy-exit.test.ts:83`（上一条已登记，本轮不修）。`bun test` 串行全量未跑——理由同上一条（检查点，门禁红已定位且登记）。
 - **登记不改的副作用**：`tests/doc-contract.test.ts` 的 `LOCAL_ONLY_DOC_DIRS` 注释把 `docs/reports/` 描述为"gitignore 命中且 `git ls-files` 为 0"，本提交后该实测前提不再成立；豁免按路径前缀生效（D12 实测仍绿），故不改测试，留作后续核验项。
-- **Commit**：`PLACEHOLDER-FORCEADD`
+- **Commit**：`3e26e48b`（已推送，按规则 9 以本记录维护提交回填，非 amend）
