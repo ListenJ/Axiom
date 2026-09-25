@@ -64,6 +64,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 | ND-13 | 上下文向量记忆层（cosine 相似度检索） | dormant | — | 无独立开关；需配置 embedding 角色模型方生效，且当前 4 个入口零调用方 |
 | ND-14 | 意识流 episodic 向量检索与向量聚类（cosine） | dormant | — | 无开关；embedding 由调用方注入，仓库内当前无调用方传入向量 |
 | ND-15 | 共享 cosine 相似度核（ND-01 / ND-13 / ND-14 复用的确定性纯函数） | kernel | — | 无开关；自身无随机源，非确定性只来自调用方注入的向量（生产调用方：settings-search、context-manager、consciousness stream） |
+| ND-16 | 记忆检索可选语义层 | retrieval | MEMORY_SEMANTIC_SEARCH | 0 |
 <!-- END:nondeterminism-registry -->
 
 ### 四大不可替代核心

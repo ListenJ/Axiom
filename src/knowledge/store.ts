@@ -10,9 +10,14 @@ export class KnowledgeStore {
   private db: Database;
   private vault = getGlobalVault();
 
-  constructor(dbPath?: string) {
-    const resolvedPath = dbPath || readString("KNOWLEDGE_DB_PATH") || readString("DATABASE_PATH", "./data/agent.db");
-    this.db = new Database(resolvedPath);
+  constructor(dbPath?: string | Database) {
+    // 收拢口径（ADR-010）：既可按路径自开连接，也可共享 KnowledgeBackend 的同一连接（幂等 schema）。
+    if (dbPath && typeof dbPath !== "string") {
+      this.db = dbPath;
+    } else {
+      const resolvedPath = dbPath || readString("KNOWLEDGE_DB_PATH") || readString("DATABASE_PATH", "./data/agent.db");
+      this.db = new Database(resolvedPath);
+    }
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
     this.initSchema();

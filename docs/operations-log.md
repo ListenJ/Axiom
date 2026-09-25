@@ -2483,3 +2483,13 @@
 - **偏差与未做**：U1 统一化重路由（chat 改走 KAL 或 retrieveKnowledge 变 KAL 前端）属 T3 待裁决；U4 多代表结构（entities/kg_edge 单数等）迁移登记待 KG 治理。
 - **回滚**：knowledge.db 在 archive/ 可原位移回；无代码改动。
 - **Commit**：e4de75da
+
+## 2026-09-25 05:00 +0800 — T3 收拢+部分向量化：KnowledgeBackend 单后端四子面 + searchHybrid 可选语义层（ADR-010）
+
+- **任务**：用户指令"将4个知识库后端收拢到一个数据库后端……需要一部分向量化操作保证确定性推理的性能和准确性"。级别 T3（书面计划 ADR-010 + 用户已给关键决策）。
+- **交付**：①`src/db/knowledge-backend.ts`——KnowledgeBackend 单连接（data/agent.db, WAL）四解耦懒构造子面（memory/store/kg/kal）+ getKnowledgeBackend 单例；SQLiteMemory/KnowledgeStore 构造器向后兼容接受 Database 实例；②`src/memory/semantic-layer.ts`——可选语义层（edge-embeddings bge-m3 + 共享 cosineSimilarity + embeddings_cache 缓存表 (model,text)-sha1 键 + 分块 32 首块失败即停）；③`SQLiteMemory.searchHybrid`（kw 归一 0.6+语义 0.4 合并，getByPath 补全仅语义命中，path 平序）+ `connection` 访问器 + SearchResult.semanticScore；④VaultManager.searchHybrid（复用抽出的 applyEngineFallback——质量门 -2.0 仅纯 FTS 语义成立，混合分数只按稀疏触发）；⑤CLI vault:search 切 searchHybrid（内自门控）；⑥ADR-010 + ND-16 登记（role=retrieval，D7 棘轮未动）+ AXIOM-ARCHITECTURE 清单行 + .env.example 两变量。
+- **门学费（如实记账）**：①knowledge/ 目录 import 面 8→9 超架构门——组合模块移至 src/db/（数据库访问层的本职，import 面余量充足）；②semantic-layer 用 cosineSimilarity 触发 D7 未登记——按 ND-01 同格式登记为 retrieval 角色；③D3 抓到 ADR 引用旧路径（backend 移位后未改文档）、D6 抓到文档名称列与登记表不逐字相等——均已修。
+- **验证结果**：semantic-layer+backend 单测 6/0；全门 148/0（memory+arch+doc-contract+env+laya+audit-chain 21 文件）；audit:runtime 16/16；tsc 零错。活体：端点未起（http=000）时 vault:search 0.64s 完成、纯 fts5-match 路径（本地 ECONNREFUSED 即刻 fail-open）；.env 已置 MEMORY_SEMANTIC_SEARCH=1，用户起 bge-m3 端点后语义增强自动生效。
+- **偏差与未做**：chat 重路由（U1）仍待裁决；VaultManager 自身连接未并入 backend（文件/watcher 生命周期独立，WAL 同库并发安全——已在 backend.ts 头注释如实划界）；embeddings_cache 首启全库嵌入 183 篇（分块 32）。
+- **回滚**：全部为新增文件/可选参数/新表；revert 即回滚，embeddings_cache 可 DROP。
+- **Commit**：`<待回填>`

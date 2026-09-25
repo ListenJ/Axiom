@@ -143,7 +143,8 @@ export async function handleVaultSearch(args: string[]) {
   const limit = Number(args.find((a) => a.startsWith("--limit="))?.slice(8)) || 10;
   const para = args.find((a) => a.startsWith("--para="))?.slice(7);
   const vault = getGlobalVault();
-  const results = vault.search(query, { limit, paraCategory: para });
+  // searchHybrid 内部自门控：MEMORY_SEMANTIC_SEARCH 未开启/端点缺失时逐项等于 vault.search（确定性路径）
+  const results = await vault.searchHybrid(query, { limit, paraCategory: para });
   console.log(`[搜索] Vault 搜索结果: "${query}" (${results.length} 条)\n`);
   for (const r of results) {
     console.log(`  [${r.score.toFixed(1)}] ${r.note.title}`);

@@ -207,6 +207,19 @@
       "provenance": false,
       "provenanceField": null,
       "fallback": "无（本条目是被复用的计算核，不是独立检索路径）"
+    },
+    {
+      "id": "ND-16",
+      "name": "记忆检索可选语义层",
+      "role": "retrieval",
+      "switch": "MEMORY_SEMANTIC_SEARCH",
+      "switchFile": "src/memory/semantic-layer.ts",
+      "default": "0",
+      "defaultVia": "readBool-default",
+      "codeFile": "src/memory/semantic-layer.ts",
+      "provenance": true,
+      "provenanceField": "semanticScore",
+      "fallback": "纯关键词 search()（fail-open）"
     }
   ]
 }

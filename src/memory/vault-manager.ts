@@ -189,11 +189,56 @@ export class VaultManager {
       excerpt: r.excerpt,
     }));
 
-    // 2. 结果不足或质量低时用确定性引擎补充
+    results = this.applyEngineFallback(results, query, opts, true);
+
+    logger.debug("Vault search", { query, fts: ftsResults.length, total: results.length });
+    return results;
+  }
+
+  /**
+   * 混合检索（可选语义层，ADR-010"一部分向量化"）：
+   * SQLite FTS5 + 语义余弦（MEMORY_SEMANTIC_SEARCH=1 时参与，端点缺失自动 fail-open），
+   * 之后仍走同一确定性 fallback 链（引擎补充 + DRE 补充）——语义增强不改变回退纪律。
+   */
+  async searchHybrid(query: string, opts?: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string }): Promise<SearchResult[]> {
+    const limit = opts?.limit ?? 10;
+
+    const hybrid = await this.sqliteMemory.searchHybrid(query, {
+      limit,
+      tags: opts?.tags,
+      paraCategory: opts?.paraCategory,
+      type: opts?.types?.[0],
+    });
+
+    let results: SearchResult[] = hybrid.map((r) => ({
+      note: this.memoryRecordToVaultNote(r.record),
+      score: r.score,
+      reasons: r.semanticScore !== undefined ? ["fts5-match", `semantic:${r.semanticScore.toFixed(3)}`] : ["fts5-match"],
+      excerpt: r.excerpt,
+    }));
+
+    results = this.applyEngineFallback(results, query, opts, false);
+
+    logger.debug("Vault searchHybrid", { query, total: results.length });
+    return results;
+  }
+
+  /**
+   * search/searchHybrid 共用的确定性回退链（引擎补充 + DRE 补充 + 截断）——逻辑与原 search() 逐行一致。
+   * @param qualityGate FTS 负分质量门（-2.0）仅对纯 FTS 分数语义成立；混合检索的 0-1 分数
+   *                    只按稀疏（<3）触发，否则语义增强会被无条件稀释。
+   */
+  private applyEngineFallback(
+    results: SearchResult[],
+    query: string,
+    opts: { limit?: number; types?: string[]; tags?: string[]; paraCategory?: string } | undefined,
+    qualityGate: boolean,
+  ): SearchResult[] {
+    const limit = opts?.limit ?? 10;
     const minResults = 3;
     const minQuality = -2.0; // FTS rank 是负数，越接近 0 越差
     const needsFallback = results.length < minResults ||
-      (results.length > 0 && results[0].score > minQuality);
+      (qualityGate && results.length > 0 && results[0].score > minQuality);
     if (needsFallback) {
       const fallback = this.engine.search(query, opts);
       const seen = new Set(results.map((r) => r.note.path));
@@ -214,9 +259,9 @@ export class VaultManager {
         }
       }
       results = results.slice(0, limit);
+    } else {
+      results = results.slice(0, limit);
     }
-
-    logger.debug("Vault search", { query, fts: ftsResults.length, total: results.length });
     return results;
   }
 

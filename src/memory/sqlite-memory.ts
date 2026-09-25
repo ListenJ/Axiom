@@ -18,6 +18,7 @@ import fs from "fs";
 import path from "path";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+import { edgeEmbedder, isSemanticSearchEnabled, SemanticLayer, type SemanticEmbedder } from "./semantic-layer.js";
 
 /**
  * SQLite 记忆库 DB 路径的唯一解析源（审计 E-1 / R3 Task 3.2）。
@@ -57,6 +58,8 @@ export interface SearchResult {
   record: MemoryRecord;
   score: number;
   excerpt: string;
+  /** 语义层命中分数（0-1 余弦）；纯关键词命中时为 undefined（searchHybrid 专有） */
+  semanticScore?: number;
 }
 
 /** 按行兜底的 tags 解析：损坏行降级为空数组，不抛错、不拖垮调用方（P0-5） */
@@ -169,10 +172,19 @@ export class SQLiteMemory {
   private dbPath: string;
   /** P1-S2 层2：当前 FTS 表是否为 trigram（决定短词 LIKE 兜底腿是否启用） */
   private ftsTrigram = false;
+  /** 可选语义层（ADR-010）：懒构造，仅 MEMORY_SEMANTIC_SEARCH=1 时参与 searchHybrid */
+  private semanticLayer?: SemanticLayer;
 
-  constructor(dbPath?: string) {
-    this.dbPath = dbPath || resolveSqliteMemoryDbPath();
-    this.db = new Database(this.dbPath);
+  constructor(dbPath?: string | Database) {
+    // 收拢口径（ADR-010）：既可按路径自开连接，也可共享 KnowledgeBackend 的同一连接——
+    // 两种构造方式的 schema/迁移逻辑完全一致（幂等）。
+    if (dbPath && typeof dbPath !== "string") {
+      this.db = dbPath;
+      this.dbPath = "(shared-connection)";
+    } else {
+      this.dbPath = dbPath || resolveSqliteMemoryDbPath();
+      this.db = new Database(this.dbPath);
+    }
     this.db.run("PRAGMA journal_mode = WAL");
     this.db.run("PRAGMA synchronous = NORMAL");
     this.initSchema();
@@ -596,6 +608,59 @@ export class SQLiteMemory {
       byType: Object.fromEntries(byType.map(r => [r.type, r.count])),
       totalWords: words?.total ?? 0,
     };
+  }
+
+  /** 共享连接句柄（KnowledgeBackend 收拢 / 测试夹具用；只读用途优先，写仍走实例方法） */
+  get connection(): Database {
+    return this.db;
+  }
+
+  /**
+   * 混合检索（可选语义层，ADR-010"一部分向量化"）：
+   * 确定性 FTS/关键词结果为主体（this.search 不变），语义余弦做召回增强。
+   * - `MEMORY_SEMANTIC_SEARCH` 未开启 ⇒ 原样返回 search()（默认路径，确定性口径不变）；
+   * - embedding 端点不可用 ⇒ fail-open 回纯关键词（embedder 返回 null 即降级）；
+   * - 合并口径：kw 分数按批内最大值归一后 0.6 + 语义 0.4；仅语义命中的条目经 getByPath 补全；
+   * - 平序按 path 升序（确定性 tie-break）。
+   */
+  async searchHybrid(
+    query: string,
+    opts: SearchOptions & { semanticWeight?: number } = {},
+    embedder?: SemanticEmbedder,
+  ): Promise<SearchResult[]> {
+    const base = this.search(query, opts);
+    if (!isSemanticSearchEnabled()) return base;
+    try {
+      if (!this.semanticLayer) this.semanticLayer = new SemanticLayer(this.db);
+      const limit = opts.limit ?? 10;
+      const semantic = await this.semanticLayer.rank(query, limit * 2, embedder ?? edgeEmbedder);
+      if (semantic.length === 0) return base;
+
+      const weight = opts.semanticWeight ?? 0.4;
+      const maxKw = base.length ? Math.max(...base.map(r => r.score)) : 0;
+      const merged = new Map<string, SearchResult>();
+      for (const r of base) merged.set(r.record.path, { ...r });
+      for (const s of semantic) {
+        const existing = merged.get(s.path);
+        if (existing) {
+          existing.semanticScore = s.score;
+        } else if (merged.size < Math.max(limit * 3, 30)) {
+          const record = this.getByPath(s.path);
+          if (record) merged.set(s.path, { record, score: 0, excerpt: record.excerpt, semanticScore: s.score });
+        }
+      }
+      const kwNorm = (v: number) => (maxKw > 0 ? v / maxKw : 0);
+      const results = [...merged.values()].map(r => {
+        const kwPart = r.score > 0 ? kwNorm(r.score) : 0;
+        const semPart = r.semanticScore ?? 0;
+        return { ...r, score: (1 - weight) * kwPart + weight * semPart };
+      });
+      results.sort((a, b) => (b.score - a.score) || a.record.path.localeCompare(b.record.path));
+      return results.slice(0, limit);
+    } catch (err) {
+      logger.warn("searchHybrid 语义层失败，降级纯关键词结果", { error: err instanceof Error ? err.message : String(err) });
+      return base;
+    }
   }
 
   syncFromVault(vaultPath: string): { synced: number; errors: string[] } {
