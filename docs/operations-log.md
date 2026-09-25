@@ -4841,4 +4841,4 @@
 - **点名更正（自身缺陷）**：首版驱动 `rc_src=${PIPESTATUS[0]}; rc_dst=${PIPESTATUS[1]}` 同行赋值——前一个赋值会把 `PIPESTATUS` 重置为单元素，`set -u` 下取 `[1]` 直接终止脚本，导致"复制已完成、核验一步没跑"却只留下一行 START 日志；已用独立核验脚本补跑并在 `MANIFEST.md` §八 记录该坑。另一次同类误判：在非 git 目录跑 `git cat-file`/`git ls-remote`，报错输出空集，差点把"bundle 75 head 全部丢失"当成事实——回到仓库内重测得唯一 head = 0。
 - **判定固化**：该目录**需保留**——git/LFS 面冗余（75/75 head 已在现行可达集、LFS 105↔105 双向差集 0），数据面独有（`model-outputs` 与现行树交集 0、66M Linux 期 `agent.log*` 无副本、旧机会话转录 186 件），且源机已退役 ⇒ 唯一副本。
 - **未决/后续**：`adaptive-proxy-exit.test.ts:83` tsc 红未修；`bun test` 串行全量未跑；`internal/main` 仍未推（按计划第 6 步等门禁绿）；ops log 本月条目待按月拆分。
-- **Commit**：`PLACEHOLDER-LEGACYCOPY`
+- **Commit**：`603f484c`（已推送，按规则 9 以本记录维护提交回填）
