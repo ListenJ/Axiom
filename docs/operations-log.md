@@ -2534,4 +2534,4 @@
 - **模块 10 发现**：R1 Medium——36 路由仅 chat.ts 有 zod（M11 面），其余直接解构 body 透传（agents.ts:55-97 temperature/timeout 无校验）；已知未触发恶性后果（外层有尺寸上限+流量分类+写面 SafeFs），整改建议按流量排序分批上 zod，交用户排期（审计轮不动手）。
 - **覆盖率**：深读 23 篇全文 + routes/dre 系统扫描 ≈ 2.8%。轮 5 候选：model-router 全文、mcp 剩余 20 域、utils/agents、F7 二分、e2e-visual 重摄。
 - **回滚**：报告为新增文件。
-- **Commit**：`<待回填>`
+- **Commit**：fd06aaed
