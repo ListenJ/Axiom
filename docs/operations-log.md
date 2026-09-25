@@ -2451,4 +2451,4 @@
 - **证据更正（如实记账）**：骨架树 P2 曾写"脚本断链"——实况 `tauri:dev` 断链（frontend 内无壳）而 `tauri:build` 经 `cd ..` 回根原本可用；已更正树文档，不影响裁定（停更+零引用+Laya archive_then_cut 均成立）。
 - **偏差与未做**：frontend 的 @tauri-apps 依赖未动（npm 依赖面，砍壳不影响其编译）；P7 交人；`dist/`、`src-tauri/target` 等生成物未清理（规则 4 例外可删但 dist 是发布链工作区，留待需要空间时处理）。
 - **回滚**：归档分支单分支 revert + `git revert` 本提交即全量还原；P1/P4 归档件在 `archive/` 本地保留。
-- **Commit**：`<待回填>`
+- **Commit**：ff463685
