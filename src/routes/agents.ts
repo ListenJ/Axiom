@@ -2,6 +2,36 @@
  * Agent status and tool routes
  */
 import type { RouteContext } from "./types.js";
+import { z } from "zod";
+
+/** R1 整改（轮 4 审计）：本路由此前直接解构 body 透传（temperature/timeout 无类型/范围
+ *  校验即达 LLM 调用）——对齐 chat.ts（M11 同病先例）的 zod 口径。 */
+const opencodeOpenSchema = z.object({
+  model: z.string().max(200).optional(),
+  prompt: z.string().max(32000).optional(),
+});
+
+const kimiChatSchema = z.object({
+  messages: z
+    .array(z.object({ role: z.enum(["system", "user", "assistant"]), content: z.string().max(128000) }))
+    .max(100)
+    .optional(),
+  system: z.string().max(32000).optional(),
+  prompt: z.string().max(32000).optional(),
+  message: z.string().max(32000).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  timeout: z.number().int().min(1000).max(600000).optional(),
+});
+
+function parseJsonBody(raw: unknown, schema: z.ZodType): { ok: true; data: unknown } | { ok: false; error: string } {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const detail = issue ? `${issue.path.join(".") || "(root)"}: ${issue.message}` : "validation failed";
+    return { ok: false, error: `Invalid request body — ${detail}` };
+  }
+  return { ok: true, data: parsed.data };
+}
 
 /** 依赖不可用（CDP/浏览器）→ 503，其余内部错误 → 500。 */
 function toAgentErrorStatus(msg: string): number {
@@ -51,7 +81,15 @@ export async function handleOpenCodeModels(ctx: RouteContext): Promise<Response 
 
 export async function handleOpenCodeOpen(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/opencode/open" && ctx.req.method === "POST") {
-    const body = await ctx.req.json();
+    let raw: unknown;
+    try {
+      raw = await ctx.req.json();
+    } catch {
+      return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
+    }
+    const parsed = parseJsonBody(raw, opencodeOpenSchema);
+    if (!parsed.ok) return ctx.jsonResponse({ error: parsed.error }, 400, ctx.baseHeaders);
+    const body = parsed.data as z.infer<typeof opencodeOpenSchema>;
     const model = body.model || "opencode/deepseek-v4-flash-free";
     const prompt = body.prompt || "";
     return ctx.jsonResponse({
@@ -83,7 +121,15 @@ export async function handleKimiStatus(ctx: RouteContext): Promise<Response | nu
 export async function handleKimiChat(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/agents/kimi/chat" && ctx.req.method === "POST") {
     const { kimiCodeChat, checkKimiCodeApiKey, getKimiCodeGuide, KIMI_CODE_MODEL } = await import("../agents/kimi-code-agent.js");
-    const body = await ctx.req.json();
+    let raw: unknown;
+    try {
+      raw = await ctx.req.json();
+    } catch {
+      return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
+    }
+    const parsed = parseJsonBody(raw, kimiChatSchema);
+    if (!parsed.ok) return ctx.jsonResponse({ error: parsed.error }, 400, ctx.baseHeaders);
+    const body = parsed.data as z.infer<typeof kimiChatSchema>;
     if (!checkKimiCodeApiKey()) {
       return ctx.jsonResponse({ error: "KIMI_CODE_API_KEY not configured", guide: getKimiCodeGuide() }, 503, ctx.baseHeaders);
     }

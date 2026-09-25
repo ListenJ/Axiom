@@ -2535,3 +2535,12 @@
 - **覆盖率**：深读 23 篇全文 + routes/dre 系统扫描 ≈ 2.8%。轮 5 候选：model-router 全文、mcp 剩余 20 域、utils/agents、F7 二分、e2e-visual 重摄。
 - **回滚**：报告为新增文件。
 - **Commit**：fd06aaed
+
+## 2026-09-25 09:45 +0800 — T2 修复轮：审计发现问题落地（launcher L1/L2/L3 + main M1 + R1 首批 zod）
+
+- **任务**：用户指令"先解决现在发现的问题"。级别 T2（三文件小修 + 一路由校验加固 + 5 新测）。
+- **修复**：①launcher L1——agentMode 从"预热后空转挂起"改为真正启动 HTTP+MCP（使帮助承诺为真）；L2——启动校验补 `exitCode !== null`（子进程秒退不再误报 running）；L3——cli case 补 break（不再依赖 exit 兜 fall-through）；②main M1——SPA_ROUTES 去 "/chat" 陈旧项；③R1 首批——`routes/agents.ts` 两个 POST 口（opencode/open、kimi/chat）zod 化（temperature 0-2/timeout 1s-600s/长度上限/畸形 JSON 400），对齐 chat.ts M11 口径。
+- **验证结果**：新测试 5/0（负例 400/畸形 JSON/合法回显）；全门 151/0（doc-contract D0 55 上限逐件点名、arch、memory、laya、audit-chain）；audit:runtime 16/16；tsc 零错。
+- **偏差与未做**：R1 剩余 ~34 路由未 zod 化（整改线按流量分批，research 等下一批）；L1 语义选择（agent 模式=HTTP+MCP）如与原意不符可再调——help 文本未改。
+- **回滚**：三个备份于 .tmp/backups（验证通过后删）；agents.ts 校验为纯增分支，revert 即回滚。
+- **Commit**：`<待回填>`

@@ -87,9 +87,11 @@ class ProcessManager {
 
     // Wait a bit for startup
     await new Promise((r) => setTimeout(r, 1500));
-    
-    if (proc.killed) {
-      throw new Error(`${name} failed to start`);
+
+    // L2 修复（轮 2 审计）：proc.killed 只反映父进程主动 kill；子进程启动即退
+    // （如端口占用 exit 1）时需检查 exitCode，否则会误报 "is running"。
+    if (proc.killed || proc.exitCode !== null) {
+      throw new Error(`${name} failed to start (exit code ${proc.exitCode ?? "killed"})`);
     }
 
     Log.success(`${name} is running`);
@@ -268,12 +270,18 @@ async function tuiMode(): Promise<void> {
 }
 
 async function agentMode(): Promise<void> {
-  Log.info("=== Agent Mode (Preloaded Hooks) ===");
-  
+  Log.info("=== Agent Mode (Preloaded Hooks + Tool Surfaces) ===");
+
   // Full preload
   await preloader.preload();
 
-  Log.success("\n[Agent] ready with preloaded hooks");
+  // L1 修复（轮 2 审计）：agent 模式此前仅预热后空转挂起，帮助文本承诺的
+  // 能力面（web_search/memory/工具）实际都挂在 HTTP+MCP 上——现在真正启动，
+  // 使 "agent mode with preloaded hooks" 承诺为真。
+  await pm.start("http", "bun", [CONFIG.paths.main]);
+  await pm.start("mcp", "bun", [CONFIG.paths.mcp]);
+
+  Log.success("\n[Agent] preloaded hooks + HTTP/MCP tool surfaces running");
   Log.info("Available: web_search, memory, code_analysis, task_orchestration");
   Log.info("Press Ctrl+C to exit\n");
 
@@ -413,6 +421,7 @@ async function main(): Promise<void> {
       case "cli":
         await cliMode(args.slice(1));
         process.exit(0);
+        break; // L3 修复（轮 2 审计）：原依赖 exit 兜住 fall-through，补显式 break
       case "status":
         await statusMode();
         process.exit(0);

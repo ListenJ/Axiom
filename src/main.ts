@@ -661,8 +661,9 @@ if (bypassWarning) {
 }
 
 // SPA route whitelist — module-level Set avoids per-request allocation.
+// /chat 已随 2026-09-25 前端 Chat 页移除（M1 清理）；旧链接由前端 * 路由重定向 /agents。
 const SPA_ROUTES = new Set([
-  "/", "/chat", "/code", "/agents", "/router", "/vault", "/kg", // /search 是后端 API（vault 搜索），不加入 SPA 白名单避免劫持
+  "/", "/code", "/agents", "/router", "/vault", "/kg", // /search 是后端 API（vault 搜索），不加入 SPA 白名单避免劫持
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
   "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings", "/login",
 ]);
