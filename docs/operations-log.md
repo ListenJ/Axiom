@@ -2482,4 +2482,4 @@
 - **交付**：`docs/reviews/2026-09-25-memory-knowledge-unification.md`（U1-U6 分级 + 对用户三问的直接回答）。
 - **偏差与未做**：U1 统一化重路由（chat 改走 KAL 或 retrieveKnowledge 变 KAL 前端）属 T3 待裁决；U4 多代表结构（entities/kg_edge 单数等）迁移登记待 KG 治理。
 - **回滚**：knowledge.db 在 archive/ 可原位移回；无代码改动。
-- **Commit**：`<待回填>`
+- **Commit**：e4de75da
