@@ -2543,4 +2543,4 @@
 - **验证结果**：新测试 5/0（负例 400/畸形 JSON/合法回显）；全门 151/0（doc-contract D0 55 上限逐件点名、arch、memory、laya、audit-chain）；audit:runtime 16/16；tsc 零错。
 - **偏差与未做**：R1 剩余 ~34 路由未 zod 化（整改线按流量分批，research 等下一批）；L1 语义选择（agent 模式=HTTP+MCP）如与原意不符可再调——help 文本未改。
 - **回滚**：三个备份于 .tmp/backups（验证通过后删）；agents.ts 校验为纯增分支，revert 即回滚。
-- **Commit**：`<待回填>`
+- **Commit**：2ea50d30
