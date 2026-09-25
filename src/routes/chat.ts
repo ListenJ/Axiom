@@ -19,6 +19,7 @@ import type { Database } from "bun:sqlite";
 import type { VaultManager } from "../memory/vault-manager.js";
 import type { SignificanceContext } from "../memory/memory-gate.js";
 import { normalizeSessionId, persistChatMessage, getSessionMessages } from "../db/session-store.js";
+import { newTaskId } from "../utils/task-id.js";
 import { assessStatement } from "../memory/hallucination-detector.js";
 import { recordHallucinationVerdict } from "../db/hallucination-verdicts.js";
 
@@ -75,7 +76,13 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
       // P0-A 组合根注入：生产边缘客户端（services 层不 import local-llm，架构扇出约束）
       preflightDeps: {
         ...defaultPreflightDeps(),
-        edge: { enabled: () => isEdgeEnabled("EDGE_PROMPT_OPTIMIZER"), client: getEdgeClient() },
+        // 2026-09-20：**仅在能力启用时**才构造边缘客户端。
+        // 原写法 `client: getEdgeClient()` 为**急切求值** —— 即便 EDGE_PROMPT_OPTIMIZER 未启用也照样构造；
+        // 而 getEdgeClient() 现在会在缺 EDGE_LLM_URL 时抛错（fail loud，不再默认指向无人监听的 9001）
+        // ⇒ 急切构造会让"根本没启用"的请求也因配置校验失败，与 PreflightDeps.edge=null（=快路径禁用、走串行）相悖。
+        ...(isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")
+          ? { edge: { enabled: () => true, client: getEdgeClient() } }
+          : {}),
       },
     },
   );
@@ -84,10 +91,14 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  // A4（2026-09-20）：先算任务 id，随后**同时**用于 ①token 用量记录（经 executeChat→router→trackCall）
+  // 与 ②真实使用轨迹 capture —— 两侧共用同一 id，A5 才能"按任务"把用量与轨迹对上。
+  const chatTaskId = newTaskId("chat");
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
     executeTool,
+    taskId: chatTaskId,
   });
 
   // P0-C（2026-08-29）：幻觉防线接火 —— 响应正文过请求级 factBase 校验（缝①）。
@@ -169,23 +180,19 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     const latencyMs = Date.now() - chatStartedAt;
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({
-      id: `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: chatTaskId,
       task: lastPrompt || "chat",
       success,
       model: String(result.model ?? result.provider ?? ""),
       latencyMs,
       source: "chat",
+      sessionId: normalizedSessionId,
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
     // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
     const { maybeAutoEvolve } = await import("../agent-evals/auto-evolve.js");
     void maybeAutoEvolve().catch((err) => logger.warn("[chat] auto-evolve check failed", { error: err instanceof Error ? err.message : String(err) }));
-    // 同步指标到 ResourceBudget 便于后续调度感知真实延迟
-    try {
-      const { getResourceBudgetManager } = await import("../dre/system-resource.js");
-      // 不直接改 availableMemory，仅记录 latency 供未来自适应（预留）
-      logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
-    } catch {}
+    logger.debug("[RealUsage] chat latency", { latencyMs, model: result.model, intent: intentInfo?.intent });
   } catch {}
 
   return response;
@@ -196,7 +203,7 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
 
   const agentChatStartedAt = Date.now();
   const body = await ctx.req.json();
-  const { message, history = [], taskType, budget } = body;
+  const { message, history = [], taskType, budget, sessionId } = body;
   const messages: Array<{ role: string; content: string }> = [
     ...(history as Array<{ role: string; content: string }>),
     { role: "user", content: message },
@@ -215,10 +222,13 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     ? (INTENT_ROUTE_TABLE[intentInfo.intent]?.role ?? DEFAULT_ROLE)
     : (typeof taskType === "string" && VALID_TASK_TYPES.has(taskType) ? taskType : DEFAULT_ROLE);
   const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+  // A4：同 /chat —— 任务 id 同时用于 token 记录与轨迹 capture
+  const agentChatTaskId = newTaskId("agent-chat");
   const result = await executeChat(chatMessages, intentInfo, taskType, {
     role: roleForTools,
     tools,
     executeTool,
+    taskId: agentChatTaskId,
   });
 
   const response = ctx.jsonResponse({
@@ -244,12 +254,18 @@ export async function handleAgentChat(ctx: RouteContext): Promise<Response | nul
     const success = Boolean(result.content && result.content.trim().length > 0);
     const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
     void captureRealUsageTrace({
-      id: `agent-chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: agentChatTaskId,
       task: String(message ?? "").slice(0, 4000),
       success,
       model: String(result.model ?? result.provider ?? ""),
       latencyMs: Date.now() - agentChatStartedAt,
       source: "agent-chat",
+      // 注意（2026-09-19 切片 A3c）：此处**不**用 normalizeSessionId。
+      // /chat 与 /chat-stream 会用它并在 conversations 表持久化会话，故其 UUID 有意义；
+      // /agent-chat 不持久化任何会话，若在此生成 UUID，会让每次请求都成为一个
+      // "独一无二的新会话"，反而把 sessionCount 灌爆、让会话分组失去意义。
+      // 故仅在调用方**显式提供** sessionId 时才带上。
+      ...(typeof sessionId === "string" && sessionId.trim() ? { sessionId: sessionId.trim() } : {}),
       feedback: success ? "auto-success" : "auto-fail",
     }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
     // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
@@ -622,7 +638,10 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
 
       try {
         const { tools, executeTool } = buildChatToolConfig(ctx.pipeline);
+        // A4：流式同样生成任务 id，并让 token 记录与两处轨迹 capture（成功/错误）共用它
+        const chatStreamTaskId = newTaskId("chat-stream");
         streamIter = router.chatStream(roleForStream, chatMessages, {
+          taskId: chatStreamTaskId,
           ...(preferNativeStream !== undefined ? { preferNativeStream } : {}),
           ...(intentInfo?.intent ? { intent: intentInfo.intent } : {}),
           ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -705,12 +724,13 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 const success = Boolean(ev.content && ev.content.trim().length > 0);
                 const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
                 void captureRealUsageTrace({
-                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: chatStreamTaskId,
                   task: lastPrompt || "chat-stream",
                   success,
                   model: String(ev.model ?? ev.provider ?? ""),
                   latencyMs: Date.now() - streamStartedAt,
                   source: "chat-stream",
+                  sessionId,
                   feedback: success ? "auto-success" : "auto-fail",
                 }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
                 // 自动 evolve 学习侧触发（fire-and-forget，默认 OFF；失败不阻断响应）
@@ -752,11 +772,12 @@ export async function handleChatStream(ctx: RouteContext): Promise<Response | nu
                 const lastPrompt = String(lastUser?.content ?? messages[messages.length - 1]?.content ?? "").slice(0, 4000);
                 const { captureRealUsageTrace } = await import("../agent-evals/real-usage.js");
                 void captureRealUsageTrace({
-                  id: `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: chatStreamTaskId,
                   task: lastPrompt || "chat-stream",
                   success: false,
                   latencyMs: Date.now() - streamStartedAt,
                   source: "chat-stream",
+                  sessionId,
                   feedback: "stream-error",
                 }).catch((err) => logger.warn("[chat] usage-trace capture failed", { error: err instanceof Error ? err.message : String(err) }));
               } catch {}

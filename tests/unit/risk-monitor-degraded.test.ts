@@ -92,6 +92,7 @@ describe("ToolRegistry 权限硬底线（C-3）", () => {
 
 describe("风险初筛降级可见性与分档处置（C-4）", () => {
   const origFailClosed = process.env.EDGE_RISK_FAIL_CLOSED;
+  const origRiskMonitor = process.env.EDGE_RISK_MONITOR;
 
   const degradedLow = (over: Partial<RiskMonitorDeps> = {}): RiskMonitorDeps => ({
     screen: async () => ({ risk: "low" as const, degraded: true }),
@@ -101,10 +102,14 @@ describe("风险初筛降级可见性与分档处置（C-4）", () => {
   beforeEach(() => {
     resetDegradedBypassCount();
     delete process.env.EDGE_RISK_FAIL_CLOSED;
+    // LLM 默认关闭策略（用户指令 2026-09-18）：本 describe 验证"已授权"路径
+    process.env.EDGE_RISK_MONITOR = "1";
   });
   afterEach(() => {
     if (origFailClosed === undefined) delete process.env.EDGE_RISK_FAIL_CLOSED;
     else process.env.EDGE_RISK_FAIL_CLOSED = origFailClosed;
+    if (origRiskMonitor === undefined) delete process.env.EDGE_RISK_MONITOR;
+    else process.env.EDGE_RISK_MONITOR = origRiskMonitor;
   });
 
   test("降级 + 特权能力 → 升级审批并计数（审计修复：此处原为 fail-open）", async () => {

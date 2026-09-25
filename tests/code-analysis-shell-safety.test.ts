@@ -1,4 +1,11 @@
 import { describe, test, expect } from "bun:test";
+// ── 超时口径（2026-09-20）──────────────────────────────────────────────
+// 本文件的用例断言的是**判定结果**（恶意 filePath 是否被拒、合法文件是否被误拒），**不是速度**；
+// 而 `getCodeActions` 会真实 spawn `npx eslint`（重外部进程，见 src/mcp/tools/code-analysis.ts:545）。
+// 故 30s 上限在并行/负载下会**卡着超时**（实测出现过 30004ms 的失败，且与判定无关）。
+// 按仓库统一口径：这里把超时放宽为**防挂起**级别（120s）——它仍能拦住真卡死，但不再把"慢"当失败。
+// 需要严格速度门禁时走 AXIOM_PERF_ASSERT=1 的专属性能脚本。
+
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -86,7 +93,7 @@ describe("code-analysis N-H2 行为：恶意 filePath 返回错误而非执行",
     const r = await getCodeActions("x$(calc).ts");
     expect(r.success).toBe(false);
     expect(r.error).toBeTruthy();
-  }, 30000);
+  }, 120000);
 
   test("getDiagnostics：元字符 filePath 全部拒绝执行", async () => {
     for (const evil of ["a`id`.ts", "a|b.ts", "a;b.ts"]) {
@@ -100,13 +107,13 @@ describe("code-analysis N-H2 行为：恶意 filePath 返回错误而非执行",
     const r = await getDiagnostics(join(process.cwd(), ".tmp", "nh2-missing-abc.ts"));
     expect(r.success).toBe(false);
     expect(r.error).toContain("not exist");
-  }, 30000);
+  }, 120000);
 
   test("getDiagnostics：.txt 扩展名拒绝（扩展名白名单）", async () => {
     const r = await getDiagnostics("notes.txt");
     expect(r.success).toBe(false);
     expect(r.error).toContain("extension");
-  }, 30000);
+  }, 120000);
 
   test("getCodeActions：合法 .ts 文件不因校验被误拒（照常走 lint 流程）", async () => {
     const dir = join(process.cwd(), ".tmp");
@@ -116,5 +123,5 @@ describe("code-analysis N-H2 行为：恶意 filePath 返回错误而非执行",
     const r = await getCodeActions(f);
     // 校验通过后进入 lint：无论 eslint 是否产出建议，都不得以校验错误失败
     expect(r.success).toBe(true);
-  }, 30000);
+  }, 120000);
 });

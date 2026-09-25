@@ -16,6 +16,7 @@ import { Database } from "bun:sqlite";
 import { atomStore } from "../../src/dre/runtime/atom-engine.js";
 import { dataUnifier } from "../../src/dre/runtime/data-unifier.js";
 import { KnowledgeStore } from "../../src/dre/storage/knowledge-store.js";
+import { KG_SCHEMA_DDL } from "../../src/kg/schema.js";
 
 function setupKnowledgeTables(db: Database): void {
   db.exec(`
@@ -51,16 +52,7 @@ function setupKnowledgeTables(db: Database): void {
       PRIMARY KEY (node_id, revision)
     )
   `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS kg_edge (
-      src_node TEXT NOT NULL,
-      dst_node TEXT NOT NULL,
-      relation TEXT NOT NULL,
-      weight REAL DEFAULT 1.0,
-      evidence TEXT,
-      PRIMARY KEY (src_node, dst_node, relation)
-    )
-  `);
+  db.exec(KG_SCHEMA_DDL);
   db.exec(`
     CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_node_fts USING fts5(
       node_id, title, content, domain,

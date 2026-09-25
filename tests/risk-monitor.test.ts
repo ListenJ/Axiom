@@ -18,7 +18,7 @@
  *
  * 全部通过 DI fake 测试，不访问真实端点与真实 router。
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { screenPayloadWithEdge } from "../src/local-llm/risk-screen.js";
 import {
   screenToolCall,
@@ -28,6 +28,11 @@ import {
   type RiskMonitorDeps,
   type ToolCallView,
 } from "../src/agents/risk-monitor.js";
+
+// LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开开关
+beforeEach(() => {
+  process.env.EDGE_RISK_MONITOR = "1";
+});
 
 // ─────────────────────────────────────────────────────────
 // 工具：fake 客户端 / fake 初筛复核

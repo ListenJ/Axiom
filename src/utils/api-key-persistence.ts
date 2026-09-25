@@ -20,6 +20,10 @@ export interface PersistedOverride {
   apiKey: string;
   baseURL?: string;
   setAt: number;
+  /** 切片 B（2026-09-20）：自定义 provider 的协议；有值即表示这是用户自定义条目 */
+  adapter?: string;
+  /** 切片 B：自定义 provider 的展示名 */
+  displayName?: string;
 }
 
 // ============================================================================
@@ -116,9 +120,17 @@ export function initApiKeyOverridesTable(db: Database): void {
       api_key TEXT NOT NULL,
       base_url TEXT,
       set_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      adapter TEXT,
+      display_name TEXT
     )
   `);
+  // 迁移：老库补切片 B 的两列（重复列会抛错，吞掉即可）
+  for (const col of ["adapter TEXT", "display_name TEXT"]) {
+    try {
+      db.run(`ALTER TABLE api_key_overrides ADD COLUMN ${col}`);
+    } catch { /* 列已存在 */ }
+  }
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_api_key_overrides_updated
     ON api_key_overrides(updated_at DESC)
@@ -130,12 +142,14 @@ export function initApiKeyOverridesTable(db: Database): void {
 export function loadApiKeyOverrides(db: Database): PersistedOverride[] {
   const rows = db
     .query(
-      "SELECT provider, api_key, base_url, set_at FROM api_key_overrides"
+      "SELECT provider, api_key, base_url, set_at, adapter, display_name FROM api_key_overrides"
     )
     .all() as Array<{
       provider: string;
       api_key: string;
       base_url: string | null;
+    adapter: string | null;
+    display_name: string | null;
       set_at: number;
     }>;
 
@@ -154,6 +168,8 @@ export function loadApiKeyOverrides(db: Database): PersistedOverride[] {
           apiKey: r.api_key,
           baseURL: r.base_url || undefined,
           setAt: r.set_at,
+          adapter: r.adapter || undefined,
+          displayName: r.display_name || undefined,
         });
       } else {
         // 已配密钥但记录是明文：跳过（应由 migratePlaintextKeys 处理）
@@ -177,6 +193,8 @@ export function loadApiKeyOverrides(db: Database): PersistedOverride[] {
       apiKey: plain,
       baseURL: r.base_url || undefined,
       setAt: r.set_at,
+      adapter: r.adapter || undefined,
+      displayName: r.display_name || undefined,
     });
   }
   return out;
@@ -187,20 +205,24 @@ export function saveApiKeyOverride(
   db: Database,
   provider: string,
   apiKey: string,
-  baseURL?: string
+  baseURL?: string,
+  /** 切片 B：自定义 provider 的扩展字段（内置 provider 不传） */
+  extra?: { adapter?: string; displayName?: string }
 ): void {
   const encrypted = encrypt(apiKey); // 未配密钥 → throw（fail-closed）
   db.run(
     `
-    INSERT INTO api_key_overrides (provider, api_key, base_url, set_at, updated_at)
-    VALUES (?, ?, ?, ?, unixepoch())
+    INSERT INTO api_key_overrides (provider, api_key, base_url, set_at, updated_at, adapter, display_name)
+    VALUES (?, ?, ?, ?, unixepoch(), ?, ?)
     ON CONFLICT(provider) DO UPDATE SET
       api_key = excluded.api_key,
       base_url = excluded.base_url,
       set_at = excluded.set_at,
-      updated_at = unixepoch()
+      updated_at = unixepoch(),
+      adapter = excluded.adapter,
+      display_name = excluded.display_name
     `,
-    [provider, encrypted, baseURL || null, Date.now()]
+    [provider, encrypted, baseURL || null, Date.now(), extra?.adapter ?? null, extra?.displayName ?? null]
   );
   logger.info(`[ApiKeyPersistence] Saved override for ${provider}`);
 }

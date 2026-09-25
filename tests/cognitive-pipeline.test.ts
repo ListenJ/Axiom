@@ -236,4 +236,94 @@ describe("CognitivePipeline", () => {
     expect(typeof result.totalDurationMs).toBe("number");
     expect(Array.isArray(result.lessons)).toBe(true);
   });
+
+  // ── 并发闸门：原子式 FIFO 互斥 + 有界等待（方案A） ──
+
+  describe("并发闸门", () => {
+    const NEVER = new Promise<never>(() => {});
+
+    test("并发 run() 不重叠执行（观测最大并发 = 1），且全部完成", async () => {
+      let active = 0;
+      let maxActive = 0;
+      (engine as unknown as { consciousnessStep: (i: unknown) => Promise<unknown> }).consciousnessStep =
+        async () => {
+          active++;
+          maxActive = Math.max(maxActive, active);
+          await new Promise((r) => setTimeout(r, 25));
+          active--;
+          return { shouldReflect: false };
+        };
+
+      const results = await Promise.all(
+        [1, 2, 3, 4, 5].map((i) => pipeline.run(`并发任务 ${i}`)),
+      );
+
+      expect(results).toHaveLength(5);
+      expect(active).toBe(0);
+      // 旧实现（布尔标记 + 100ms 轮询）在释放瞬间会让多个等待者同时 resolve ⇒ 并发重叠
+      expect(maxActive).toBe(1);
+      expect(pipeline.getGateStats().waiting).toBe(0);
+    });
+
+    test("持锁者内部 await 永不 settle 时，等待者必须在超时内 fail-closed 返回", async () => {
+      let first = true;
+      (engine as unknown as { consciousnessStep: (i: unknown) => Promise<unknown> }).consciousnessStep =
+        () => {
+          if (first) { first = false; return NEVER; } // 持锁者永久挂起
+          return Promise.resolve({ shouldReflect: false });
+        };
+
+      const p = new CognitivePipeline(engine, { lockTimeoutMs: 60 });
+      void p.run("holder-hangs"); // 取得锁后永不返回（不 await，避免把测试挂死）
+
+      const waiter = p.run("waiter");
+      const raced = await Promise.race([
+        waiter.then((r) => ({ kind: "resolved" as const, r })),
+        new Promise<{ kind: "timeout" }>((res) => setTimeout(() => res({ kind: "timeout" }), 2000)),
+      ]);
+
+      expect(raced.kind).toBe("resolved"); // 旧实现：无超时 ⇒ 这里永远等不到
+      if (raced.kind !== "resolved") return;
+      expect(raced.r.confidence).toBe(0);
+      expect(raced.r.conclusion).toBeNull();
+      expect(raced.r.lessons.join(" ")).toMatch(/超时|timeout/i);
+      expect(p.getGateStats().timeouts).toBe(1);
+      expect(p.getGateStats().lockTimeoutMs).toBe(60);
+    });
+
+    test("超时放弃的等待者不得堵死队列：持锁者结束后新请求须正常完成", async () => {
+      let call = 0;
+      (engine as unknown as { consciousnessStep: (i: unknown) => Promise<unknown> }).consciousnessStep =
+        async () => {
+          call++;
+          if (call === 1) await new Promise((r) => setTimeout(r, 150)); // 持锁者慢 150ms
+          return { shouldReflect: false };
+        };
+
+      const p = new CognitivePipeline(engine, { lockTimeoutMs: 40 });
+      const holder = p.run("holder");
+      const waiter = p.run("waiter"); // 40ms 超时 → 放弃排队
+
+      const raced = await Promise.race([
+        waiter.then((r) => ({ kind: "resolved" as const, r })),
+        new Promise<{ kind: "timeout" }>((res) => setTimeout(() => res({ kind: "timeout" }), 2000)),
+      ]);
+      expect(raced.kind).toBe("resolved");
+
+      await holder; // 持锁者结束
+
+      const after = await Promise.race([
+        p.run("after").then((r) => ({ kind: "resolved" as const, r })),
+        new Promise<{ kind: "timeout" }>((res) => setTimeout(() => res({ kind: "timeout" }), 2000)),
+      ]);
+      expect(after.kind).toBe("resolved");
+      if (after.kind !== "resolved") return;
+      // 若超时者的票没有归还，队列会永久堵塞 ⇒ 此处会再次降级
+      expect(after.r.lessons.join(" ")).not.toMatch(/超时|timeout/i);
+      expect(after.r.trace.length).toBeGreaterThan(1);
+      expect(p.getGateStats().timeouts).toBe(1);
+      // 队列已排空：超时者没有泄漏票据（若泄漏，waiting 会恒 > 0 且 after 会超时）
+      expect(p.getGateStats().waiting).toBe(0);
+    });
+  });
 });

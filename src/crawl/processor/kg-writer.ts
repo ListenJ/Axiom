@@ -17,7 +17,7 @@ import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { logger } from "../../utils/logger.js";
 import { createNodeId } from "../../kal/node-id.js";
-import { KG_SCHEMA_DDL, ensureKgFts } from "../../kg/schema.js";
+import { KG_SCHEMA_DDL, ensureKgFts, kgEdgeId } from "../../kg/schema.js";
 import type { ASTNode } from "./markdown-ast.js";
 
 // ========== 类型定义 ==========
@@ -27,12 +27,20 @@ export interface WriteResult {
   nodesCreated: number;
   edgesCreated: number;
   errors: string[];
+  /**
+   * 本次写入的可嵌入单元（2026-09-21）：`{nodeId, content}`，供写入方**推送**给语义索引。
+   * nodeId 即 `kg_nodes.id`（审计 M14：库里已是完整 node_id，原样使用）；content 为 `name + description`。
+   * 与 `kb-corpus` 采集到的文本口径一致，保证"推送索引"与"扫描索引"产出同一向量语义。
+   */
+  indexable?: Array<{ nodeId: string; content: string }>;
 }
 
 // ========== KG Writer ==========
 
 export class KGWriter {
   private db: Database;
+  /** 本次 writeAST 期间累积的可嵌入单元（`upsertNode` 无 result 参数，故用实例字段暂存） */
+  private pendingIndexable: Array<{ nodeId: string; content: string }> = [];
 
   constructor(db: Database) {
     this.db = db;
@@ -55,6 +63,7 @@ export class KGWriter {
    */
   writeAST(ast: ASTNode, documentTitle: string, sourceUrl?: string): WriteResult {
     const result: WriteResult = { nodesCreated: 0, edgesCreated: 0, errors: [] };
+    this.pendingIndexable = [];
 
     // 1. 创建文档根节点
     const docNodeId = createNodeId("kg", "document", documentTitle);
@@ -75,6 +84,8 @@ export class KGWriter {
       errors: result.errors.length,
     });
 
+    result.indexable = [...this.pendingIndexable];
+    this.pendingIndexable = [];
     return result;
   }
 
@@ -247,6 +258,9 @@ export class KGWriter {
       now,
       now
     );
+
+    // 记入"可嵌入单元"（审计 M14：kg_nodes.id 已是完整 node_id，原样使用）
+    this.pendingIndexable.push({ nodeId: id, content: `${name} ${metadata.description ?? ""}`.trim() });
   }
 
   private addEdge(source: string, target: string, type: string, weight: number): void {
@@ -254,10 +268,7 @@ export class KGWriter {
     // 审计 F-3（2026-08-24）：此前 `edge-${source.slice(0,20)}-${target.slice(0,20)}-${type}`
     // 的截断拼接使前 20 字符相同的不同关系共用同一 ID，被 INSERT OR IGNORE
     // 静默丢弃。改为内容寻址 sha1，不同关系永不碰撞；同一关系重复写入仍幂等。
-    const edgeId = `edge-${createHash("sha1")
-      .update(`${source}|${target}|${type}`)
-      .digest("hex")
-      .slice(0, 24)}`;
+    const edgeId = kgEdgeId(source, target, type);
 
     this.db.prepare(`
       INSERT OR IGNORE INTO kg_edges (

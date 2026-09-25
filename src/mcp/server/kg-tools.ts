@@ -4,6 +4,12 @@ import type { ToolRegistry } from "../tool-registry.js";
 import type { VaultManager } from "../../memory/vault-manager.js";
 import { KnowledgeGraphEnhanced, type KGNode, type KGEdge, type KGNodeType, type KGEdgeType } from "../../kg/enhanced.js";
 import { KnowledgeAccessLayer } from "../../kal/knowledge-access-layer.js";
+import { buildSemanticRecallPort } from "../../knowledge/semantic-recall-port.js";
+import { resolveEmbeddingConsent } from "../../knowledge/embedding-consent.js";
+import { embeddingModelTagOf } from "../../knowledge/embedding-model.js";
+import { notifyKnowledgeWritten } from "../../services/knowledge-index-hook.js";
+import { findModelsForRole } from "../../router/model-capability-registry.js";
+import { router } from "../../router/model-router.js";
 import { createNodeId } from "../../kal/node-id.js";
 import { parseMarkdownAST, extractAllEntities } from "../../crawl/processor/markdown-ast.js";
 import { KGWriter } from "../../crawl/processor/kg-writer.js";
@@ -13,7 +19,19 @@ let kgEnhancedSingleton: KnowledgeGraphEnhanced | null = null;
 
 function getKAL(db: Database): KnowledgeAccessLayer {
   if (!kal) {
-    kal = new KnowledgeAccessLayer(db);
+    // A5/A7 接线（2026-09-21）：注入语义召回端口。端口内部三道门（授权 / 路由 / 失败降级）
+    // 每次调用重新求值 ⇒ 未授权（默认 ask）或无 embedding 路由时**零网络请求**，
+    // 行为与接线前一致；已授权且配了 embedding 模型时才把向量候选并进 KAL 结果。
+    // 真实依赖在此注入（组合根）：knowledge 层不 import router，保持分层不反向依赖。
+    kal = new KnowledgeAccessLayer(
+      db,
+      undefined,
+      buildSemanticRecallPort(db, {
+        embeddings: (texts) => router.embeddings(texts),
+        resolveModelTag: () => embeddingModelTagOf(findModelsForRole("embedding")),
+        consent: resolveEmbeddingConsent,
+      }),
+    );
   }
   return kal;
 }
@@ -96,6 +114,10 @@ export function registerKgTools(registry: ToolRegistry, db: Database): void {
 
       const writer = new KGWriter(db);
       const writeResult = writer.writeAST(ast, title, sourceUrl);
+
+      // 语义索引（2026-09-21）：把本次写入的 KG 节点**推送**给索引钩子（未注入/未授权时零成本）。
+      // 失败不影响写入结果（钩子永不抛）；漏掉的由幂等 `runIncrementalIndex()` 兜底。
+      await notifyKnowledgeWritten(writeResult.indexable ?? []);
 
       return {
         success: true,

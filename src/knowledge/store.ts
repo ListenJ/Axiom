@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import fs from "fs";
 import path from "path";
 import { getGlobalVault } from "../memory/vault-manager.js";
@@ -242,6 +243,9 @@ export class KnowledgeStore {
       source: opts.url,
       paraCategory: "resources",
       tags: ["knowledge", opts.domain, opts.subdomain, ...(opts.extraTags ?? [])],
+      // A6-3（2026-09-18）：显式 overwrite —— 同一 URL 重摄应幂等覆盖，
+      // 而非抛 "Note already exists" 被上层 catch 吞成警告（pipeline 书籍路径同口径）。
+      overwrite: true,
     });
 
     this.saveSource({
@@ -292,13 +296,25 @@ export class KnowledgeStore {
     };
   }
 
+  /**
+   * 生成笔记文件名 slug（审计 A6-3，2026-09-18）。
+   *
+   * 此前 `[^\w\s-]` 剔除全部非 ASCII → 中文标题塌缩为空串，不同笔记落到同一
+   * `.../.md` 互相覆盖。现保留 CJK（\u4e00-\u9fff 及扩展区），并在结果为空时
+   * 回退到标题的确定性 hash，保证路径非空且同标题稳定。
+   */
   private slugify(text: string): string {
-    return text
+    const slug = text
       .toLowerCase()
-      .replace(/[^\w\s-]/g, "")
+      .replace(/[^\w\s\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff-]/g, "")
       .replace(/\s+/g, "-")
       .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
       .slice(0, 80);
+    if (slug.length > 0) return slug;
+    // 兜底：纯符号/emoji 标题 → 确定性短 hash，避免空路径碰撞
+    const h = createHash("sha1").update(text).digest("hex").slice(0, 12);
+    return `note-${h}`;
   }
 
   close(): void {

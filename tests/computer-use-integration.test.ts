@@ -45,18 +45,16 @@ describe("Computer Use v2.0 Integration", () => {
     executeSpy?.mockRestore();
   });
 
-  it("should select Qwen-VL as default vision model", () => {
+  it("should expose vision models without siliconflow on the release path", () => {
     const agent = getComputerUseAgent();
     const models = agent.listVisionModels();
 
-    // Should have Qwen models
-    const qwenModels = models.filter((m) => /qwen.*vl|qvq/i.test(m.id));
-    expect(qwenModels.length).toBeGreaterThan(0);
+    // 能力仍在：computer-use 角色必须有候选（sensenova / openrouter 等）。
+    expect(models.length).toBeGreaterThan(0);
 
-    // Should have Qwen2.5-VL-72B
-    const qwen25 = models.find((m) => m.id === "qwen2.5-vl-72b");
-    expect(qwen25).toBeDefined();
-    expect(qwen25?.provider).toBe("siliconflow");
+    // 2026-09-20 政策：SiliconFlow 仅 dev/test（devOnly），故发布默认下 Qwen-VL 不出现在候选里。
+    // 该断言取代原"Qwen2.5-VL-72B 必须是默认视觉模型"——后者编码的是旧的发布面假设。
+    expect(models.filter((m) => m.provider === "siliconflow")).toEqual([]);
   });
 
   it("should build messages with element structure", async () => {

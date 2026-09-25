@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -13,6 +13,24 @@ import {
 
 let fixture: string
 const PROJ = 'fixture-proj'
+
+// ── 主库隔离（2026-09-20 修）──────────────────────────────────────────────
+// 本用例会写 code_symbols / code_calls，而代码索引**并入主库**
+// （`src/codeindex/local-index.ts:42-45`：dbPath() = DATABASE_PATH，默认 ./data/agent.db）。
+// 若与其它测试文件并发，多个进程争用同一个 ./data/agent.db 文件；此时
+// `indexProject` 内 "单文件解析失败跳过" 的 catch 会**静默少索引**，表现为 r.files ≠ 2。
+// 实测：并行全量下 4 例失败，**该文件隔离跑 4 pass / 0 fail**。
+// 依仓库既有约定（tests/unit/{cron-scheduler-sideeffects,kb-db-path,scheduler-crash}.test.ts
+// 与 tests/utils/env-runtime-vars.test.ts 均设 DATABASE_PATH）把主库隔离到临时文件。
+const DB_DIR = mkdtempSync(path.join(tmpdir(), 'codeindex-db-'))
+const PREV_DATABASE_PATH = process.env.DATABASE_PATH
+process.env.DATABASE_PATH = path.join(DB_DIR, 'agent.db')
+
+afterAll(() => {
+  if (PREV_DATABASE_PATH === undefined) delete process.env.DATABASE_PATH
+  else process.env.DATABASE_PATH = PREV_DATABASE_PATH
+  try { rmSync(DB_DIR, { recursive: true, force: true }) } catch { /* ignore */ }
+})
 
 beforeEach(() => {
   fixture = mkdtempSync(path.join(tmpdir(), 'codeindex-'))

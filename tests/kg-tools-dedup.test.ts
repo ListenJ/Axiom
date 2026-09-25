@@ -29,13 +29,13 @@ describe("审计 H2: kg_add_node/kg_add_edge 内容哈希去重", () => {
     expect(count).toBe(1);
   });
 
-  test("kg_add_edge 同 source/target/type 两次调用去重为 1 条边且返回 kg_ 哈希 id", async () => {
+  test("kg_add_edge 同 source/target/type 两次调用去重为 1 条边且返回统一边 id（2026-09-17 收敛后 edge-<sha1-24>）", async () => {
     const a = (await handlers["kg_add_node"]({ type: "function", name: "EdgeSrc" })) as { nodeId: string };
     const b = (await handlers["kg_add_node"]({ type: "function", name: "EdgeDst" })) as { nodeId: string };
     const e1 = (await handlers["kg_add_edge"]({ source: a.nodeId, target: b.nodeId, type: "calls" })) as { success: boolean; edgeId: string };
     const e2 = (await handlers["kg_add_edge"]({ source: a.nodeId, target: b.nodeId, type: "calls" })) as { success: boolean; edgeId: string };
     expect(e1.success).toBe(true);
-    expect(e1.edgeId).toMatch(/^kg_[0-9a-f]{16}$/);
+    expect(e1.edgeId).toMatch(/^edge-[0-9a-f]{24}$/);
     expect(e2.edgeId).toBe(e1.edgeId);
     const count = (db.prepare("SELECT COUNT(*) AS c FROM kg_edges WHERE source = ? AND target = ? AND type = 'calls'").get(a.nodeId, b.nodeId) as { c: number }).c;
     expect(count).toBe(1);

@@ -19,6 +19,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { perfBudget } from "../support/perf-budget.js";
 import { Cache } from "../../src/utils/cache.js";
 import { eventBus } from "../../src/dre/runtime/event-bus.js";
 import { scheduler } from "../../src/dre/runtime/scheduler.js";
@@ -103,8 +104,9 @@ describe("E.1 慢速 handler — EventBus 降级", () => {
     eventBus.publish({ type: "async-slow", source: "test", data: null, priority: "normal" });
     const publishTime = performance.now() - t0;
 
-    // publish 应立即返回（不等 async handler 完成）
-    expect(publishTime).toBeLessThan(20);
+    // publish 应立即返回（不等 async handler 完成）。
+    // 20ms 是机器速度阈值，并行下偶发超阈 → 默认放宽为防挂起界，严格值留给性能门禁。
+    expect(publishTime).toBeLessThan(perfBudget(20, 200));
     console.log(`[Stress] async-slow-handler: publishTime=${publishTime.toFixed(1)}ms`);
   });
 });
@@ -272,7 +274,7 @@ describe("E.4 大规模数据查询 — 延迟分位数", () => {
     const pct = percentiles(latencies);
     console.log(`[Stress] large-scale-query: p50=${pct.p50.toFixed(2)}ms, p90=${pct.p90.toFixed(2)}ms, p99=${pct.p99.toFixed(2)}ms, max=${pct.max.toFixed(2)}ms`);
 
-    expect(pct.p99).toBeLessThan(50);
+    expect(pct.p99).toBeLessThan(perfBudget(50, 500));
   });
 
   test("CPU 压力下查询仍应完成 — 优雅降级", () => {
@@ -299,8 +301,8 @@ describe("E.4 大规模数据查询 — 延迟分位数", () => {
     const pct = percentiles(latencies);
     console.log(`[Stress] cpu-pressure-query: p50=${pct.p50.toFixed(2)}ms, p99=${pct.p99.toFixed(2)}ms`);
 
-    // CPU 压力下延迟应仍在合理范围（放宽到 100ms）
-    expect(pct.p99).toBeLessThan(100);
+    // CPU 压力下延迟应仍在合理范围；严格阈值 100ms 仅在性能门禁下启用
+    expect(pct.p99).toBeLessThan(perfBudget(100, 1000));
   });
 });
 

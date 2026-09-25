@@ -93,7 +93,6 @@ import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 import { initializeComponentKernel } from "./agents/component-bootstrap.js";
 import { initDreKernel, shutdownDreKernel } from "./dre/host.js";
-import { startVramProbe } from "./dre/system-resource-probe.js";
 
 // ════════════════════════════════════════════════════════════════
 // 数学接线组件（P2-S2 幽灵裁剪后保留：幻觉检测器 + Thompson 学习回路）
@@ -193,11 +192,6 @@ const dreKernel = await initDreKernel().catch((err) => {
 });
 logger.info("[DRE] Host integration state", { ready: dreKernel !== null });
 
-// 审计 H1（2026-08-28）：挂载可选 VRAM 探测插件——AXIOM_VRAM_PROBE=1 时轮询
-// nvidia-smi 更新 ResourceBudgetManager.availableMemory，未启用时 no-op（默认零行为变化）。
-// 不挂载时预算恒为 4000MB 硬编码默认值，canRun/recommendedMaxTokens 全链路失真。
-const stopVramProbe = startVramProbe();
-
 // ===== 环境验证 =====
 const envValidation = validateEnv({ strict: false, exitOnError: false });
 if (!envValidation.valid) {
@@ -214,6 +208,10 @@ await Bun.write("./data/logs/.gitkeep", "").catch(() => {});
 const config = getConfig();
 const dbPath = config.memory.databasePath;
 const db = new Database(dbPath);
+// 写入侧语义索引装配（2026-09-21）：未授权（默认 ask）/无 embedding 路由时**零成本**（不读库、不触网）。
+// 装配 ≠ 授权：三道门在 indexFreshNodes 内部，每次写入重新求值 ⇒ 运行期改授权立即生效。
+const { enableKnowledgeEmbeddingIndex } = await import("./services/knowledge-embedding-index.js");
+enableKnowledgeEmbeddingIndex(db);
 // 启动时执行幂等迁移（建 conversations/search_history/notes_fts 等核心表；首次运行必需，docker 空数据目录也适用）
 await import("./db/migrate.js");
 const startupTime = Date.now();
@@ -893,7 +891,6 @@ registerShutdownHook({ name: "database", handler: () => db.close(), priority: 50
 registerShutdownHook({ name: "http-server", handler: () => server.stop(), priority: 40 });
 registerShutdownHook({ name: "component-kernel", handler: async () => { await componentKernel.dispose(); }, priority: 60 });
 registerShutdownHook({ name: "dre-kernel", handler: async () => { await shutdownDreKernel(); }, priority: 55 });
-registerShutdownHook({ name: "vram-probe", handler: () => stopVramProbe(), priority: 68 });
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().destroy(), priority: 35 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
@@ -932,5 +929,4 @@ logger.info(`╔═════════════════════�
 ║ API Key:   ${API_KEY ? "已启用 (x-api-key 鉴权)" : "未设置 (所有请求将被拒绝)"}            ║
 ╚══════════════════════════════════════════════════════════════════════╝
 `);
-
 

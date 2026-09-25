@@ -20,7 +20,7 @@ import { TaskGraph } from "./task-graph.js";
 import type { ToolExecutor } from "./task-graph.js";
 import { eventBus } from "../runtime/event-bus.js";
 import { worldState } from "../runtime/world-state.js";
-import { readString } from "../../utils/env.js";
+import { readString, readInt } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
 
 // ========== 流水线类型 ==========
@@ -57,6 +57,24 @@ export interface CognitiveLoopResult {
   totalDurationMs: number;
 }
 
+// ========== 并发闸门参数 ==========
+
+/**
+ * 并发闸门默认等待上限（毫秒）。
+ * 超时后 **不阻塞、不抛穿**，而是 fail-closed 降级返回一个显式的"未执行"结果。
+ */
+export const DEFAULT_LOCK_TIMEOUT_MS = 30_000;
+
+/** CognitivePipeline 构造选项 */
+export interface CognitivePipelineOptions {
+  /**
+   * 等待并发闸门的最长时间（毫秒）。
+   * 缺省读 `AXIOM_COGNITIVE_LOCK_TIMEOUT_MS`，再缺省 `DEFAULT_LOCK_TIMEOUT_MS`。
+   * `<= 0` 表示**不等待**：闸门被占用时立刻降级。
+   */
+  lockTimeoutMs?: number;
+}
+
 // ========== 认知管道 ==========
 
 export class CognitivePipeline {
@@ -69,10 +87,81 @@ export class CognitivePipeline {
    * premises/conclusions to accumulate across concurrent CognitivePipeline runs.
    */
   private currentGraph: ReasoningGraph | undefined
-  private pipelineLock = false
 
-  constructor(engine: DREngine) {
+  /**
+   * 并发闸门 —— 原子式 FIFO 票据链（算法式：无轮询、无 check-then-act 窗口）。
+   *
+   * 为什么不用布尔标记（旧实现）：`if (locked) { 每 100ms 轮询 } locked = true`
+   * 有两个独立缺陷 ——
+   *   ① **互斥不成立**：锁释放瞬间多个等待者可同时观察到 `false`，各自再置 `true` 后**并发执行**；
+   *   ② **无限等待**：轮询没有 deadline，持锁者内部 `await` 一旦永不 settle，
+   *      后续 `run()` 永久阻塞且**不可取消**。
+   *
+   * 现策略：每次调用**同步**地把一张"释放票据"接到链尾
+   * （`const prev = this.lockChain; this.lockChain = prev.then(() => ticket)` 之间无 `await`，
+   * 在 JS 事件循环里即为原子操作），然后 `await prev` —— 天然 FIFO、零轮询。
+   * 等待超过 `lockTimeoutMs` 则 fail-closed 降级；**但仍在自己轮到时立刻归还票据**，
+   * 否则超时者会永久堵死链尾（本算法最易漏的一步，见 acquireGate）。
+   */
+  private lockChain: Promise<void> = Promise.resolve()
+  /** 当前处于闸门区（正持锁 + 正排队）的调用数（可观测，非控制用） */
+  private lockWaiters = 0
+  /** 累计等待超时次数（可观测） */
+  private gateTimeouts = 0
+  private readonly lockTimeoutMs: number
+
+  constructor(engine: DREngine, opts: CognitivePipelineOptions = {}) {
     this.engine = engine;
+    this.lockTimeoutMs = opts.lockTimeoutMs ?? readInt(
+      "AXIOM_COGNITIVE_LOCK_TIMEOUT_MS",
+      DEFAULT_LOCK_TIMEOUT_MS,
+      { min: 0, max: 600_000 },
+    );
+  }
+
+  /**
+   * 取得并发闸门。成功返回**释放函数**；等待超时返回 `null`（调用方负责 fail-closed 降级）。
+   *
+   * 关键算法点：入队是**同步原子**的（读 `lockChain` 与写回之间没有 `await`），
+   * 因此不存在"两个调用者都以为自己排在第一位"的窗口；顺序即为调用到达顺序（FIFO）。
+   * 超时放弃时**仍会在轮到自己时立刻归还票据** —— 否则链尾永久堵塞，超时者会把
+   * 后面所有等待者一起拖死（这正是"有超时"与"有超时且不泄漏队列"的区别）。
+   */
+  private async acquireGate(): Promise<(() => void) | null> {
+    let release!: () => void
+    const ticket = new Promise<void>((res) => { release = res })
+    const prev = this.lockChain
+    // ↓ 以下两条语句之间无 await：在事件循环内不可被打断 ⇒ 原子入队
+    this.lockChain = prev.then(() => ticket)
+
+    if (this.lockTimeoutMs <= 0) {
+      // 不等待模式：仍有拿到闸门的机会（前一位已释放时 prev 已 resolve）
+      const acquired = await Promise.race([
+        prev.then(() => true as const),
+        new Promise<false>((res) => { setTimeout(() => res(false), 0) }),
+      ])
+      if (!acquired) { void prev.then(() => release()); return null }
+      return release
+    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<false>((res) => {
+      timer = setTimeout(() => res(false), this.lockTimeoutMs)
+    })
+    const acquired = await Promise.race([prev.then(() => true as const), timedOut])
+    if (timer !== undefined) clearTimeout(timer)
+
+    if (!acquired) {
+      // 归还排队位置（自己轮到时立即释放），保证超时不影响后来者
+      void prev.then(() => release())
+      return null
+    }
+    return release
+  }
+
+  /** 并发闸门可观测性：在闸门区的调用数（含持锁者）/ 累计超时次数 / 当前等待上限 */
+  getGateStats(): { waiting: number; timeouts: number; lockTimeoutMs: number } {
+    return { waiting: this.lockWaiters, timeouts: this.gateTimeouts, lockTimeoutMs: this.lockTimeoutMs }
   }
 
   /**
@@ -93,17 +182,35 @@ export class CognitivePipeline {
    * 执行完整认知闭环
    */
   async run(input: string): Promise<CognitiveLoopResult> {
-    if (this.pipelineLock) {
-      logger.warn("[CognitivePipeline] Concurrent run detected, queueing")
-      await new Promise<void>((resolve) => {
-        const check = () => {
-          if (!this.pipelineLock) resolve()
-          else setTimeout(check, 100)
-        }
-        check()
-      })
+    const waitStart = performance.now();
+    this.lockWaiters++;
+    const release = await this.acquireGate();
+
+    if (!release) {
+      // 有界等待：闸门被长任务占用 ⇒ 显式 fail-closed 降级，绝不无限阻塞
+      this.lockWaiters--;
+      this.gateTimeouts++;
+      const waitedMs = Math.round(performance.now() - waitStart);
+      logger.warn("[CognitivePipeline] 并发闸门等待超时，fail-closed 降级", {
+        input: input.slice(0, 80),
+        lockTimeoutMs: this.lockTimeoutMs,
+        waitedMs,
+        waiting: this.lockWaiters,
+      });
+      return {
+        input,
+        trace: [],
+        conclusion: null,
+        confidence: 0,
+        hasGaps: false,
+        constraintPassed: null,
+        recommendedAction: null,
+        reflectionTriggered: false,
+        lessons: [`并发等待超时（>${this.lockTimeoutMs}ms，实际等待 ${waitedMs}ms）：闸门被占用，已 fail-closed 降级，未执行本轮回环`],
+        totalDurationMs: waitedMs,
+      };
     }
-    this.pipelineLock = true
+
     const t0 = performance.now();
     const trace: CognitiveStep[] = [];
     let stepIndex = 0;
@@ -131,9 +238,9 @@ export class CognitivePipeline {
       return s;
     };
 
-    this.currentGraph = new ReasoningGraph();
-
     try {
+      this.currentGraph = new ReasoningGraph();
+
       const t1 = performance.now();
       const classification = this.classify(input);
       const state = this.engine.consciousness.getState();
@@ -265,13 +372,11 @@ export class CognitivePipeline {
         result.confidence > 0.5 ? "completed" : "abandoned"
       );
 
-      this.pipelineLock = false
       return result;
 
     } catch (err) {
       logger.warn("[CognitivePipeline] Pipeline error", { input, error: (err as Error).message });
       const totalMs = Math.round(performance.now() - t0);
-      this.pipelineLock = false
       return {
         input,
         trace,
@@ -284,6 +389,11 @@ export class CognitivePipeline {
         lessons: [String((err as Error).message)],
         totalDurationMs: totalMs,
       };
+    } finally {
+      // 单点释放（原子归位）：覆盖正常返回 / 异常 / 未来新增的提前 return。
+      // 旧实现把解锁散落在成功与 catch 两处，任何新增的提前 return 都会漏放锁。
+      this.lockWaiters--;
+      release();
     }
   }
 

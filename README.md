@@ -3,6 +3,8 @@
 > 基于 Bun + TypeScript 的确定性认知运行时 (Deterministic Cognitive Runtime)。LLM 从推理主体降级为 Cognitive Accelerator, 确定性推理为核心。
 >
 > **Deterministic Cognitive Runtime · 189 MCP tools · 8 Persona modes**
+>
+> - [中文](README.md) ｜ [English](README_en.md)
 
 > 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
 >

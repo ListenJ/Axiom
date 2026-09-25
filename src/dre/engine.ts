@@ -20,7 +20,6 @@ import { Pipeline, type KnowledgeItem, type VerificationResult } from "./pipelin
 import { KnowledgeGraph, type KGNode } from "./kg/graph.js";
 import { LLMClient, type LLMConfig } from "./llm/client.js";
 
-import { getResourceBudgetManager } from "./system-resource.js";
 import { MentalModelPool, GIT_CONFLICT_MODEL, CODE_REFACTOR_MODEL, AUTH_MODEL, DATABASE_MODEL } from "./mental-model/pool.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
 import { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } from "./constraint/solver.js";
@@ -286,8 +285,6 @@ export class DREngine {
       discriminModel: config.discriminLLM?.model,
     });
 
-    // 检查资源预算 (不阻塞构造)
-    this.checkResourceBudget();
   }
 
   /**
@@ -395,19 +392,6 @@ export class DREngine {
       checks.push({ name: "scheduler", ok: false, detail: (err as Error).message });
     }
 
-    // Resource budget
-    try {
-      const budget = getResourceBudgetManager();
-      const status = budget.getStatus();
-      checks.push({
-        name: "resources",
-        ok: status.canRunLocal || !!this.config.cloudFallback,
-        detail: status.canRunLocal ? "local" : (this.config.cloudFallback ? "cloud-fallback" : "insufficient"),
-      });
-    } catch {
-      checks.push({ name: "resources", ok: true, detail: "check skipped" });
-    }
-
     const healthy = checks.every((c) => c.ok);
     return {
       healthy,
@@ -418,32 +402,6 @@ export class DREngine {
   }
 
   private readonly _startTime = Date.now();
-
-  /**
-   * 检查资源预算，如果不足则记录警告
-   */
-  private checkResourceBudget(): void {
-    try {
-      const budget = getResourceBudgetManager();
-      const status = budget.getStatus();
-      if (!status.canRunLocal) {
-        logger.warn("[DRE] Resource budget insufficient for local inference", {
-          availableMemory: status.resource.availableMemory,
-          recommendedMaxTokens: status.recommendedMaxTokens,
-          suggestion: this.config.cloudFallback
-            ? "Cloud fallback is configured"
-            : "Configure cloudFallback in DREConfig for automatic degradation",
-        });
-      } else {
-        logger.info("[DRE] Resource budget OK", {
-          availableMemory: status.resource.availableMemory,
-          recommendedMaxTokens: status.recommendedMaxTokens,
-        });
-      }
-    } catch (err) {
-      logger.debug("[DRE] Resource budget check skipped", { error: (err as Error).message });
-    }
-  }
 
   /**
    * 写入知识 (触发三段甄别)
@@ -602,16 +560,11 @@ export class DREngine {
     goals: Array<{ id: string; description: string; status: string }>;
     beliefs: Array<{ statement: string; confidence: number }>;
     hypotheses: Array<{ statement: string; status: string }>;
-    resource: {
-      availableMemory: number;
-      canRunLocal: boolean;
-    };
   } {
     const personaSummary = this.persona.getContextSummary();
     const consciousnessState = this.consciousness.getState();
     const reasoningStats = this.reasoning.getStats();
     const constraintStats = this.constraints.getStats();
-    const budgetStatus = getResourceBudgetManager().getStatus();
 
     const goals = Object.entries(worldState.getGoals()).map(([id, g]) => ({
         id,
@@ -656,10 +609,6 @@ export class DREngine {
       goals,
       beliefs,
       hypotheses,
-      resource: {
-        availableMemory: budgetStatus.resource.availableMemory,
-        canRunLocal: budgetStatus.canRunLocal,
-      },
     };
   }
 
@@ -680,19 +629,17 @@ export class DREngine {
     reasoning: { nodes: number; edges: number; gaps: number };
     constraints: { total: number; byDimension: Record<string, number> };
     actors: { count: number; types: string[] };
-    resource: { availableMemory: number; maxMemory: number; canRunLocal: boolean };
     persona: { currentMode: PersonaMode; currentPersona: string; stackDepth: number; switchCount: number };
   } {
     const mmList = this.mentalModels.list();
     const reasoningStats = this.reasoning.getStats();
     const constraintStats = this.constraints.getStats();
     const actorList = this.actors.list();
-    const budgetStatus = getResourceBudgetManager().getStatus();
     return {
       vfs: { mounts: this.vfs.listMounts() },
       knowledge: {
         nodes: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM knowledge_node").get() as { c: number }).c; } catch { return 0; } })(),
-        edges: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM kg_edge").get() as { c: number }).c; } catch { return 0; } })(),
+        edges: (() => { try { return (this.db.prepare("SELECT COUNT(*) as c FROM kg_edges").get() as { c: number }).c; } catch { return 0; } })(),
       },
       consciousness: this.consciousness.getState(),
       kg: {
@@ -715,11 +662,6 @@ export class DREngine {
       actors: {
         count: actorList.length,
         types: actorList.map((a) => a.type),
-      },
-      resource: {
-        availableMemory: budgetStatus.resource.availableMemory,
-        maxMemory: budgetStatus.resource.maxMemory,
-        canRunLocal: budgetStatus.canRunLocal,
       },
       persona: this.persona.getContextSummary(),
     };

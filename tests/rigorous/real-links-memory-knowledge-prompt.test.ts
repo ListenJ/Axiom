@@ -3,7 +3,6 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { VaultManager } from "../../src/memory/vault-manager.js";
 import { SQLiteMemory } from "../../src/memory/sqlite-memory.js";
-import { getResourceBudgetManager } from "../../src/dre/system-resource.js";
 import { getPromptEngineer } from "../../src/agents/prompt-engineer.js";
 
 /**
@@ -70,14 +69,7 @@ describe("真实链路：内存膨胀（Vault/Memory 预算与泄漏）", () => 
     vault.close();
   });
 
-  test("ResourceBudget 估算在 200 次检索后仍准确（防抖+预算联动）", async () => {
-    const mgr = getResourceBudgetManager();
-    mgr.updateResource({ maxMemory: 4000, availableMemory: 4000 });
-    // 强制大步避免防抖残留
-    const { ResourceBudgetManager } = await import("../../src/dre/system-resource.js");
-    const freshMgr = new ResourceBudgetManager({ resource: { maxMemory: 4000, availableMemory: 4000, maxCompute: 100, availableCompute: 100, source: "test" } });
-    expect(freshMgr.getStatus().recommendedMaxTokens).toBeGreaterThan(0);
-    expect(freshMgr.getStatus().canRunLocal).toBe(true);
+  test("Vault 在写入+并发检索后仍可用（资源预算子系统移除后的回归）", async () => {
     fs.mkdirSync(TMP_VAULT, { recursive: true });
     const vault = new VaultManager({ vaultPath: TMP_VAULT, dbPath: TMP_DB });
     for (let i = 0; i < 20; i++) {

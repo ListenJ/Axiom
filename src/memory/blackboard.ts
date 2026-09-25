@@ -100,6 +100,10 @@ export class SharedBlackboard {
     // 定期清理过期条目
     const interval = options?.cleanupIntervalMs ?? 60 * 1000;
     this.cleanupTimer = setInterval(() => this.cleanup(), interval);
+    // 不把短命进程钉死（2026-09-21）：本定时器是**后台维护**语义，不应成为进程存活的唯一理由。
+    // `unref()` 不影响进程存活期间的正常触发，只让"只剩它在跑"时进程能自然退出
+    // （同类缺陷曾两次由实测发现：TokenTracker 自动刷盘、AdaptiveProxy 健康检查）。
+    (this.cleanupTimer as unknown as { unref?: () => void }).unref?.();
 
     // 可选 Redis 跨进程同步
     if (options?.redis !== false) {
@@ -162,7 +166,12 @@ export class SharedBlackboard {
     const existing = this.entries.get(key);
 
     // 冲突检测: 已有数据且置信度相近
-    if (existing && existing.value !== value) {
+    // A2-1（2026-09-17 修复）：同源写入（existing.sourceId === sourceId）不是跨 agent 冲突，
+    // 而是同一写入方更新自己的条目（如 StateStore 的累积型自更新：固定 confidence=1.0 /
+    // status=verified / sourceId）。此前这类写入隔次命中冲突分支被 markConflict 拒收，
+    // 而 read() 把 conflict 条目视为 miss，导致会话状态（tokens/recentInsights/mood/goals）
+    // 隔次清空。同源直接走覆盖路径。
+    if (existing && existing.value !== value && existing.sourceId !== sourceId) {
       const confDiff = Math.abs(existing.confidence - confidence);
       if (confDiff < 0.15 && existing.status === "verified") {
         // 标记为冲突，不覆盖（M1: 与远程路径共用 markConflict）
@@ -619,6 +628,11 @@ export function readFact(key: string, options?: ReadOptions): ReadResult {
 }
 
 /** 读取或计算 (缓存模式) */
+// A2-2（2026-09-17 修复）：同 key 的 in-flight 计算去重。
+// 此前 await compute() 的间隙内并发 miss 会全部执行 compute，第二个 write 必落
+// conflict（同值不同对象身份），导致缓存持续 miss 的毒丸循环。
+const readOrComputeInflight = new Map<string, Promise<unknown>>();
+
 export async function readOrCompute<T>(
   key: string,
   compute: () => Promise<T>,
@@ -632,7 +646,18 @@ export async function readOrCompute<T>(
     return result.projected as T;
   }
 
-  const value = await compute();
-  bb.write(key, value, sourceId, options);
-  return value;
+  const inflight = readOrComputeInflight.get(key);
+  if (inflight) return inflight as Promise<T>;
+
+  const p = (async () => {
+    try {
+      const value = await compute();
+      bb.write(key, value, sourceId, options);
+      return value;
+    } finally {
+      readOrComputeInflight.delete(key);
+    }
+  })();
+  readOrComputeInflight.set(key, p);
+  return p;
 }

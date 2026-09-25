@@ -11,6 +11,7 @@ import {
   type SearchEngineResult,
   type SearchOptions,
 } from "./search-engines.js";
+import { logger } from "../utils/logger.js";
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 
@@ -335,7 +336,10 @@ export class UnifiedSearch {
       this.db.prepare(`
         INSERT INTO search_cache (query, engines, results) VALUES (?, ?, ?)
       `).run(key, results[0]?.engines?.join(",") || "", JSON.stringify(results));
-    } catch { /* ignore */ }
+    } catch (err) {
+      // A10-4（2026-09-18）：缓存写失败此前完全静默，故障不可观测
+      logger.debug("[UnifiedSearch] cache write failed", { error: String(err) });
+    }
   }
 
   // ========== 结果处理 ==========
@@ -417,7 +421,10 @@ export class UnifiedSearch {
       this.db.prepare(`
         INSERT INTO search_history (query, engines, result_count, latency_ms) VALUES (?, ?, ?, ?)
       `).run(query, engines.join(","), resultCount, latencyMs);
-    } catch { /* ignore */ }
+    } catch (err) {
+      // A10-4（2026-09-18）：历史写失败此前完全静默，故障不可观测
+      logger.debug("[UnifiedSearch] history write failed", { error: String(err) });
+    }
   }
 
   /** 获取搜索统计 */

@@ -331,14 +331,13 @@ describe("Plugin Routes — W3 install path fallback & overwrite (unit)", () => 
     expect(data.plugin.id).toBe(PLUGIN_ID);
   });
 
-  it("W3-7: enable 默认为 true（不传 enable 字段）", async () => {
+  it("W3-7: enable 默认为 false（最小权限，不传 enable 字段不自动激活）", async () => {
     const res = await routes.install(makeInstallRequest({ path: DIRECT_PATH }));
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.success).toBe(true);
-    // enable 默认 true → 经 enablePlugin 流程后 status 应为 enabled（activate 成功）
-    // 或 installed（activate 抛错时保持 installed）
-    expect(["enabled", "installed"]).toContain(data.plugin.status);
+    // enable 默认 false → 仅安装，不进入 enablePlugin 流程，status 恒为 installed
+    expect(data.plugin.status).toBe("installed");
   });
 });
 

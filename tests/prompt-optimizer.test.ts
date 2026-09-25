@@ -18,6 +18,8 @@ import {
 // 优化结果缓存为进程内共享状态：每个用例前清空缓存与指标，保证用例相互独立
 beforeEach(() => {
   resetPromptOptimizerCache();
+  // LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开开关
+  process.env.PROMPT_REWRITE = "1";
 });
 
 const LONG_INPUT = "帮我分析一下这个项目的知识库检索模块的性能瓶颈在哪里，并给出优化建议";

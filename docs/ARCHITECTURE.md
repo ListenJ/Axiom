@@ -285,12 +285,12 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 | 维度 | 现状 | 说明 |
 |------|------|------|
-| 检索 | 确定性检索为默认：`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补（由 `src/memory/vault-manager.ts` 的 `search()` 串接：FTS 命中不足或质量偏低时用确定性引擎补充）；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；PG vector 当前不可启用（H-M1-03 已删客户端，无启用路径） | 非历史宣称，而是“确定性为主、向量可选” |
+| 检索 | 确定性检索为默认：`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引，`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补（由 `src/memory/vault-manager.ts` 的 `search()` 串接：FTS 命中不足或质量偏低时用确定性引擎补充）；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义层使用；**知识库语义层（2026-09-20/21，ku 线并入）**：向量存**同库**表 `knowledge_embeddings`（`src/knowledge/{embedding-store,semantic-index,semantic-recall,semantic-layer,semantic-recall-port,incremental-index}.ts`），**向量只作候选召回**、最终排序带稳定 tie-breaker（同分按 node_id 升序），跨存储按 nodeId **物化**后并入 `KnowledgeAccessLayer.query()`；写入腿两条：**推送腿**（`VaultManager.writeNote` / `KnowledgeStore.write` / MCP `kg_write` 经 `services/knowledge-index-hook.ts`，组合根 `enableKnowledgeEmbeddingIndex(db)` 装配）+ **扫描腿**（采集管线收尾 `runIncrementalIndex()` 与全量脚本，含**删除同步** `pruneOrphans`，两道安全闸）；模型调用受 `AXIOM_EMBEDDING_CONSENT`（默认 `ask` = 零网络请求）控制，且发布面不含 SiliconFlow（`devOnly` 闸门）；PG vector 当前不可启用（H-M1-03 已删客户端，无启用路径） | 非历史宣称，而是“确定性为主、向量可选”；语义层端到端已实测跑通（真实 `bge-m3`，推送与扫描两条腿各一次） |
 | LLM | `src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关受 `KNOWLEDGE_USE_LLM=false` 控，默认 TF-IDF 回退，仅开启时走 `structureKnowledgeWithEdge`/`structureWithGLM` | 非历史旧宣称，而是“LLM 可选” |
 | 历史 PG | `src/db/pg-client.ts` 已删除（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；持久化经 `sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts`；PG 数据面能力在 TS 运行时不可启用：`package.json` 依赖与 `bun.lock` 均无 PG 驱动，TS 运行时内无任何开关或入口 <!-- doc-caliber:absent: src/db/pg-client.ts --> | 需 PG 时先按规则 4 裁决 `src/db/pg-schema.sql` 存废，再重建客户端与索引迁移 |
 | MCP 工具数 | 权威计数以 `src/testing/tool-count.ts` 为准（`bun run scripts/count-tools.mjs` 直接生成），当前 **189** 个去重工具，零重复 | 文档中 133/150/172/173/188 为历史值，已统一为 189 |
 
-*更新：2026-08-21 Task16 文档一致性校准（可选 LLM、PG 可选历史 —— 后者为旧口径，已随 H-M1-03 废止，现状见 §8）；2026-08-25 检索口径校准（FTS5+关键词为默认、余弦仅可选语义层）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，2026-08-30 S4 新增 hallucination_feedback 后为 189（以 `src/testing/tool-count.ts` 为准）。*
+*更新：2026-08-21 Task16 文档一致性校准（可选 LLM、PG 可选历史 —— 后者为旧口径，已随 H-M1-03 废止，现状见 §8）；2026-08-25 检索口径校准（FTS5+关键词为默认、余弦仅可选语义层）；工具数经 2026-08-22 真相化与 2026-08-25 单一事实源治理，2026-08-30 S4 新增 hallucination_feedback 后为 189（以 `src/testing/tool-count.ts` 为准）；2026-09-26 归一并入 ku 线知识库语义层口径（推送腿+扫描腿+删除同步、AXIOM_EMBEDDING_CONSENT、SiliconFlow devOnly）。*
 
 ---
 
@@ -329,4 +329,3 @@ GET  /v1/status/{task_id} → { status, progress, result }
 | Token | GET /api/token-details | Token 消耗分析 |
 | 模型 | GET/POST/DELETE /models | 模型管理 |
 | 供应商 | GET /providers | 供应商列表 |
-

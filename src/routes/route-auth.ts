@@ -30,6 +30,8 @@ export type AuditableEvent =
   | "apikey.set"
   | "apikey.delete"
   | "apikey.test"
+  // 切片 B（2026-09-20）：注册用户自定义 provider（写入同一事实源 api-key-store）
+  | "apikey.custom.register"
   | "skill.install"
   | "mcp.install";
 

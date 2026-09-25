@@ -21,7 +21,10 @@ describe('resolveAxiomHome', () => {
   })
   test('相对插件文件上溯 3 层（源码布局）', () => {
     const home = resolveAxiomHome('', HERE)
-    expect(home.replace(/\\/g, '/')).toBe('C:/repo')
+    // file:///C:/repo/... 在 Windows 上解析为 C:\repo\...，POSIX 上则是 /C:/repo/...；
+    // 两种平台下“上溯 3 层”的语义一致，只是盘符根的表示不同。
+    const expected = process.platform === 'win32' ? 'C:/repo' : '/C:/repo'
+    expect(home.replace(/\\/g, '/')).toBe(expected)
   })
 })
 

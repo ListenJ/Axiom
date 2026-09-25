@@ -20,6 +20,9 @@ import {
   setApiKeyOverride,
   clearApiKeyOverride,
   isKnownProvider,
+  isResolvableProvider,
+  registerCustomProvider,
+  unregisterCustomProvider,
   getEffectiveApiKey,
   getEffectiveBaseURL,
   testProviderConnection,
@@ -59,7 +62,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const testMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)\/test$/);
   if (testMatch && ctx.req.method === "POST") {
     const provider = testMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 自定义 provider 也可测连通性（2026-09-21 修复：此前只认内置项 ⇒ 已注册的自定义项被 404）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     const status = listProviderStatus().find((p) => p.provider === provider);
@@ -99,13 +103,51 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
       return ctx.jsonResponse({ error: "Invalid JSON body" }, 400, ctx.baseHeaders);
     }
 
-    const { provider, apiKey, baseURL } = body || {};
+    const { provider, apiKey, baseURL, adapter, displayName } = body || {};
     if (!provider || typeof provider !== "string") {
       return ctx.jsonResponse({ error: "Missing 'provider' field" }, 400, ctx.baseHeaders);
     }
+    // 切片 B（2026-09-20）：未知 provider **不再一律拒绝**。
+    // 若同时提供了 adapter + baseURL + apiKey，则注册为**用户自定义 provider**，
+    // 条目写入同一事实源（api-key-store），密钥复用既有 override 通路 —— 不产生第二份 provider 表。
     if (!isKnownProvider(provider)) {
+      const hasCustomFields =
+        typeof adapter === "string" && adapter.trim().length > 0 &&
+        typeof baseURL === "string" && baseURL.trim().length > 0 &&
+        typeof apiKey === "string" && apiKey.trim().length > 0;
+      if (hasCustomFields) {
+        const reg = registerCustomProvider({
+          provider,
+          baseURL: String(baseURL),
+          adapter: String(adapter),
+          apiKey: String(apiKey),
+          displayName: typeof displayName === "string" ? displayName : undefined,
+        });
+        if (!reg.ok) {
+          return ctx.jsonResponse({ error: reg.error }, 400, ctx.baseHeaders);
+        }
+        // 落库（复用既有 override 表；加密为 fail-closed：未配 AXIOM_ENCRYPTION_KEY 会抛错）
+        try {
+          saveApiKeyOverride(ctx.db, provider, String(apiKey), String(baseURL), {
+            adapter: String(adapter),
+            displayName: typeof displayName === "string" ? displayName : undefined,
+          });
+        } catch (e) {
+          const err = e instanceof Error ? e : new Error(String(e));
+          logger.error("[api-keys] Failed to persist custom provider", err);
+          // 内存已注册但落库失败 ⇒ 回滚，避免"本次可用、重启消失"的半状态
+          unregisterCustomProvider(provider);
+          return ctx.jsonResponse({ error: "Failed to persist custom provider" }, 500, ctx.baseHeaders);
+        }
+        auditSuccess(ctx, "apikey.custom.register", provider);
+        return ctx.jsonResponse({ ok: true, custom: true, provider: reg.entry }, 200, ctx.baseHeaders);
+      }
       return ctx.jsonResponse(
-        { error: `Unknown provider: ${provider}`, known: Object.keys(listProviderStatus()) },
+        {
+          error: `Unknown provider: ${provider}`,
+          known: Object.keys(listProviderStatus()),
+          hint: "新增自定义 provider 需同时提供 adapter / baseURL / apiKey 三个字段",
+        },
         400,
         ctx.baseHeaders
       );
@@ -154,7 +196,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const getMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (getMatch && ctx.req.method === "GET") {
     const provider = getMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 内置 ∪ 自定义（2026-09-21 修复：自定义 provider 此前查详情恒 404）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     const entry = listProviderStatus().find((p) => p.provider === provider);
@@ -165,7 +208,8 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
   const deleteMatch = path.match(/^\/api-keys\/([a-z0-9_-]+)$/i);
   if (deleteMatch && ctx.req.method === "DELETE") {
     const provider = deleteMatch[1];
-    if (!isKnownProvider(provider)) {
+    // 内置 ∪ 自定义（2026-09-21 修复：自定义 provider 此前无法清 override）
+    if (!isResolvableProvider(provider)) {
       return ctx.jsonResponse({ error: `Unknown provider: ${provider}` }, 404, ctx.baseHeaders);
     }
     // Delete from DB first, then clear memory — ensures consistency

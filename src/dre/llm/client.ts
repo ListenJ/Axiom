@@ -12,8 +12,6 @@
 import { logger } from "../../utils/logger.js";
 import { getModelOutputStore } from "../../utils/model-output-store.js";
 import { llmCache, llmCacheKey } from "../../utils/cache.js";
-import { clampMaxTokens, getResourceBudgetManager } from "../system-resource.js";
-import { DRELLMError } from "../errors.js";
 
 /** 重试配置 */
 export interface RetryConfig {
@@ -110,9 +108,8 @@ export class LLMClient {
       temperature: 0.0,
       topK: 1,
       seed: 42,
-      // 默认 2048：512 过小常致推理中途截断。此默认只是第一层（env/config 可覆盖）；
-      // effectiveMaxTokens → clampMaxTokens (system-resource.ts) 会按资源预算
-      // recommendedMaxTokens 二次钳制，实际生效值 = min(请求值, 预算推荐值)，双层独立。
+      // 默认 2048：512 过小常致推理中途截断。env/config 可覆盖。
+      // 2026-09-18：资源预算二次钳制随 VRAM 管理子系统移除（模型按外部服务对待）。
       maxTokens: 2048,
       timeout: 120000,
       ...config,
@@ -159,18 +156,11 @@ export class LLMClient {
   }
 
   /**
-   * 审计 H-3（2026-08-24）：所有 LLM 调用的 maxTokens 唯一钳制点。
-   * 此前 recommendedMaxTokens 只写日志、各调用方硬编码 maxTokens，
-   * 请求可超 llama.cpp --ctx-size。预算不可用时原样放行（不臆造上限）。
+   * 解析本次请求生效的 maxTokens（调用方显式值 > 配置默认 > 1024）。
+   * 2026-09-18：资源预算钳制已随 VRAM 管理子系统移除，模型按外部服务对待。
    */
   private effectiveMaxTokens(requested: number | undefined): number {
-    const req = requested ?? this.config.maxTokens ?? 1024;
-    try {
-      const rec = getResourceBudgetManager().getStatus().recommendedMaxTokens;
-      return clampMaxTokens(req, rec > 0 ? rec : undefined);
-    } catch {
-      return req;
-    }
+    return requested ?? this.config.maxTokens ?? 1024;
   }
 
   /** 记录成功 */
@@ -228,30 +218,6 @@ export class LLMClient {
   }
 
   /**
-   * 审计整改 D1（2026-08-25）：资源预算不可用时禁止直发本地 llama.cpp。
-   * canRunLocal=false 时抛 LLM_ERROR(retriable=false)，避免对本地推理服务
-   * 的无效请求；预算管理器自身异常时放行（与 effectiveMaxTokens 容错一致）。
-   */
-  private assertBudgetAvailable(): void {
-    try {
-      const status = getResourceBudgetManager().getStatus();
-      if (!status.canRunLocal) {
-        throw new DRELLMError(
-          `insufficient resources for local inference: ${status.resource.availableMemory}MB available, ` +
-            `need ${status.modelMemoryMB + status.safetyMarginMB}MB (model=${status.modelMemoryMB}MB + safety=${status.safetyMarginMB}MB)`,
-          false,
-          {
-            availableMemoryMB: status.resource.availableMemory,
-            requiredMB: status.modelMemoryMB + status.safetyMarginMB,
-          }
-        );
-      }
-    } catch (err) {
-      if (err instanceof DRELLMError) throw err;
-    }
-  }
-
-  /**
    * 标准生成 (带重试 + 熔断)
    */
   async generate(prompt: string, options?: {
@@ -261,9 +227,6 @@ export class LLMClient {
     stop?: string[];
     answerPrefix?: string;  // completion 模式的前缀引导 (如 '{"risk":"'), 返回内容会自动拼回该前缀
   }): Promise<LLMResponse> {
-    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
-    this.assertBudgetAvailable();
-
     // 熔断器检查
     if (!this.canExecute()) {
       throw new Error(
@@ -515,9 +478,6 @@ export class LLMClient {
     maxTokens?: number;
     temperature?: number;
   }): AsyncGenerator<string> {
-    // 资源预算检查 (D1): 预算不可用时不发起任何网络请求
-    this.assertBudgetAvailable();
-
     const messages = [];
 
     if (options?.system) {

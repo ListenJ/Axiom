@@ -17,6 +17,14 @@
 | 搜索 | SearXNG 公共实例 / DuckDuckGo（无 key） | ✅ 免费 |
 | 知识来源 | GitHub trending、Wiktionary、Gutenberg/arXiv | ✅ 免费 |
 
+> **2026-09-20 修订（口径更新，非历史改写）**：上表中凡依赖 **SiliconFlow** 的条目
+> （全角色兜底、embedding、提示词增强兜底）**已退出发布面** —— 用户裁定
+> "SiliconFlow 仅作开发/测试，不作为实际发布的一部分"，落地为 `devOnly` 闸门
+> （`findModelsForRole` 默认过滤，dev/test 用 `AXIOM_ALLOW_DEV_MODELS=1` 放行）。
+> 因此**发布默认下 embedding 角色无任何候选**，向量语义检索须由**用户自配** embedding 模型提供；
+> 视觉/computer-use 仍有非 SiliconFlow 候选。上表的"✅ 实测通过"记录的是 **2026-07-26 当时**的实测，
+> **不表示**当前发布默认下仍然可用。
+
 ### 修复的注册表问题（`registry.ts`）
 
 - `zhipu/GLM-5.1` → `Pro/zai-org/GLM-5.1`、`zhipu/GLM-5` → `zai-org/GLM-5.2`（实测 siliconflow 命名空间，原 id 不存在）

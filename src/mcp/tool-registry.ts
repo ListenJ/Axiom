@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Unified MCP Tool Registry
  * 
  * Eliminates duplication between stdio and HTTP transport registrations.
@@ -9,6 +9,7 @@
  * 修复 executeWithModeGuard/checkToolPermission 无调用方的死代码问题。
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 import { zodToJsonSchema } from "../utils/tool-surface.js";
 import { CAPABILITY_PAYLOAD, adjudicateCallPayloads } from "../utils/permissions.js";
@@ -141,12 +142,35 @@ export interface ToolDef extends ToolSurfaceLike {
 }
 
 /** Tool registry that manages dual transport registration */
+/** 构造选项（ku 线 2026-09-18 引入 lazy，2026-09-26 归一按 ours 守卫架构移植） */
+export interface ToolRegistryOptions {
+  /** 工具执行前的安全守卫（默认 defaultToolGuard） */
+  guard?: ToolGuard;
+  /** 真懒加载：tools/list 只下发 meta 工具面，其余工具按需取用（默认 false） */
+  lazy?: boolean;
+}
+
+/**
+ * 真懒加载模式固定下发的 meta 工具名。
+ * 这 3 个工具各自都是小 schema，构成"永远在上下文里"的全部成本。
+ */
+export const LAZY_META_TOOL_NAMES = ["tool_search", "tool_describe", "tool_invoke"] as const;
+
 export class ToolRegistry {
   private tools: ToolDef[] = [];
   private guard: ToolGuard;
+  private readonly lazyMode: boolean;
+  /** tool_describe 用的 schema 目录（首次调用时按需构建，构造后缓存） */
+  private schemaCatalogPromise?: Promise<Map<string, ToolSchemaInfo>>;
 
-  constructor(opts?: { guard?: ToolGuard }) {
+  constructor(opts?: ToolRegistryOptions) {
     this.guard = opts?.guard ?? defaultToolGuard;
+    this.lazyMode = opts?.lazy === true;
+  }
+
+  /** 当前是否处于真懒加载模式 */
+  get isLazy(): boolean {
+    return this.lazyMode;
   }
 
   /** Add a tool definition（handler 自动包裹安全守卫：先复核后执行）。
@@ -197,11 +221,21 @@ export class ToolRegistry {
     return tool.handler(args);
   }
 
-  /** Register all tools with MCP stdio server */
+  /** Register all tools with MCP stdio server（lazy 模式只下发 meta 工具面） */
   registerWithMcp(mcp: McpServer, tools?: readonly ToolDef[]): void {
     const selected = tools ?? this.tools;
+    if (this.lazyMode) {
+      this.registerLazySurface(mcp);
+      return;
+    }
     for (const tool of selected) {
-      mcp.registerTool(
+      this.registerOne(mcp, tool);
+    }
+  }
+
+  /** 单个工具的 MCP 注册体（原 registerWithMcp 内联逻辑原样提取） */
+  private registerOne(mcp: McpServer, tool: ToolDef): void {
+    mcp.registerTool(
         tool.name,
         {
           description: tool.description,
@@ -234,7 +268,6 @@ export class ToolRegistry {
           }
         }
       );
-    }
   }
 
   /** Build HTTP tool handlers mapping (with error wrapping) */
@@ -292,6 +325,147 @@ export class ToolRegistry {
       .filter((t) => t.exposure?.some((e) => allowSet.has(e)))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+
+  // ─── 真懒加载（ku 线 2026-09-18 特性，2026-09-26 归一按 ours 守卫架构移植）───
+
+  /**
+   * 真懒加载面：只向 MCP 注册 3 个 meta 工具。
+   * - tool_search：按关键词找候选工具（零 schema 传输）；
+   * - tool_describe：按需取一个工具的完整 JSON schema；
+   * - tool_invoke：按名调用（转 target.handler —— 守卫已在 add() 时包裹，能力裁决不绕过）。
+   */
+  private registerLazySurface(mcp: McpServer): void {
+    const metaTools: ToolDef[] = [
+      {
+        name: "tool_search",
+        description:
+          "搜索可用工具。返回按相关度排序的工具名+一句话描述（不返回 schema，零上下文成本）。" +
+          "找到候选后用 tool_describe 取完整入参说明，再用 tool_invoke 调用。",
+        inputSchema: z.object({
+          query: z.string().min(1).describe("工具用途关键词（中英文均可，如 '文件' / 'memory' / 'graph'）"),
+          limit: z.number().int().min(1).max(20).optional().describe("最多返回几条（默认 8）"),
+        }),
+        // 元工具：仅读注册表内存元数据，不触 fs/net/db
+        capability: ["internal"],
+        handler: async (args: Record<string, unknown>) => {
+          const query = typeof args.query === "string" ? args.query : "";
+          const limitRaw = typeof args.limit === "number" ? args.limit : 8;
+          const limit = Math.min(20, Math.max(1, Math.trunc(limitRaw)));
+          const scored = rankToolsByQuery(this.tools, query).slice(0, limit);
+          return {
+            total: this.tools.length,
+            results: scored.map((t) => ({ name: t.name, description: t.description })),
+            hint: "用 tool_describe 获取某工具的完整入参 schema，再用 tool_invoke 调用。",
+          };
+        },
+      },
+      {
+        name: "tool_describe",
+        description: "获取指定工具的完整 JSON schema（入参说明）。先 tool_search 找到名字再调用本工具。",
+        inputSchema: z.object({
+          name: z.string().min(1).describe("工具名（来自 tool_search 的结果）"),
+        }),
+        capability: ["internal"],
+        handler: async (args: Record<string, unknown>) => {
+          const name = typeof args.name === "string" ? args.name : "";
+          const catalog = await this.getSchemaCatalog();
+          const info = catalog.get(name);
+          if (!info) {
+            return {
+              error: true,
+              message: `未找到工具 "${name}"。请先用 tool_search 查询可用工具。`,
+            };
+          }
+          return info;
+        },
+      },
+      {
+        name: "tool_invoke",
+        description:
+          "按名调用任意已注册工具。target.handler 已带安全守卫（能力裁决 + 双层复核），本工具不做二次校验。",
+        inputSchema: z.object({
+          name: z.string().min(1).describe("工具名（来自 tool_search 的结果）"),
+          arguments: z.record(z.string(), z.unknown()).optional().describe("工具入参（见 tool_describe 返回的 schema）"),
+        }),
+        // capability 面向元层本身；实际能力裁决发生在目标工具的守卫上
+        capability: ["internal"],
+        handler: async (args: Record<string, unknown>) => {
+          const name = typeof args.name === "string" ? args.name : "";
+          const toolArgs =
+            args.arguments && typeof args.arguments === "object" && !Array.isArray(args.arguments)
+              ? (args.arguments as Record<string, unknown>)
+              : {};
+          const target = this.tools.find((t) => t.name === name);
+          if (!target) {
+            // 以 throw 呈现：MCP 包装层据此置 isError:true（与守卫拒绝语义一致）
+            throw new Error(`未找到工具 "${name}"。请先用 tool_search 查询可用工具。`);
+          }
+          // 不在元层吞异常：守卫拒绝（如 HardFloor）必须以 throw 冒泡到 MCP 包装层，
+          // 由其置 isError:true —— 与直接调用目标工具时的失败语义一致
+          return await target.handler(toolArgs);
+        },
+      },
+    ];
+
+    for (const tool of metaTools) {
+      // 直接经 registerOne 注册：meta 层不重复包守卫（tool_invoke 已转发到守卫包裹的 handler）
+      this.registerOne(mcp, tool);
+    }
+    this.schemaCatalogPromise = undefined; // 强制下次 tool_describe 重建目录
+  }
+
+  /** 构建并缓存全量 schema 目录（tool_describe 用） */
+  private getSchemaCatalog(): Promise<Map<string, ToolSchemaInfo>> {
+    this.schemaCatalogPromise ??= Promise.resolve().then(() => {
+      const catalog = new Map<string, ToolSchemaInfo>();
+      for (const t of this.tools) {
+        if (LAZY_META_TOOL_NAMES.includes(t.name as (typeof LAZY_META_TOOL_NAMES)[number])) continue;
+        catalog.set(t.name, {
+          name: t.name,
+          description: t.description,
+          inputSchema: zodToJsonSchema(t.inputSchema) as Record<string, unknown>,
+        });
+      }
+      return catalog;
+    });
+    return this.schemaCatalogPromise;
+  }
+}
+
+/** 单个工具的完整 schema 描述（tool_describe 返回体） */
+interface ToolSchemaInfo {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+}
+
+/**
+ * 按查询词给工具排序（ku 线 2026-09-18 引入）。
+ * 纯内存、零 IO、确定性：名字精确/前缀/包含 > 描述包含 > 标签命中，同级按名字典序。
+ */
+export function rankToolsByQuery(tools: readonly ToolDef[], query: string): ToolDef[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...tools].sort((a, b) => a.name.localeCompare(b.name));
+  const terms = q.split(/\s+/).filter(Boolean);
+  const score = (t: ToolDef): number => {
+    const name = t.name.toLowerCase();
+    const desc = (t.description ?? "").toLowerCase();
+    const tags = (t.tags ?? []).map((x) => x.toLowerCase());
+    let s = 0;
+    for (const term of terms) {
+      if (name === term) s += 100;
+      else if (name.startsWith(term)) s += 50;
+      else if (name.includes(term)) s += 20;
+      if (desc.includes(term)) s += 5;
+      if (tags.some((tag) => tag.includes(term))) s += 10;
+    }
+    return s;
+  };
+  return tools
+    .map((t) => ({ t, s: score(t) }))
+    .filter((x) => x.s > 0)
+    .sort((a, b) => (b.s - a.s) || a.t.name.localeCompare(b.t.name))
+    .map((x) => x.t);
 }
 
 /** Helper to create a registry and populate it in one call */

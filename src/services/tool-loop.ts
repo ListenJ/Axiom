@@ -19,6 +19,8 @@ export interface ToolLoopOptions {
   executeTool: (name: string, args: Record<string, unknown>) => Promise<unknown>;
   maxIterations?: number;
   temperature?: number;
+  /** 任务标识（A4）：透传到 token 记录，供按任务查看用量 */
+  taskId?: string;
 }
 
 const DEFAULT_MAX_TOOL_ITERATIONS = 4;
@@ -46,6 +48,8 @@ export async function runToolLoop(
     const response = await router.executeWithRole(role as TaskRole, current, {
       tools: options.tools,
       temperature: options.temperature ?? DEFAULT_TOOL_TEMPERATURE,
+      // A4：工具循环同样要带任务标识，否则本路径的 token 记录无法按任务归集
+      taskId: options.taskId,
     });
     lastResponse = response;
 

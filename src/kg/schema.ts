@@ -9,6 +9,7 @@
  */
 
 import type { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { logger } from "../utils/logger.js";
 
 export const KG_SCHEMA_DDL = `
@@ -76,6 +77,22 @@ export const KG_FTS_DDL = `
         VALUES (new.rowid, new.name, new.description, new.semantic);
       END;
     `;
+
+/**
+ * 图谱边稳定 id（2026-09-17 后端收敛：统一所有写入方的边身份公式）。
+ *
+ * 内容寻址 sha1：同一 (source, target, type) 在任何写入路径下都生成同一 id，
+ * 使 KnowledgeGraphEnhanced / KGWriter(摄取管线) / KnowledgeStore(DRE) 三者的
+ * 重复写入收敛为同一行（INSERT OR REPLACE/IGNORE 幂等），不再因 id 公式分歧
+ * 产生重复边。此前 enhanced.ts 用 kg_<sha256-16>、kg-writer 用 edge-<sha1-24>，
+ * 同一逻辑边会落两行。
+ */
+export function kgEdgeId(source: string, target: string, type: string): string {
+  return "edge-" + createHash("sha1")
+    .update(`${source}|${target}|${type}`)
+    .digest("hex")
+    .slice(0, 24);
+}
 
 /**
  * 幂等确保 kg_nodes_fts 就绪并回填存量（W5 §2.3）。

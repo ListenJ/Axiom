@@ -1,0 +1,91 @@
+[36m[20:00:27] INFO [0m 开始评测 3 个任务（并发 1）...
+[36m[20:00:31] INFO [0m [AdaptiveProxy] Initializing...
+[36m[20:00:31] INFO [0m [AdaptiveProxy] Discovered proxy candidates {"count":1,"proxies":{"0":"clash-verge(127.0.0.1:7897)"}}
+[36m[20:00:31] INFO [0m [AdaptiveProxy] Switched proxy {"from":"none","to":"127.0.0.1:7897","label":"clash-verge","latency":5}
+[33m[20:00:31] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[20:02:59] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[33m[20:05:57] WARN [0m [AgentEval] glm-4.7-flash transport error (Request aborted), retry in 5000ms
+[33m[20:06:21] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[20:06:48] INFO [0m [EvalRegistry] 已入库 run#20 2026-09-05T20-00-27-169Z.33936（3 任务, passRate=100%）
+{
+  "summary": {
+    "total": 3,
+    "passed": 3,
+    "passRate": 100,
+    "byFamily": {
+      "knowledge": {
+        "total": 2,
+        "passed": 2,
+        "passRate": 100,
+        "executionErrors": 0
+      },
+      "self-evolve": {
+        "total": 1,
+        "passed": 1,
+        "passRate": 100,
+        "executionErrors": 0
+      }
+    },
+    "trainRate": 100,
+    "heldOutRate": 100,
+    "generalizationRatio": 1,
+    "avgLatencyMs": 74723,
+    "latencyP50": 31300,
+    "latencyP95": 171655,
+    "latencyP99": 171655,
+    "avgOutputLength": 439,
+    "executionErrors": 0,
+    "totalCostUsd": null,
+    "avgCostUsd": null,
+    "avgPromptTokens": 28,
+    "avgCompletionTokens": 229
+  },
+  "results": [
+    {
+      "taskId": "KNOW-02",
+      "family": "knowledge",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 21214,
+      "outputLength": 709,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 30,
+        "completionTokens": 348,
+        "totalTokens": 378
+      }
+    },
+    {
+      "taskId": "KNOW-05",
+      "family": "knowledge",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 171655,
+      "outputLength": 119,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 27,
+        "completionTokens": 76,
+        "totalTokens": 103
+      }
+    },
+    {
+      "taskId": "EVOLVE-06",
+      "family": "self-evolve",
+      "split": "held-out",
+      "passed": true,
+      "latencyMs": 31300,
+      "outputLength": 488,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 26,
+        "completionTokens": 263,
+        "totalTokens": 289
+      }
+    }
+  ],
+  "failures": []
+}

@@ -29,6 +29,8 @@ export interface UserModelConfigEntry {
   maxRetries?: number;
   timeout?: number;
   enabled?: boolean;
+  /** 仅开发/测试用：透传到 capability，由 findModelsForRole 的发布面闸门过滤。 */
+  devOnly?: boolean;
 }
 
 export interface UserModelLoaderOptions {
@@ -73,6 +75,7 @@ function toEntry(m: Record<string, unknown>, idHint: string): UserModelConfigEnt
     maxRetries: typeof m.maxRetries === "number" ? m.maxRetries : undefined,
     timeout: typeof m.timeout === "number" ? m.timeout : undefined,
     enabled: m.enabled !== false,
+    devOnly: m.devOnly === true ? true : undefined,
   };
 }
 
@@ -158,6 +161,7 @@ export function loadUserModels(options: UserModelLoaderOptions = {}): UserModelL
       ...(entry.timeout !== undefined ? { timeout: entry.timeout } : {}),
       ...(entry.baseURL ? { baseURL: entry.baseURL } : {}),
       ...(entry.apiKey ? { apiKey: entry.apiKey } : {}),
+      ...(entry.devOnly ? { devOnly: true } : {}),
     };
 
     try {

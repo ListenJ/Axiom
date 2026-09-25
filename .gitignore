@@ -185,3 +185,6 @@ plugins/dsh/preview/screenshots/
 tmp-toctou-target/
 .v2c/
 .serena/
+
+# Claude Code 本地设置（工具态，不入库）
+.claude/

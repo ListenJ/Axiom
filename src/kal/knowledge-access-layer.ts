@@ -65,6 +65,26 @@ export interface QueryResult {
   duration: number;
 }
 
+/**
+ * 语义候选召回**端口**（A5 后半，2026-09-21）
+ *
+ * 语义腿只负责"把词面召不到、但语义相近的 nodeId 拉进候选"；**不决定最终排序**
+ * （D3）。真实实现由组合根注入 —— 通常包住 `recallBySimilarity()`（向量表）+
+ * 授权门后的 embedder；本模块**不** import 网络层、不 import embedding 实现
+ * （依赖注入，规则 8），因此可在无网络、无模型的情况下被完整测试。
+ *
+ * 未注入该端口 ⇒ `query()` 行为与引入前**逐字节一致**（这是本改动的安全前提）。
+ */
+export interface SemanticRecallPort {
+  /**
+   * @param query 原始查询串（本层不做改写）
+   * @param opts.topK 期望候选上限（调用方按 `limit` 传，注入方可自行截断）
+   * @returns 候选 `{id, score}`；**顺序不被信任**（本层会自行规范化为
+   *          `score desc, node_id 码元升序`，故注入方返回乱序不影响结果）
+   */
+  recall(query: string, opts: { topK: number }): Promise<ReadonlyArray<{ id: string; score: number }>>;
+}
+
 // ========== KAL 主类 ==========
 
 /**
@@ -80,10 +100,17 @@ export class KnowledgeAccessLayer {
   private vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }>; listNotePaths?(): string[] };
   /** O3-F2：queryVault 结果的 nodeId -> 原始路径映射（归一化不可逆，反查靠它） */
   private vaultNodeIdToPath = new Map<string, string>();
+  /** 可选语义候选召回端口（A5 后半）。未注入 ⇒ query() 走原词法路径，行为不变 */
+  private semantic?: SemanticRecallPort;
 
-  constructor(db: Database, vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }>; listNotePaths?(): string[] }) {
+  constructor(
+    db: Database,
+    vault?: { getWikiBacklinks(notePath: string): Array<{ path: string; title: string }>; listNotePaths?(): string[] },
+    semantic?: SemanticRecallPort,
+  ) {
     this.db = db;
     this.vault = vault;
+    this.semantic = semantic;
   }
 
   /**
@@ -126,7 +153,70 @@ export class KnowledgeAccessLayer {
       if (max && max > 0) r.relevance = r.relevance / max;
     }
 
+    // ── 语义腿（可选，A5 后半）──────────────────────────────────────────────
+    // 位置刻意放在**每库归一化之后、排序之前**：
+    //   ① 放在归一化之前 ⇒ 新候选会抬高该库的 max，把词法分重新缩放（污染词法腿）；
+    //   ② 放在排序之后 ⇒ 新候选不参与排序（等于没召回）。
+    // 打分口径：对**已在词法结果里**的条目取 `max(词法分, 余弦)`（D3：向量只做候选召回，
+    // 两腿都落在 0..1）；对**只有语义腿召回**的条目直接用余弦分。
+    if (this.semantic) {
+      try {
+        const candidates = await this.semantic.recall(intent.query, { topK: intent.limit || 20 });
+        // 候选顺序**不被信任**：显式规范化为 (score desc, node_id 码元升序)。
+        // 用 `<`/`>` 而非 localeCompare（避免 locale 依赖）；同 id 取最高分。
+        const best = new Map<string, number>();
+        for (const c of candidates ?? []) {
+          if (!c || typeof c.id !== "string" || !Number.isFinite(c.score)) continue;
+          const prev = best.get(c.id);
+          if (prev === undefined || c.score > prev) best.set(c.id, c.score);
+        }
+        const ordered = [...best.entries()]
+          .map(([id, score]) => ({ id, score }))
+          .sort((a, b) => (b.score !== a.score ? b.score - a.score : a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+        const byId = new Map(results.map((r) => [r.nodeId, r]));
+        const fresh: Array<{ id: string; score: number }> = [];
+        for (const c of ordered) {
+          const hit = byId.get(c.id);
+          if (hit) {
+            hit.relevance = Math.max(hit.relevance, c.score); // 已在词法结果中 ⇒ 取 max
+          } else {
+            fresh.push(c);
+          }
+        }
+
+        if (fresh.length > 0) {
+          const units = this.materializeUnitsByNodeId(fresh.map((c) => c.id));
+          const scoreById = new Map(fresh.map((c) => [c.id, c.score]));
+          for (const u of units) {
+            results.push({
+              ...u,
+              relevance: scoreById.get(u.nodeId) ?? u.relevance,
+              metadata: { ...u.metadata, source: "semantic" },
+            });
+          }
+          // 物化不齐（候选指向已删除/不可达节点）**显式记录**，不静默当作"召回成功"
+          if (units.length < fresh.length) {
+            logger.debug("[KAL] semantic candidates not materialized", {
+              requested: fresh.length,
+              materialized: units.length,
+            });
+          }
+        }
+      } catch (err) {
+        // 语义腿失败（embedder 抛错/超时/表损坏）⇒ 降级为纯词法，不抛、不阻断查询
+        logger.warn("[KAL] semantic leg failed; degrading to lexical-only", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     // 按相关性排序
+    // ⚠️ 刻意**不**改成 `(relevance desc, nodeId asc)`：vault 腿的 relevance 是常量 0.8，
+    // 归一化后**全部并列 1.0**，其真实顺序信息只存在于 SQL 的 `ORDER BY rank` 里、靠本排序的
+    // **稳定性**保留；一旦加入 nodeId 次级键，vault 结果会被按路径字典序重排 ⇒ 破坏 FTS 排序。
+    // 确定性由三处保证：①每库 SQL 已带 id 次级键（审计 M1）；②stores 数组顺序固定；
+    // ③语义候选已显式规范化。故此处保持原比较器不变。
     results.sort((a, b) => b.relevance - a.relevance);
 
     // 截断
@@ -373,24 +463,46 @@ export class KnowledgeAccessLayer {
    * 查询 DRE (确定性知识)
    */
   private queryDRE(intent: QueryIntent): KnowledgeUnit[] {
+    // 2026-09-17 后端收敛：补 FTS 优先腿（knowledge_node_fts），与 queryVault/queryKG
+    // 的检索能力对齐；FTS 表缺失时降级 LIKE（老库兼容）。
+    const typeFilterClause = intent.typeFilter
+      ? "AND paradigm IN (" + intent.typeFilter.map(() => "?").join(",") + ")"
+      : "";
+    const limit = intent.limit || 10;
+    const pattern = `%${intent.query}%`;
+
+    const mapRow = (row: {
+      node_id: string;
+      title: string;
+      content: string;
+      domain: string;
+      paradigm: string;
+      confidence: number;
+    }): KnowledgeUnit => ({
+      nodeId: createNodeId("dre", row.domain, row.node_id),
+      store: "dre" as StorePrefix,
+      type: row.paradigm,
+      title: row.title,
+      snippet: (row.content || "").slice(0, 300),
+      relevance: row.confidence || 0.5,
+      tags: [row.domain, row.paradigm],
+      metadata: { id: row.node_id, domain: row.domain },
+    });
+
     try {
-      const searchQuery = `
-        SELECT node_id, title, content, domain, paradigm, confidence
-        FROM knowledge_node
-        WHERE (title LIKE ? OR content LIKE ?)
-        ${intent.typeFilter ? "AND paradigm IN (" + intent.typeFilter.map(() => "?").join(",") + ")" : ""}
-        ORDER BY confidence DESC, node_id ASC
+      const ftsQuery = `
+        SELECT n.node_id, n.title, n.content, n.domain, n.paradigm, n.confidence
+        FROM knowledge_node_fts fts
+        JOIN knowledge_node n ON n.rowid = fts.rowid
+        WHERE knowledge_node_fts MATCH ?
+        ${typeFilterClause}
+        ORDER BY n.confidence DESC, n.node_id ASC
         LIMIT ?
       `;
-
-      const pattern = `%${intent.query}%`;
-      const params: (string | number)[] = [pattern, pattern];
-      if (intent.typeFilter) {
-        params.push(...intent.typeFilter);
-      }
-      params.push(intent.limit || 10);
-
-      const rows = this.db.query(searchQuery).all(...params) as Array<{
+      const ftsParams: (string | number)[] = [intent.query];
+      if (intent.typeFilter) ftsParams.push(...intent.typeFilter);
+      ftsParams.push(limit);
+      const ftsRows = this.db.query(ftsQuery).all(...ftsParams) as Array<{
         node_id: string;
         title: string;
         content: string;
@@ -398,21 +510,226 @@ export class KnowledgeAccessLayer {
         paradigm: string;
         confidence: number;
       }>;
+      if (ftsRows.length > 0) return ftsRows.map(mapRow);
+    } catch (err) {
+      // knowledge_node_fts 缺失（旧库）→ LIKE 兜底腿
+      logger.debug("[KAL] queryDRE fts leg unavailable; degrading to LIKE", { error: String(err) });
+    }
 
-      return rows.map((row) => ({
-        nodeId: createNodeId("dre", row.domain, row.node_id),
-        store: "dre" as StorePrefix,
-        type: row.paradigm,
-        title: row.title,
-        snippet: (row.content || "").slice(0, 300),
-        relevance: row.confidence || 0.5,
-        tags: [row.domain, row.paradigm],
-        metadata: { id: row.node_id, domain: row.domain },
-      }));
+    try {
+      const likeQuery = `
+        SELECT node_id, title, content, domain, paradigm, confidence
+        FROM knowledge_node
+        WHERE (title LIKE ? OR content LIKE ?)
+        ${typeFilterClause}
+        ORDER BY confidence DESC, node_id ASC
+        LIMIT ?
+      `;
+      const likeParams: (string | number)[] = [pattern, pattern];
+      if (intent.typeFilter) likeParams.push(...intent.typeFilter);
+      likeParams.push(limit);
+      const rows = this.db.query(likeQuery).all(...likeParams) as Array<{
+        node_id: string;
+        title: string;
+        content: string;
+        domain: string;
+        paradigm: string;
+        confidence: number;
+      }>;
+      return rows.map(mapRow);
     } catch (err) {
       logger.debug("[KAL] queryDRE degrade to empty", { error: String(err) });
       return [];
     }
+  }
+
+  /**
+   * 把 nodeId 批量物化为 `KnowledgeUnit`（A5 后半）
+   *
+   * ## 为什么需要它
+   * 向量表按 `node_id` 存/取，语义候选只给出 `nodeId + 余弦分`；
+   * 要并进 `query()` 的结果集，必须能把 nodeId 还原成完整知识单元。
+   *
+   * ## 三个存储的还原方式（均为**精确计算**，不是猜测）
+   * - **kg**：`kg_nodes.id` 就是库内完整 node_id（审计 M14）⇒ 按主键 `IN (...)` 直查，无需枚举。
+   * - **vault**：`nodeId = createNodeId("vault","note",path)`，而该归一化**不可逆**
+   *   （非 ASCII 折叠为 `_`、并可能追加短哈希）⇒ 三条精确路径依次尝试：
+   *   ① `vaultNodeIdToPath` 反查缓存（`queryVault`/`getReferences` 建立的）；
+   *   ② 适配器 `listNotePaths()`；③ `SELECT path FROM memory_notes` 全量路径枚举（命中即停）。
+   * - **dre**：`nodeId = createNodeId("dre", domain, node_id)` ⇒ 枚举 `(node_id, domain)`（两个短列）重算比对，
+   *   再按 `node_id IN (...)` 取正文。
+   *
+   * ## 代价与边界（如实声明）
+   * vault/dre 在缓存未命中时要**枚举**（只读短列，不读正文）；命中即停，故候选越集中越快。
+   * 语料量级增大时这是 O(N) 的读放大 —— 属已知取舍，若要消除需给两表加 `node_id` 反向索引（另立任务）。
+   * 物化不到的 id **不伪造**：直接缺席，由调用方比较数量并记录。
+   */
+  private materializeUnitsByNodeId(ids: readonly string[]): KnowledgeUnit[] {
+    const found = new Map<string, KnowledgeUnit>();
+    if (ids.length === 0) return [];
+
+    // ① KG
+    const kgIds = ids.filter((id) => id.startsWith("kg:"));
+    if (kgIds.length > 0) {
+      try {
+        const ph = kgIds.map(() => "?").join(",");
+        const rows = this.db
+          .query(
+            `SELECT id, type, name, description, tags, importance FROM kg_nodes WHERE id IN (${ph})`,
+          )
+          .all(...kgIds) as Array<{
+          id: string;
+          type: string;
+          name: string;
+          description: string;
+          tags: string;
+          importance: number;
+        }>;
+        for (const row of rows) {
+          found.set(row.id, {
+            nodeId: row.id,
+            store: "kg",
+            type: row.type,
+            title: row.name,
+            snippet: (row.description || "").slice(0, 300),
+            relevance: row.importance || 0.5,
+            tags: this.safeParseTags(row.tags),
+            metadata: { id: row.id },
+          });
+        }
+      } catch (err) {
+        logger.debug("[KAL] materialize kg degraded", { error: String(err) });
+      }
+    }
+
+    // ② Vault
+    const vaultWanted = new Set(ids.filter((id) => id.startsWith("vault:")));
+    if (vaultWanted.size > 0) {
+      const idToPath = new Map<string, string>();
+      for (const id of vaultWanted) {
+        const p = this.vaultNodeIdToPath.get(id);
+        if (p !== undefined) {
+          idToPath.set(id, p);
+          vaultWanted.delete(id);
+        }
+      }
+      if (vaultWanted.size > 0 && this.vault?.listNotePaths) {
+        try {
+          for (const p of this.vault.listNotePaths()) {
+            const nid = createNodeId("vault", "note", p);
+            this.trackVaultNodeId(nid, p);
+            if (vaultWanted.has(nid)) {
+              idToPath.set(nid, p);
+              vaultWanted.delete(nid);
+              if (vaultWanted.size === 0) break;
+            }
+          }
+        } catch (err) {
+          logger.debug("[KAL] materialize vault adapter enumeration degraded", { error: String(err) });
+        }
+      }
+      if (vaultWanted.size > 0) {
+        try {
+          const rows = this.db.query(`SELECT path FROM memory_notes`).all() as Array<{ path: string }>;
+          for (const { path } of rows) {
+            const nid = createNodeId("vault", "note", path);
+            this.trackVaultNodeId(nid, path);
+            if (vaultWanted.has(nid)) {
+              idToPath.set(nid, path);
+              vaultWanted.delete(nid);
+              if (vaultWanted.size === 0) break;
+            }
+          }
+        } catch (err) {
+          logger.debug("[KAL] materialize vault path enumeration degraded", { error: String(err) });
+        }
+      }
+      const paths = [...new Set(idToPath.values())];
+      if (paths.length > 0) {
+        try {
+          const ph = paths.map(() => "?").join(",");
+          const rows = this.db
+            .query(`SELECT path, title, content, tags FROM memory_notes WHERE path IN (${ph})`)
+            .all(...paths) as Array<{ path: string; title: string; content: string; tags: string }>;
+          const byPath = new Map(rows.map((r) => [r.path, r]));
+          for (const [nid, p] of idToPath) {
+            const row = byPath.get(p);
+            if (!row) continue;
+            found.set(nid, {
+              nodeId: nid,
+              store: "vault",
+              type: "note",
+              title: row.title || row.path,
+              snippet: (row.content || "").slice(0, 300),
+              relevance: 0.8,
+              tags: this.safeParseTags(row.tags),
+              metadata: { path: row.path },
+            });
+          }
+        } catch (err) {
+          logger.debug("[KAL] materialize vault rows degraded", { error: String(err) });
+        }
+      }
+    }
+
+    // ③ DRE
+    const dreWanted = new Set(ids.filter((id) => id.startsWith("dre:")));
+    if (dreWanted.size > 0) {
+      const idToRaw = new Map<string, string>();
+      try {
+        const pairs = this.db
+          .query(`SELECT node_id, domain FROM knowledge_node`)
+          .all() as Array<{ node_id: string; domain: string }>;
+        for (const p of pairs) {
+          const nid = createNodeId("dre", p.domain, p.node_id);
+          if (dreWanted.has(nid)) {
+            idToRaw.set(nid, p.node_id);
+            dreWanted.delete(nid);
+            if (dreWanted.size === 0) break;
+          }
+        }
+      } catch (err) {
+        logger.debug("[KAL] materialize dre enumeration degraded", { error: String(err) });
+      }
+      const rawIds = [...new Set(idToRaw.values())];
+      if (rawIds.length > 0) {
+        try {
+          const ph = rawIds.map(() => "?").join(",");
+          const rows = this.db
+            .query(
+              `SELECT node_id, title, content, domain, paradigm, confidence FROM knowledge_node WHERE node_id IN (${ph})`,
+            )
+            .all(...rawIds) as Array<{
+            node_id: string;
+            title: string;
+            content: string;
+            domain: string;
+            paradigm: string;
+            confidence: number;
+          }>;
+          const byRaw = new Map(rows.map((r) => [r.node_id, r]));
+          for (const [nid, rawId] of idToRaw) {
+            const row = byRaw.get(rawId);
+            if (!row) continue;
+            found.set(nid, {
+              nodeId: nid,
+              store: "dre",
+              type: row.paradigm,
+              title: row.title,
+              snippet: (row.content || "").slice(0, 300),
+              relevance: row.confidence || 0.5,
+              tags: [row.domain, row.paradigm],
+              metadata: { id: row.node_id, domain: row.domain },
+            });
+          }
+        } catch (err) {
+          logger.debug("[KAL] materialize dre rows degraded", { error: String(err) });
+        }
+      }
+    }
+
+    // 按**传入顺序**返回（确定性）；物化不到的 id 直接缺席（调用方负责比较数量）
+    return ids.map((id) => found.get(id)).filter((u): u is KnowledgeUnit => u !== undefined);
   }
 
   /**
@@ -429,28 +746,12 @@ export class KnowledgeAccessLayer {
     const results: KnowledgeUnit[] = [];
 
     try {
-      // O3-F4：复数表 kg_edges 与历史单数表 kg_edge 的出入边 UNION；
-      // 单数表不存在时整体 UNION 失败 → 回退仅复数腿（该腿吞掉并 debug 日志）。
-      let edges: Array<{ source: string; target: string; type: string }>;
-      try {
-        edges = this.db
-          .query(
-            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ?
-             UNION ALL
-             SELECT src_node, dst_node, relation FROM kg_edge WHERE src_node = ? OR dst_node = ?
-             LIMIT 50`,
-          )
-          .all(nodeId, nodeId, nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
-      } catch (err) {
-        logger.debug("[KAL] kg_edge singular-table leg unavailable; falling back to kg_edges only", {
-          error: (err as Error).message,
-        });
-        edges = this.db
-          .query(
-            `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
-          )
-          .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
-      }
+      // 2026-09-17 后端收敛：唯一边表 kg_edges（旧表 kg_edge 已并入，缝合 UNION 与回退腿移除）
+      const edges = this.db
+        .query(
+          `SELECT source, target, type FROM kg_edges WHERE source = ? OR target = ? LIMIT 50`,
+        )
+        .all(nodeId, nodeId) as Array<{ source: string; target: string; type: string }>;
 
       for (const edge of edges) {
         const otherId = edge.source === nodeId ? edge.target : edge.source;

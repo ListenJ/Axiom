@@ -4,7 +4,11 @@ import { join } from "path";
 
 function collectDocsHits(pattern: RegExp): string[] {
   const hits: string[] = [];
-  const excludeDirs = new Set(["archive", "reviews", "superpowers", "operations-log"]);
+  // plans：**计划**文档（docs/plans/、docs/superpowers/plans/）不是"技术主张面"——
+  // 它必须能指名道姓地讨论"要撤回哪条旧宣称"，否则就无法写出撤回计划。
+  // 本门禁防的是**主张面**（README/ARCHITECTURE/LIMITATIONS 等）出现过时宣称，
+  // 故 plans 与既有的 superpowers、reviews 同属排除面（2026-09-19 显式化）。
+  const excludeDirs = new Set(["archive", "reviews", "superpowers", "operations-log", "plans"]);
   // ops log 主文件（docs/operations-log.md）与月度拆分目录（docs/operations-log/YYYY-MM.md）均为历史留痕
   const isExcludedFile = (name: string) => name.startsWith("operations-log");
   function walk(dir: string) {
@@ -117,9 +121,12 @@ describe("docs-consistency Task16 — 文档一致性", () => {
   test("批次5 — README 模块表/审批协议/导航数与实现一致", () => {
     const readme = readFileSync("README.md", "utf8");
 
-    // vram-budget.ts 不存在（实为 system-resource.ts，纯数字预算、无 nvidia-smi 硬件依赖）
+    // vram-budget.ts 从未存在；system-resource.ts 已于 2026-09-18 随 VRAM 管理子系统归档移除。
+    // README 只允许以"已归档移除"口径提及该文件名，不得再作为在位模块/工具描述。
     expect(readme.includes("vram-budget.ts")).toBe(false);
     expect(readme.includes("system-resource.ts")).toBe(true);
+    expect(readme).toMatch(/已归档移除|已按用户决策归档移除/);
+    expect(readme).not.toContain("vram_status");
     expect(readme.includes("RTX 3050")).toBe(false);
 
     // 审批决议走 REST，而非 WS action；后端默认 60s 自动拒绝保留

@@ -9,6 +9,7 @@
  * 额外包含超长会话场景模拟（多轮反思周期）和性能基准测试。
  */
 import { describe, beforeEach, afterEach, test, expect } from "bun:test";
+import { perfBudget } from "./support/perf-budget.js";
 import {
   GoalTracker,
   DEFAULT_GOAL_TRACKER_CONFIG,
@@ -404,7 +405,8 @@ describe("GoalTracker — 性能基准", () => {
     tracker.validateAgainstContext(goals, ctx);
     const elapsed = Date.now() - start;
 
-    expect(elapsed).toBeLessThan(5);
+    // 机器速度断言（并行/负载下会偶发）：默认只做"防挂起"上界，严格值留给 AXIOM_PERF_ASSERT=1
+    expect(elapsed).toBeLessThan(perfBudget(5, 100));
   });
 
   test("mergeGoals 应在 10ms 内合并 100 个目标", () => {
@@ -423,7 +425,7 @@ describe("GoalTracker — 性能基准", () => {
     tracker.mergeGoals(goals);
     const elapsed = Date.now() - start;
 
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(perfBudget(10, 200));
   });
 
   test("detectDrift 应在 1ms 内完成（100 条历史记录）", () => {
@@ -460,7 +462,7 @@ describe("GoalTracker — 性能基准", () => {
     tracker.detectDrift();
     const elapsed = Date.now() - start;
 
-    expect(elapsed).toBeLessThan(2);
+    expect(elapsed).toBeLessThan(perfBudget(2, 50));
   });
 });
 
@@ -614,8 +616,9 @@ describe("GoalTracker — 资源占用监测", () => {
     const growthBytes = after - before;
     const growthMB = growthBytes / (1024 * 1024);
 
-    // 200 轮会话后堆增长应 < 5MB（历史上限 50 条 + 活跃上限 10 条，内存占用应有界）
-    expect(growthMB).toBeLessThan(5);
+    // 堆增长是 GC 时机相关的**基准**断言（非正确性）——并行/负载下会偶发；
+    // 真正的"有界"保证由下面两条**结构性**断言承担（历史上限 / 活跃上限），它们保持严格。
+    expect(growthMB).toBeLessThan(perfBudget(5, 50));
     // 历史记录应被修剪到上限，不应无限增长
     expect(tracker.getHistory().length).toBeLessThanOrEqual(DEFAULT_GOAL_TRACKER_CONFIG.maxHistorySize);
     // 活跃目标也应受上限约束

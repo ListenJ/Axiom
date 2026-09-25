@@ -30,6 +30,15 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { perfBudget } from "../support/perf-budget.js";
+
+// ── 性能断言口径（2026-09-20）──────────────────────────────────────────────
+// 本文件全部是**墙钟/内存的绝对阈值**，在 --parallel=8 下会因 CPU 争用偶发失败
+// （实测：干净 HEAD 上 `C. 5 层管道` 与 `E.4 p99<50` 同样红）。
+// 口径：默认只做**防挂起上界**（拦住卡死/数量级爆炸）；严格阈值仅在
+// `AXIOM_PERF_ASSERT=1`（专属性能门禁）下生效。
+// 注意：**相对阈值**（如 degradationRatio < 3）不受负载影响，保持原样、不套 perfBudget。
+// ──────────────────────────────────────────────────────────────────────────
 import {
   DeterministicRetrievalEngine,
   _resetRetrievalEngineForTest,
@@ -198,8 +207,8 @@ describe("A. 数据量渐进压力测试 — Data Volume Ramp", () => {
 
       // 瓶颈判定：10k 实体构建应在 10s 内完成，内存增量 < 200MB
       const buildThreshold = scale.entities >= 10000 ? 10000 : scale.entities >= 5000 ? 5000 : 2000;
-      expect(duration).toBeLessThan(buildThreshold);
-      expect(memDelta).toBeLessThan(300);
+      expect(duration).toBeLessThan(perfBudget(buildThreshold, buildThreshold * 5));
+      expect(memDelta).toBeLessThan(perfBudget(300, 1200));
 
       console.log(
         `[Stress] build ${scale.label} entities: ${duration.toFixed(0)}ms, mem delta: ${memDelta}MB, links: ${stats.links}`,
@@ -233,7 +242,7 @@ describe("A. 数据量渐进压力测试 — Data Volume Ramp", () => {
 
       // 瓶颈判定：p99 应在 50ms 内（10k 规模放宽到 200ms）
       const p99Threshold = scale.entities >= 10000 ? 200 : 50;
-      expect(pct.p99).toBeLessThan(p99Threshold);
+      expect(pct.p99).toBeLessThan(perfBudget(p99Threshold, p99Threshold * 5));
       // 验证测试确实执行了所有迭代（超快操作 avg 可能为 0）
       expect(latencies.length).toBe(1000);
 
@@ -300,7 +309,7 @@ describe("B. 并发渐进压力测试 — Concurrency Ramp", () => {
       // 瓶颈判定：错误率 < 5%，p99 < 500ms（1000 并发放宽到 2000ms）
       const p99Threshold = concurrency >= 1000 ? 2000 : concurrency >= 500 ? 1000 : 500;
       expect(errorRate).toBeLessThan(0.05);
-      expect(pct.p99).toBeLessThan(p99Threshold);
+      expect(pct.p99).toBeLessThan(perfBudget(p99Threshold, p99Threshold * 5));
 
       console.log(
         `[Stress] concurrency ${concurrency}: ${duration.toFixed(0)}ms, p50=${pct.p50}ms, p99=${pct.p99}ms, qps: ${qps}, errRate: ${errorRate.toFixed(3)}, mem delta: ${memDelta}MB`,
@@ -351,7 +360,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const totalMs = latencies.reduce((s, x) => s + x, 0);
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
-    expect(pct.p99).toBeLessThan(50);
+    expect(pct.p99).toBeLessThan(perfBudget(50, 500));
     console.log(
       `[Stress] Layer0 only x1000: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}`,
     );
@@ -387,7 +396,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
     // GraphRAG 多跳允许较高延迟，但 p99 < 200ms
-    expect(pct.p99).toBeLessThan(200);
+    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
     expect(totalPaths).toBeGreaterThan(0);
 
     console.log(
@@ -425,7 +434,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const totalMs = latencies.reduce((s, x) => s + x, 0);
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
-    expect(pct.p99).toBeLessThan(200);
+    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
     console.log(
       `[Stress] Layer0+1+2+3 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, verified: ${totalVerified}`,
     );
@@ -461,7 +470,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const totalMs = latencies.reduce((s, x) => s + x, 0);
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
-    expect(pct.p99).toBeLessThan(200);
+    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
     console.log(
       `[Stress] Layer0-4 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, fused: ${totalFused}`,
     );
@@ -511,7 +520,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const health = monitor.getHealthSnapshot(1000);
     const breakdown = monitor.getLayerBreakdown(1000);
 
-    expect(pct.p99).toBeLessThan(200);
+    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
     expect(health.totalQueries).toBe(1000);
     expect(health.status).not.toBe("unhealthy");
 
@@ -575,8 +584,8 @@ describe("D. 瓶颈定位测试 — Sustained Load Until Degradation", () => {
 
     // 瓶颈判定：衰减比 < 3x（性能不应严重下降），p99 < 100ms
     expect(degradationRatio).toBeLessThan(3);
-    expect(overallPct.p99).toBeLessThan(100);
-    expect(memDelta).toBeLessThan(100); // 不应有明显内存泄漏
+    expect(overallPct.p99).toBeLessThan(perfBudget(100, 1000));
+    expect(memDelta).toBeLessThan(perfBudget(100, 400)); // 不应有明显内存泄漏
 
     console.log(
       `[Stress] sustained 5000 queries: p50=${overallPct.p50}ms, p99=${overallPct.p99}ms, qps: ${qps}, mem delta: ${memDelta}MB, degradation: ${degradationRatio.toFixed(2)}x`,
@@ -602,8 +611,8 @@ describe("D. 瓶颈定位测试 — Sustained Load Until Degradation", () => {
     const qps = duration > 0 ? Math.round((results.length / duration) * 1000) : 0;
 
     // 瓶颈判定：2000 条批量验证 < 500ms，单条 < 0.25ms
-    expect(duration).toBeLessThan(500);
-    expect(perResultMs).toBeLessThan(0.25);
+    expect(duration).toBeLessThan(perfBudget(500, 5000));
+    expect(perResultMs).toBeLessThan(perfBudget(0.25, 2.5));
 
     console.log(
       `[Stress] verify 2000 results: ${duration.toFixed(0)}ms, per-result: ${perResultMs.toFixed(3)}ms, qps: ${qps}, verified: ${verified}, unverified: ${unverified}, contradicted: ${contradicted}`,
@@ -657,7 +666,7 @@ describe("D. 瓶颈定位测试 — Sustained Load Until Degradation", () => {
     const qps = duration > 0 ? Math.round((results.length / duration) * 1000) : 0;
 
     // 瓶颈判定：1000 条多源融合 < 100ms
-    expect(duration).toBeLessThan(100);
+    expect(duration).toBeLessThan(perfBudget(100, 1000));
     expect(resp.metrics.duplicatesRemoved).toBe(500);
     expect(resp.metrics.crossSourceCount).toBe(500);
 

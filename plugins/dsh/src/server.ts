@@ -44,19 +44,21 @@ export function spawnAxiomServer(config: NormalizedConfig): ChildProcess {
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   })
-  // 保持子进程日志可诊断但不过量：只留最近若干行
-  let tail = ''
+  // 保持子进程日志可诊断但不过量：只留最近若干行。
+  // 用可变持有者而非字符串快照：capture 在事件循环里异步触发，
+  // 若直接赋值字符串，_logTail 永远停留在 spawn 那一刻的空值。
+  const holder: { tail: string } = { tail: '' }
   const capture = (chunk: Buffer) => {
-    tail = (tail + chunk.toString('utf8')).slice(-4000)
+    holder.tail = (holder.tail + chunk.toString('utf8')).slice(-4000)
   }
   child.stdout?.on('data', capture)
   child.stderr?.on('data', capture)
-  ;(child as ChildProcess & { _logTail?: string })._logTail = tail
+  ;(child as ChildProcess & { _logTailHolder?: { tail: string } })._logTailHolder = holder
   return child
 }
 
 function childTail(child: ChildProcess | null): string {
-  return (child as ChildProcess & { _logTail?: string } | null)?._logTail ?? ''
+  return (child as ChildProcess & { _logTailHolder?: { tail: string } } | null)?._logTailHolder?.tail ?? ''
 }
 
 /** 单次健康探测。 */

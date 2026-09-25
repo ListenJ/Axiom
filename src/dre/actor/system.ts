@@ -257,6 +257,15 @@ class ActorInstance extends EventEmitter {
 export class ActorSystem {
   private actors = new Map<string, ActorInstance>();
   private stopped = false;
+  /**
+   * 在途 shutdown 承诺（single-flight）。
+   * 为什么必须有它：`shutdown()` 会先快照 `this.actors`，再 `await` 销毁，
+   * 最后才 `this.actors.clear()`。只靠快照判断，两次并发 `shutdown()` 会
+   * 双双快照到同一批 actor ⇒ 同一 actor 被 `destroy()` 两次；而
+   * `ActorInstance.destroy()` 并非幂等（每次都调 `behavior.cleanup()`）。
+   * 修法：把在途承诺在**任何 await 之前同步发布**（同 `vault-stats-cache._refresh`）。
+   */
+  private shuttingDown: Promise<void> | null = null;
   /** H1 修复：ask() 的挂起回复注册表（replyTo → resolver），使发送方无需注册为 Actor 即可拿到回信 */
   private pendingReplies = new Map<string, {
     resolve: (msg: ActorMessage) => void;
@@ -359,10 +368,15 @@ export class ActorSystem {
    */
   async unregister(actorId: string): Promise<void> {
     const actor = this.actors.get(actorId);
-    if (actor) {
-      await actor.destroy();
-      this.actors.delete(actorId);
-    }
+    if (!actor) return;
+    // 原子"认领"：在任何 await 之前把该 actor 从注册表同步摘除
+    // （`get` 与 `delete` 之间没有 await，在事件循环内不可被打断）。
+    // 此前是 `await destroy()` 之后才 delete —— 两个并发 unregister 会双双拿到
+    // 同一个 actor，导致 cleanup() 跑两次；与 shutdown() 并发时同样重复销毁。
+    // 语义取舍（有意）：若 destroy() 抛错，该 actor 不会回到注册表 ——
+    // 半销毁的 actor 留在注册表被后续调用者继续使用，比"已摘除"更危险。
+    this.actors.delete(actorId);
+    await actor.destroy();
   }
 
   /**
@@ -402,28 +416,37 @@ export class ActorSystem {
    * 清理所有 Actor
    */
   async shutdown(timeoutMs: number = 5000): Promise<void> {
-    this.stopped = true;
-    // H1 修复：清理所有挂起的 ask()，避免调用方永久悬挂
-    for (const [id, pending] of this.pendingReplies) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error("[ActorSystem] system shutting down"));
-      this.pendingReplies.delete(id);
-    }
-    const destroyPromises = Array.from(this.actors.entries()).map(async ([id, actor]) => {
-      try {
-        await Promise.race([
-          actor.destroy(),
-          new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error(`Actor ${id} destroy timeout`)), timeoutMs)
-          ),
-        ]);
-      } catch (err) {
-        logger.warn("[ActorSystem] Actor destroy failed", { id, error: (err as Error).message });
+    // single-flight：并发/重复 shutdown 复用同一张承诺，避免同一 actor 被销毁两次。
+    if (this.shuttingDown) return this.shuttingDown;
+
+    const run = (async () => {
+      this.stopped = true;
+      // H1 修复：清理所有挂起的 ask()，避免调用方永久悬挂
+      for (const [id, pending] of this.pendingReplies) {
+        clearTimeout(pending.timer);
+        pending.reject(new Error("[ActorSystem] system shutting down"));
+        this.pendingReplies.delete(id);
       }
-    });
-    await Promise.all(destroyPromises);
-    this.actors.clear();
-    logger.info("[ActorSystem] Shutdown complete");
+      const destroyPromises = Array.from(this.actors.entries()).map(async ([id, actor]) => {
+        try {
+          await Promise.race([
+            actor.destroy(),
+            new Promise<void>((_, reject) =>
+              setTimeout(() => reject(new Error(`Actor ${id} destroy timeout`)), timeoutMs)
+            ),
+          ]);
+        } catch (err) {
+          logger.warn("[ActorSystem] Actor destroy failed", { id, error: (err as Error).message });
+        }
+      });
+      await Promise.all(destroyPromises);
+      this.actors.clear();
+      logger.info("[ActorSystem] Shutdown complete");
+    })();
+
+    // 同步发布（本行之前无 await ⇒ 无交错窗口）；承诺缓存不重置 ⇒ shutdown 天然幂等
+    this.shuttingDown = run;
+    return run;
   }
 
   /**

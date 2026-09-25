@@ -10,6 +10,7 @@ import { logger } from "../utils/logger.js";
 import { getSessionMessages } from "../db/session-store.js";
 import { getSessionLineage, searchSessionLineage } from "../db/session-lineage.js";
 import { getTokenTracker } from "../router/token-tracker.js";
+import { isWithinBase } from "../utils/path-safety.js";
 
 // ===== Conversation History (Server-side persistence) =====
 
@@ -300,8 +301,9 @@ export async function handleKnowledgeReviewAction(ctx: RouteContext): Promise<Re
     // 安全修复（审计 F）：`file` 来自请求体，原实现直接 path.join 进笔记目录并
     // 读写（含 writeFileSync 落盘），未做包含性校验 —— 传 `../../outside.md`
     // 即可读写 vault 之外的任意文件。此处强制解析后仍位于 atomic-notes 之内。
-    const rel = path.relative(notesRoot, filepath);
-    if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    // T3（2026-09-18）：containment 判定委托唯一原语（原为第 11 处重复实现）。
+    // file 为空导致解析结果等于 notesRoot 的情况同样拒绝，保持原语义。
+    if (filepath === notesRoot || !isWithinBase(notesRoot, filepath)) {
       return ctx.jsonResponse({ error: "Invalid file path" }, 400, ctx.baseHeaders);
     }
 

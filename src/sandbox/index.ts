@@ -2,6 +2,20 @@ export { processSandbox } from "./process-sandbox.js"
 export { dockerSandbox } from "./docker-sandbox.js"
 export type { SandboxOptions, SandboxResult, SandboxProvider } from "./types.js"
 
+// 执行沙箱统一层（T3，2026-09-18）：所有 MCP 工具执行前的唯一硬底线收口点。
+// 由 src/mcp/tool-registry.ts 的 defaultToolGuard 调用；工具内部需要 cwd 围栏时
+// 以 { cwdFenced: true } 复用同一实现，避免各工具自建第二套校验语义。
+export {
+  guardToolExecution,
+  ExecutionDeniedError,
+  collectGuardedValues,
+  isPathLikeKey,
+  isCommandLikeKey,
+  looksLikePathValue,
+  EXECUTION_GUARD_INFO,
+} from "./execution-guard.js"
+export type { GuardOptions, GuardedValue } from "./execution-guard.js"
+
 import { dockerSandbox } from "./docker-sandbox.js"
 import { processSandbox } from "./process-sandbox.js"
 import type { SandboxOptions, SandboxResult, SandboxProvider } from "./types.js"

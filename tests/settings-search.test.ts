@@ -5,7 +5,7 @@
  *  - 设置目录完整性（key 唯一、中文 label/desc、分区齐全）
  *  - 关键词搜索（中文子串 + 同义词，相近设置项可区分）
  *  - 语义 embedding 注入（可测余弦相似度排序）
- *  - embedding 失败自动回落关键词（边缘增强·失败回退）
+ *  - **默认路径为纯关键词**（2026-09-20 起：内置本地 embedding 已随 edge-embeddings.ts 删除）
  *  - 路由：GET /settings/catalog、POST /settings/search、空查询 400
  */
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
@@ -116,6 +116,16 @@ describe("关键词搜索", () => {
   });
 });
 
+describe("默认路径（2026-09-20 行为变更锁定）", () => {
+  it("未注入 embedder 时走**纯关键词**（engine=keyword，零网络请求）", async () => {
+    // 变更前：缺省 defaultEmbedder 会尝试本地 127.0.0.1:9001 的 bge-m3；
+    // 变更后：该客户端已删除，缺省即"无 embedding"。本用例锁定该行为，防静默回退。
+    const res = await searchSettings("缓存");
+    expect(res.engine).toBe("keyword");
+    expect(res.results.length).toBeGreaterThan(0);
+  });
+});
+
 describe("语义搜索（注入 embedding）", () => {
   it("语义命中时 engine=semantic 且分数 0~1", async () => {
     const res = await searchSettings("想打开深色夜间模式", { embedder: fakeEmbedder });
@@ -137,12 +147,8 @@ describe("语义搜索（注入 embedding）", () => {
 });
 
 describe("路由", () => {
-  beforeEach(() => {
-    process.env.EDGE_SETTINGS_SEARCH = "0"; // 测试禁网络，走关键词
-  });
-  afterEach(() => {
-    delete process.env.EDGE_SETTINGS_SEARCH;
-  });
+  // 2026-09-20：`EDGE_SETTINGS_SEARCH` 的读取方（local-llm/edge-embeddings.ts）已删除，
+  // 这里不再需要"禁网络"的环境变量舞蹈 —— 默认路径本就是纯关键词、零网络请求。
 
   it("GET /settings/catalog 返回 sections 与 items", async () => {
     const res = await handleSettingsCatalog(fakeCtx("GET", "/settings/catalog"));

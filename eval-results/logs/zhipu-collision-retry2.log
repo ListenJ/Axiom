@@ -1,0 +1,138 @@
+[36m[18:04:27] INFO [0m 开始评测 5 个任务（并发 1）...
+[36m[18:04:31] INFO [0m [AdaptiveProxy] Initializing...
+[36m[18:04:31] INFO [0m [AdaptiveProxy] Discovered proxy candidates {"count":1,"proxies":{"0":"clash-verge(127.0.0.1:7897)"}}
+[36m[18:04:31] INFO [0m [AdaptiveProxy] Switched proxy {"from":"none","to":"127.0.0.1:7897","label":"clash-verge","latency":6}
+[33m[18:04:31] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[33m[18:05:16] WARN [0m [AgentEval] glm-4.7-flash empty content (hidden reasoning likely consumed budget), retry with max_tokens=4096 -> 8192
+[36m[18:05:28] INFO [0m [EvalRegistry] 已入库 run#17 2026-09-05T18-04-27-690Z.37368（5 任务, passRate=75%）
+{
+  "summary": {
+    "total": 5,
+    "passed": 3,
+    "passRate": 75,
+    "byFamily": {
+      "coding": {
+        "total": 2,
+        "passed": 1,
+        "passRate": 100,
+        "executionErrors": 1
+      },
+      "knowledge": {
+        "total": 1,
+        "passed": 0,
+        "passRate": 0,
+        "executionErrors": 0
+      },
+      "self-evolve": {
+        "total": 2,
+        "passed": 2,
+        "passRate": 100,
+        "executionErrors": 0
+      }
+    },
+    "trainRate": 100,
+    "heldOutRate": 50,
+    "generalizationRatio": 0.5,
+    "avgLatencyMs": 12113,
+    "latencyP50": 4817,
+    "latencyP95": 40430,
+    "latencyP99": 40430,
+    "avgOutputLength": 62,
+    "executionErrors": 1,
+    "totalCostUsd": null,
+    "avgCostUsd": null,
+    "avgPromptTokens": 55,
+    "avgCompletionTokens": 36
+  },
+  "results": [
+    {
+      "taskId": "CODING-10",
+      "family": "coding",
+      "split": "held-out",
+      "passed": false,
+      "reason": "[ERROR] zhipu empty content after retries",
+      "latencyMs": 4427,
+      "outputLength": 41,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "executionError": true
+    },
+    {
+      "taskId": "CODING-11",
+      "family": "coding",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 40430,
+      "outputLength": 71,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 66,
+        "completionTokens": 41,
+        "totalTokens": 107
+      }
+    },
+    {
+      "taskId": "KNOW-11",
+      "family": "knowledge",
+      "split": "held-out",
+      "passed": false,
+      "reason": "缺少任一概念: reset --hard/reset hard/硬重置/硬回退",
+      "latencyMs": 6317,
+      "outputLength": 131,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 45,
+        "completionTokens": 61,
+        "totalTokens": 106
+      }
+    },
+    {
+      "taskId": "EVOLVE-10",
+      "family": "self-evolve",
+      "split": "held-out",
+      "passed": true,
+      "latencyMs": 4817,
+      "outputLength": 43,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 56,
+        "completionTokens": 22,
+        "totalTokens": 78
+      }
+    },
+    {
+      "taskId": "EVOLVE-11",
+      "family": "self-evolve",
+      "split": "train",
+      "passed": true,
+      "latencyMs": 4575,
+      "outputLength": 26,
+      "model": "glm-4.7-flash",
+      "injectedSkills": [],
+      "tokenUsage": {
+        "promptTokens": 54,
+        "completionTokens": 20,
+        "totalTokens": 74
+      }
+    }
+  ],
+  "failures": [
+    {
+      "bucket": "执行错误",
+      "count": 1,
+      "samples": [
+        "[ERROR] zhipu empty content after retries"
+      ]
+    },
+    {
+      "bucket": "其他",
+      "count": 1,
+      "samples": [
+        "缺少任一概念: reset --hard/reset hard/硬重置/硬回退"
+      ]
+    }
+  ]
+}

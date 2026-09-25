@@ -294,6 +294,8 @@ export function listProviderStatus(): Array<{
   source: "env" | "runtime" | "config" | "none";
   configured: boolean;
   masked: string;
+  /** true = 用户注册的自定义 provider（切片 B）；内置项不带该字段 */
+  custom?: boolean;
 }> {
   const out: Array<{
     provider: string;
@@ -306,6 +308,7 @@ export function listProviderStatus(): Array<{
     source: "env" | "runtime" | "config" | "none";
     configured: boolean;
     masked: string;
+    custom?: boolean;
   }> = [];
 
   for (const [provider, cfg] of Object.entries(PROVIDER_CONFIG)) {
@@ -325,6 +328,28 @@ export function listProviderStatus(): Array<{
       source: override ? "runtime" : envKey ? "env" : "none",
       configured: !!effectiveKey,
       masked: effectiveKey ? maskKey(effectiveKey) : "",
+    });
+  }
+
+  // 自定义 provider（2026-09-21）：此前**只列内置项** ⇒ 设置面板/TUI 看不到用户自配的 provider，
+  // 且 `GET /api-keys/:provider`、`POST /api-keys/:provider/test` 会对其返回 404（明明已注册可用）。
+  // 追加在末尾并按 provider 名排序：**确定性顺序**（不受 Map 插入序影响）。
+  const customs = [...customProviders.values()].sort((a, b) => (a.provider < b.provider ? -1 : a.provider > b.provider ? 1 : 0));
+  for (const c of customs) {
+    const override = store.get(c.provider);
+    const effectiveKey = override?.apiKey ?? "";
+    out.push({
+      provider: c.provider,
+      apiKeyEnv: "",
+      baseURL: getEffectiveBaseURL(c.provider, "", c.baseURL),
+      adapter: c.adapter,
+      region: "global",
+      displayName: c.displayName,
+      hasRegionalVariants: false,
+      source: effectiveKey ? "runtime" : "none",
+      configured: !!effectiveKey,
+      masked: effectiveKey ? maskKey(effectiveKey) : "",
+      custom: true,
     });
   }
 
@@ -358,21 +383,126 @@ export function isKnownProvider(provider: string): provider is ModelProvider {
   return provider in PROVIDER_CONFIG;
 }
 
+// ============================================================================
+// 自定义 provider（切片 B，2026-09-20）
+// ----------------------------------------------------------------------------
+// 用户自填：协议（adapter）+ base_url + api key + 名称。
+// **刻意实现在本模块内**（而不是另起一份 provider 表）：本模块是 provider 的**唯一事实源**，
+// 另建一份会立刻产生第二事实源 —— 正是 Q2 明确要避免的。密钥走既有 override 通路，
+// 因此 getEffectiveApiKey / getEffectiveBaseURL **无需改动**即可支持自定义条目。
+// ============================================================================
+
+export const CUSTOM_PROVIDER_ADAPTERS: readonly ApiAdapter[] = ["openai", "anthropic", "gemini", "opencode"];
+
+export interface CustomProviderEntry {
+  provider: string;
+  baseURL: string;
+  adapter: ApiAdapter;
+  displayName: string;
+}
+
+const customProviders = new Map<string, CustomProviderEntry>();
+
+/** 是否为用户注册的自定义 provider（与"内置已知"区分开，便于路由分别处理） */
+export function isCustomProvider(provider: string): boolean {
+  return customProviders.has(provider);
+}
+
+/** 可被解析的 provider = 内置 ∪ 自定义（供"放开未知 provider"的调用点使用） */
+export function isResolvableProvider(provider: string): boolean {
+  return isKnownProvider(provider) || isCustomProvider(provider);
+}
+
+export function listCustomProviders(): CustomProviderEntry[] {
+  return [...customProviders.values()];
+}
+
+export function getCustomProvider(provider: string): CustomProviderEntry | undefined {
+  return customProviders.get(provider);
+}
+
+/** 注销自定义 provider（同时清掉其 override 密钥） */
+export function unregisterCustomProvider(provider: string): boolean {
+  const existed = customProviders.delete(provider);
+  if (existed) {
+    clearApiKeyOverride(provider);
+    logger.info(`[ApiKeyStore] Custom provider unregistered: ${provider}`);
+  }
+  return existed;
+}
+
+export interface CustomProviderInput {
+  provider: string;
+  baseURL: string;
+  adapter: string;
+  apiKey: string;
+  displayName?: string;
+}
+
+/**
+ * 注册/覆盖一个自定义 provider。**校验失败返回可读错误，不抛异常**（路由据此返回 400）。
+ * 校验项：名称格式与不撞内置名 / baseURL 为 http(s) / adapter 在支持集合内 / apiKey 非空。
+ */
+export function registerCustomProvider(
+  input: CustomProviderInput,
+): { ok: true; entry: CustomProviderEntry } | { ok: false; error: string } {
+  const name = String(input?.provider ?? "").trim();
+  if (!/^[a-z0-9][a-z0-9_-]*$/i.test(name)) {
+    return { ok: false, error: "provider 名只能含字母/数字/下划线/连字符，且以字母或数字开头" };
+  }
+  if (isKnownProvider(name)) {
+    return { ok: false, error: `provider 名与内置项冲突：${name}（内置项请直接用 /api-keys 覆盖 key/baseURL）` };
+  }
+  const baseURL = String(input?.baseURL ?? "").trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(baseURL);
+  } catch {
+    return { ok: false, error: "baseURL 必须是合法的绝对 URL" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: `baseURL 仅支持 http/https，收到：${parsed.protocol}` };
+  }
+  const adapter = String(input?.adapter ?? "").trim();
+  if (!(CUSTOM_PROVIDER_ADAPTERS as readonly string[]).includes(adapter)) {
+    return { ok: false, error: `不支持的协议：${adapter || "(空)"}（可选 ${CUSTOM_PROVIDER_ADAPTERS.join("/")}）` };
+  }
+  const apiKey = String(input?.apiKey ?? "").trim();
+  if (!apiKey) return { ok: false, error: "apiKey 不能为空" };
+
+  const entry: CustomProviderEntry = {
+    provider: name,
+    baseURL,
+    adapter: adapter as ApiAdapter,
+    displayName: String(input?.displayName ?? "").trim() || name,
+  };
+  customProviders.set(name, entry);
+  // 复用既有 override 通路存密钥与端点 ⇒ 不再有第二处密钥存储
+  setApiKeyOverride(name, apiKey, baseURL);
+  logger.info("[ApiKeyStore] Custom provider registered", { provider: name, adapter, baseURL });
+  return { ok: true, entry };
+}
+
 /**
  * 只读 provider 的 baseURL/apiKeyEnv —— router 兼容层（router/models/providers.ts）
  * 的唯一数据源。全量字段（adapter/region/displayName）见 listProviderStatus。
  */
 export function getProviderConfig(provider: string): { baseURL: string; apiKeyEnv: string } | undefined {
   const entry = PROVIDER_CONFIG[provider];
-  if (!entry) return undefined;
-  return { baseURL: entry.baseURL, apiKeyEnv: entry.apiKeyEnv };
+  if (entry) return { baseURL: entry.baseURL, apiKeyEnv: entry.apiKeyEnv };
+  // 自定义 provider：密钥存在 override 通路里，故 apiKeyEnv 为空字符串（getEffectiveApiKey 会先读 override）
+  const custom = customProviders.get(provider);
+  if (custom) return { baseURL: custom.baseURL, apiKeyEnv: "" };
+  return undefined;
 }
 
 /**
  * Bulk-load overrides from DB into the in-memory store.
  * Called once at startup after api_key_overrides table is initialized.
  */
-export function loadOverrides(entries: Array<{ provider: string; apiKey: string; baseURL?: string; setAt: number }>): void {
+export function loadOverrides(
+  entries: Array<{ provider: string; apiKey: string; baseURL?: string; setAt: number; adapter?: string; displayName?: string }>,
+): void {
   for (const e of entries) {
     store.set(e.provider, {
       apiKey: e.apiKey,
@@ -380,6 +510,16 @@ export function loadOverrides(entries: Array<{ provider: string; apiKey: string;
       setAt: e.setAt,
       source: "runtime",
     });
+    // 切片 B：带 adapter 的持久化条目 = 用户自定义 provider ⇒ 启动时重建其注册表条目，
+    // 使其在重启后依旧可被 getProviderConfig / router 解析（否则"持久化"名不副实）。
+    if (e.adapter && e.baseURL && (CUSTOM_PROVIDER_ADAPTERS as readonly string[]).includes(e.adapter)) {
+      customProviders.set(e.provider, {
+        provider: e.provider,
+        baseURL: e.baseURL,
+        adapter: e.adapter as ApiAdapter,
+        displayName: e.displayName || e.provider,
+      });
+    }
   }
   if (entries.length > 0) {
     logger.info(`[ApiKeyStore] Loaded ${entries.length} persisted override(s) from DB`);

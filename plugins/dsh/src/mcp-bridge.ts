@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { ListToolsResultSchema, CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
+import { ListToolsResultSchema, CallToolResultSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { DshContext, DshToolDefinition } from './types.js'
 
 /** DeepSeek function-name 契约：最多 64 字符，仅 [A-Za-z0-9_-]。 */
@@ -52,6 +52,11 @@ export interface McpBridge {
   status(): { connected: boolean; toolCount: number; serverName: string }
   /** 关闭连接并卸载已注册工具。 */
   dispose(): void
+  /**
+   * 订阅连接状态变化（服务器意外退出、dispose 等）。
+   * 返回取消订阅函数；回调在状态流转时同步触发。
+   */
+  onConnectionChange(listener: (connected: boolean) => void): () => void
 }
 
 /** 从 MCP content 块提取纯文本。 */
@@ -121,16 +126,93 @@ interface BridgeState {
   transport: StdioClientTransport | null
   disposers: Array<() => void>
   count: number
+  /** dispose 中标记，避免 onclose 与 dispose 重复清理。 */
+  disposing: boolean
+  listeners: Array<(connected: boolean) => void>
 }
 
 /** 创建 MCP 桥（惰性连接）。 */
 export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
-  const state: BridgeState = { client: null, transport: null, disposers: [], count: 0 }
+  const state: BridgeState = { client: null, transport: null, disposers: [], count: 0, disposing: false, listeners: [] }
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env)) {
     if (v !== undefined) env[k] = v
   }
   for (const [k, v] of Object.entries(opts.env ?? {})) env[k] = v
+
+  function notify(connected: boolean): void {
+    for (const l of state.listeners) {
+      try {
+        l(connected)
+      } catch {
+        /* 监听器异常不影响桥 */
+      }
+    }
+  }
+
+  /** 卸载已注册工具并清空连接状态（dispose 与意外断连共用）。 */
+  function teardown(): void {
+    for (const d of state.disposers) {
+      try {
+        d()
+      } catch {
+        /* 卸载失败不阻塞清理 */
+      }
+    }
+    state.disposers = []
+    state.count = 0
+    state.client = null
+    state.transport = null
+  }
+
+  /**
+   * 拉取并注册工具列表（跟随 nextCursor 分页；同一名字出现两次视为非法列表）。
+   * 先构建新工具、成功后再卸载旧工具，避免拉取中途失败造成空窗。
+   */
+  async function syncTools(client: Client, ctx: DshContext): Promise<void> {
+    const disposers: Array<() => void> = []
+    const seen = new Set<string>()
+    let cursor: string | undefined
+    do {
+      const resp = await client.request(
+        { method: 'tools/list', params: cursor ? { cursor } : {} },
+        ListToolsResultSchema,
+      )
+      const tools = (resp.tools ?? []) as McpToolMeta[]
+      for (const tool of tools) {
+        const def = toToolDefinition(tool, opts, () => state.client)
+        if (seen.has(def.name)) {
+          throw new Error(
+            `[axiom-dsh] Axiom MCP server (${opts.serverName}) listed tool "${tool.name}" more than once`,
+          )
+        }
+        seen.add(def.name)
+        disposers.push(ctx.tools.register(def))
+      }
+      cursor = resp.nextCursor
+    } while (cursor)
+
+    for (const d of state.disposers) {
+      try {
+        d()
+      } catch {
+        /* 旧工具卸载失败不阻塞新工具上线 */
+      }
+    }
+    state.disposers = disposers
+    state.count = disposers.length
+  }
+
+  /** 串行化所有工具同步：初始同步与 list_changed 重同步不能交错卸载/注册。 */
+  let syncChain: Promise<void> = Promise.resolve()
+  function enqueueSync(client: Client, ctx: DshContext): Promise<void> {
+    const run = syncChain.then(() => {
+      if (state.client === client) return syncTools(client, ctx)
+      return undefined
+    })
+    syncChain = run.catch(() => {})
+    return run
+  }
 
   async function connect(ctx: DshContext): Promise<void> {
     if (state.client) return
@@ -141,38 +223,43 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
       cwd: opts.cwd.length > 0 ? opts.cwd : undefined,
       env,
     })
+    // 服务器进程退出时 transport 触发 close：及时摘掉已失效的工具，
+    // 否则 status() 会长期谎报 connected，且工具调用到死客户端才报错。
+    client.onclose = () => {
+      if (state.disposing) return
+      if (state.client !== client) return // 已被新一轮连接替换，忽略旧连接事件
+      ctx.logger?.warn?.(`[axiom-dsh] Axiom MCP server (${opts.serverName}) closed; unbridging stale tools`)
+      teardown()
+      notify(false)
+    }
+    // 服务器动态增删工具时重同步（对齐 dsh 官方 mcp-client 行为）
+    client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+      if (state.client !== client) return
+      enqueueSync(client, ctx).catch((err) => {
+        ctx.logger?.warn?.(`[axiom-dsh] tool re-sync failed: ${String(err)}`)
+      })
+    })
     await client.connect(transport)
     state.client = client
     state.transport = transport
-
-    const resp = await client.request({ method: 'tools/list' }, ListToolsResultSchema)
-    const tools = (resp.tools ?? []) as McpToolMeta[]
-    const disposers: Array<() => void> = []
-    for (const tool of tools) {
-      disposers.push(ctx.tools.register(toToolDefinition(tool, opts, () => state.client)))
-    }
-    state.disposers = disposers
-    state.count = tools.length
-    ctx.logger?.info?.(`[axiom-dsh] bridged ${tools.length} tools from Axiom MCP server (${opts.serverName})`)
+    await enqueueSync(client, ctx)
+    notify(true)
+    ctx.logger?.info?.(`[axiom-dsh] bridged ${state.count} tools from Axiom MCP server (${opts.serverName})`)
   }
 
   function dispose(): void {
-    for (const d of state.disposers) {
-      try {
-        d()
-      } catch {
-        /* 卸载失败不阻塞清理 */
-      }
-    }
-    state.disposers = []
-    state.count = 0
+    state.disposing = true
+    // 先取走引用再 close：teardown 会清空 state.transport，
+    // 但 close 必须执行——否则 stdio 子进程不会被关闭，留下孤儿进程。
+    const transport = state.transport
+    teardown()
     try {
-      state.transport?.close()
+      void transport?.close()
     } catch {
       /* 已关闭 */
     }
-    state.transport = null
-    state.client = null
+    state.disposing = false
+    notify(false)
   }
 
   return {
@@ -183,6 +270,13 @@ export function createMcpBridge(opts: McpBridgeOptions): McpBridge {
       toolCount: state.count,
       serverName: opts.serverName,
     }),
+    onConnectionChange: (listener) => {
+      state.listeners.push(listener)
+      return () => {
+        const i = state.listeners.indexOf(listener)
+        if (i >= 0) state.listeners.splice(i, 1)
+      }
+    },
     dispose,
   }
 }

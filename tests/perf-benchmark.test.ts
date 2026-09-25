@@ -3,6 +3,7 @@
  * bun test tests/perf-benchmark.test.ts --timeout 30000
  */
 import { describe, it, expect } from "bun:test";
+import { PERF_ASSERT_STRICT } from "./support/perf-budget.js";
 
 function bench(name: string, fn: () => void | Promise<void>, iterations = 1000): number {
   const start = performance.now();
@@ -19,7 +20,13 @@ async function benchAsync(name: string, fn: () => Promise<void>, iterations = 10
   return (performance.now() - start) / iterations;
 }
 
-describe("性能基准", () => {
+// 本文件是**微基准**（逐操作平均耗时，如 avg < 0.0045ms），不是正确性测试：
+// 并行套件下这些绝对阈值必然偶发失败（2026-09-20 实测干净 HEAD 亦红）。
+// 口径：默认跳过；由专属性能脚本（test:perf / test:gate / test:stress）以
+// AXIOM_PERF_ASSERT=1 启用严格阈值。
+const describeBenchmark = PERF_ASSERT_STRICT ? describe : describe.skip;
+
+describeBenchmark("性能基准", () => {
   it("[perf] normalizeQuery 性能 1万次", async () => {
     const { normalizeQuery } = await import("../src/tools/types.js");
     const queries = [

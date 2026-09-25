@@ -23,10 +23,13 @@ import path from "path";
 import { DeterministicSearchEngine, type SearchResult, type VaultNote } from "./deterministic-search.js";
 import { getRetrievalEngine, type RetrievalResponse, type RetrievalResult } from "../dre/retrieval/deterministic-retrieval-engine.js";
 import { CodeIndexer } from "./code-indexer.js";
+import { notifyKnowledgeWritten } from "../services/knowledge-index-hook.js";
+import { vaultNoteNodeId } from "../kal/knowledge-node-id.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
 import { readString, readInt } from "../utils/env.js";
+import { isWithinBase } from "../utils/path-safety.js";
 
 interface VaultConfig {
   vaultPath: string;
@@ -152,6 +155,17 @@ export class VaultManager {
         } catch {}
       }
       try { db?.run?.("COMMIT"); } catch { try { db?.run?.("ROLLBACK"); } catch {} }
+
+      // 推送腿补全（2026-09-21）：**批量重建**这一路径此前不在推送钩子内 ⇒ 外部落盘/重命名后
+      // 新内容要等下一次扫描腿才有向量。这里在事务提交后**一次性批量推送**（不是逐条，避免 N 次
+      // embedding 调用）。`reindexAll` 是同步方法 ⇒ fire-and-forget（钩子永不抛，不会产生未处理
+      // rejection）；未装配/未授权时为空操作。
+      void notifyKnowledgeWritten(
+        toUpsert.map(({ note }) => ({
+          nodeId: vaultNoteNodeId(note.path),
+          content: `${note.title ?? ""} ${note.content ?? ""}`,
+        })),
+      );
     }
     // 清理已删除笔记
     let deleted = 0;
@@ -414,6 +428,13 @@ export class VaultManager {
 
     // SQLite FTS index updated via upsertNote above.
     // Deterministic engine rebuilds lazily on next search if needed.
+
+    // 语义索引（2026-09-21）：file + SQLite 都已落定后**推送**本条笔记。
+    // 未注入索引器（默认）/未授权时 `notifyKnowledgeWritten` 立即返回（不读库、不触网）。
+    // 这里用 await：写入路径已是异步的，能保证嵌入在返回前完成；失败也不会抛出（见钩子实现）。
+    await notifyKnowledgeWritten([
+      { nodeId: vaultNoteNodeId(notePath), content: `${opts.title || path.basename(notePath, ".md")} ${finalContent}` },
+    ]);
 
     // Record write for gate dedup tracking
     if (opts.gateContext) {
@@ -873,10 +894,9 @@ ${kgSection}${rqSection}${rsSection}${imgSection}${vidSection}${newsSection}${ra
    */
   private resolveSafePath(notePath: string): string {
     const resolved = path.resolve(this.config.vaultPath, notePath);
-    const base = path.resolve(this.config.vaultPath);
-    const relative = path.relative(base, resolved);
-    // isAbsolute 拦截 Windows 跨盘符/UNC 目标：path.relative 对其返回盘符开头字符串，不以 ".." 起始
-    if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    // T3（2026-09-18）：containment 判定委托唯一原语（原为第 9 份重复实现）；
+    // 跨盘符/UNC 的 isAbsolute 拦截由 isWithinBase 统一处理。
+    if (!isWithinBase(this.config.vaultPath, resolved)) {
       throw new Error(`Path traversal blocked: ${notePath}`);
     }
     return resolved;

@@ -8,7 +8,7 @@
  *
  * 全部 DI fake client，不访问真实端点。
  */
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +23,11 @@ import { MemoryDistiller } from "../src/memory/distiller.js";
 // ─────────────────────────────────────────────────────────
 // 工具
 // ─────────────────────────────────────────────────────────
+
+// LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开开关
+beforeEach(() => {
+  process.env.EDGE_MEMORY_ASSIST = "1";
+});
 
 function fakeClient(impl: (prompt: string) => { content: string }) {
   let calls = 0;

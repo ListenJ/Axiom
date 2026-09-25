@@ -199,6 +199,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-5.1",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "Pro/zai-org/GLM-5.1", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5.1 不存在）
     roles: ["decision", "architecture", "code-generation", "code-review", "general-chat", "research", "review"],
     contextWindow: 200000,
@@ -216,6 +217,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-5",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "zai-org/GLM-5.2", // 2026-07-26 实测修正：siliconflow 正确型号（原 zhipu/GLM-5 不存在）
     roles: ["code-generation", "general-chat", "research", "general-tool", "review"],
     contextWindow: 200000,
@@ -373,6 +375,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "qwen3.7-plus",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "alibaba/Qwen3.7-Plus",
     roles: ["code-generation", "general-chat", "general-tool", "review"],
     contextWindow: 1000000,
@@ -390,6 +393,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "qwen3.5-flash",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "alibaba/Qwen3.5-Flash",
     roles: ["code-generation", "general-chat", "general-tool"],
     contextWindow: 1000000,
@@ -458,6 +462,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "qwen2.5-vl-72b",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "Qwen/Qwen2.5-VL-72B-Instruct",
     roles: ["computer-use", "general-chat", "english", "research"],
     contextWindow: 32000,
@@ -475,6 +480,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "qwen2-vl-72b",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "Qwen/Qwen2-VL-72B-Instruct",
     roles: ["computer-use", "general-chat", "english"],
     contextWindow: 32000,
@@ -492,6 +498,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "qvq-72b",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "Qwen/QVQ-72B-Preview",
     roles: ["computer-use", "deep_research", "research", "general-chat"],
     contextWindow: 32000,
@@ -616,6 +623,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-4.7-flash-free",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "THUDM/GLM-4-9B-0414",
     roles: ["general-chat", "general-tool", "english", "decision", "evaluation", "research"],
     contextWindow: 128000,
@@ -669,6 +677,7 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
   {
     id: "glm-4.7",
     provider: "siliconflow",
+    devOnly: true, // 2026-09-20：SiliconFlow 仅 dev/test，默认不参与解析（AXIOM_ALLOW_DEV_MODELS=1 放行）
     model: "zhipu/GLM-4.7",
     roles: ["general-chat", "general-tool", "english", "review"],
     contextWindow: 200000,
@@ -808,6 +817,9 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
     roles: ["embedding"],
     contextWindow: 8192,
     isFree: true, // 2026-07-26：BAAI/bge-m3 在 siliconflow 免费档
+    // 2026-09-20 用户裁定：SiliconFlow 暂留，但**仅作开发/测试**，不作为发布的一部分。
+    // 标了 devOnly ⇒ 默认不被 findModelsForRole 解析；dev/test 需显式 AXIOM_ALLOW_DEV_MODELS=1。
+    devOnly: true,
     tags: ["embedding"],
     rpmLimit: 300,
     concurrentLimit: 5,

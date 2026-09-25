@@ -160,6 +160,9 @@ export class HealthMonitor {
           cfg.lastStatus = false;
         }
       }, cfg.interval);
+      // 不把短命进程钉死（2026-09-21）：健康检查是**后台维护**语义，不应成为进程存活的唯一理由。
+      // `unref()` 不影响进程存活期间的正常触发，只让"只剩它在跑"时进程能自然退出。
+      (cfg.timer as unknown as { unref?: () => void }).unref?.();
     }
   }
 

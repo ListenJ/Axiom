@@ -2,7 +2,6 @@ import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { VaultManager } from "../../src/memory/vault-manager.js";
-import { getResourceBudgetManager } from "../../src/dre/system-resource.js";
 import { scheduler } from "../../src/dre/runtime/scheduler.js";
 import { eventBus } from "../../src/dre/runtime/event-bus.js";
 import { getPromptEngineer } from "../../src/agents/prompt-engineer.js";
@@ -63,17 +62,12 @@ describe("Mega 压力：Vault 500 写入 + 1000 并发检索", () => {
 describe("Mega 压力：Scheduler 1000 任务 + 资源联动", () => {
   beforeEach(() => {
     scheduler.reset();
-    // 强制刷新资源，避免防抖过滤（先置 0 再置 4000，确保 3900% 变化必过）
-    const mgr = getResourceBudgetManager();
-    try { mgr.updateResource({ availableMemory: 0 } as any); } catch {}
-    mgr.updateResource({ maxMemory: 4000, availableMemory: 4000 });
+    scheduler.setBudget({ maxMemoryMB: 8192 });
   });
 
   test("1000 混合优先级 + 200 依赖链 0 丢且有序", () => {
-    // 强制资源充足，避免受前序抖动测试残留影响
-    const mgr = getResourceBudgetManager();
-    try { mgr.updateResource({ availableMemory: 0 } as any); } catch {}
-    mgr.updateResource({ maxMemory: 4000, availableMemory: 4000 });
+    // 强制内存预算充足，避免受前序抖动测试残留影响
+    scheduler.setBudget({ maxMemoryMB: 8192 });
     const ids: string[] = [];
     for (let i = 0; i < 1000; i++) {
       const prio = i % 10 === 0 ? "critical" : i % 3 === 0 ? "high" : "normal";
@@ -93,13 +87,13 @@ describe("Mega 压力：Scheduler 1000 任务 + 资源联动", () => {
     expect(scheduler.getStatus().completed).toBeGreaterThanOrEqual(100);
   });
 
-  test("资源抖动 200 次更新不导致调度器死锁", async () => {
+  test("内存预算抖动 200 次不导致调度器死锁", async () => {
     const vals = Array.from({ length: 200 }, () => 1000 + Math.random() * 3000);
-    for (const v of vals) getResourceBudgetManager().updateResource({ availableMemory: v });
+    for (const v of vals) scheduler.setBudget({ maxMemoryMB: v });
     scheduler.submit({ name: "after-jitter", priority: "normal", payload: {}, dependencies: [], maxRetries: 0 });
     const n = scheduler.getNext();
-    // 即使经历抖动，调度器仍应能取任务（最终可用内存 4000 附近）
-    getResourceBudgetManager().updateResource({ availableMemory: 4000 });
+    // 即使经历抖动，调度器仍应能取任务（最终预算放开）
+    scheduler.setBudget({ maxMemoryMB: 8192 });
     expect(scheduler.getNext() ?? n).not.toBeNull();
     scheduler.reset();
   });
@@ -144,5 +138,8 @@ describe("Mega 压力：知识→LLM 500 并发注入不击穿预算", () => {
       expect(ctx.length).toBeLessThan(20000);
     }
     vault.close();
-  });
+    // 显式「防挂起」上界（2026-09-20）：本用例发 500 并发 prepareChatContext，
+    // 实测空载 ~5s、负载下 17.6s —— Bun 默认 5s 直接误杀，全量里的 15s 也不够。
+    // 口径与 tests/code-analysis-shell-safety.test.ts 一致：断言的是**结果**，不是速度。
+  }, 120000);
 });

@@ -2,18 +2,33 @@
  * 知识库边缘增强 —— 边缘小模型驱动的知识管理四能力
  *
  *   1. structureKnowledgeWithEdge    — 文档结构化（pipeline 优先边缘，失败回退 GLM）
- *   2. rewriteKnowledgeQueryWithEdge — 自然语言问题 → 检索关键词
- *   3. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
- *   4. isNearDuplicateWithEdge       — 采集前近重复判断
- *   5. summarizeKnowledgeWithEdge    — 采集摘要
+ *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
+ *   3. isNearDuplicateWithEdge       — 采集前近重复判断
+ *   4. summarizeKnowledgeWithEdge    — 采集摘要
+ *
+ * 注：检索查询改写（rewriteKnowledgeQueryWithEdge）已于 2026-09-17 移除 ——
+ * LLM 改写打破检索的确定性承诺（同输入同输出），检索键改由用户原始查询直接进入。
  *
  * 全部可空返回（null = 不可用，调用方回退规则/云端路径）。
- * 开关：EDGE_KNOWLEDGE_ASSIST=0 全部禁用（默认启用）。
+ *
+ * 开关（**默认全关**，用户指令 2026-09-18 / 审计 C-01+A6-2 收口）：
+ *   任务形态授权 KNOWLEDGE_USE_LLM=1  且  能力开关 EDGE_KNOWLEDGE_ASSIST=1
+ * 两者缺一即走确定性规则路径，不再出现"边缘默认开启 / pipeline 默认关闭"的双重标准。
  */
 
 import { getEdgeClient, isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
 import type { LLMClient } from "../dre/llm/client.js";
+import { readBool } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
+
+/**
+ * 知识采集/结构化链路的 LLM 授权判定。
+ * 任务形态授权（KNOWLEDGE_USE_LLM，默认 false）与能力开关（EDGE_KNOWLEDGE_ASSIST，
+ * 默认关闭）必须同时成立 —— 与 src/knowledge/pipeline.ts 的 zero-LLM 默认口径对齐。
+ */
+function isKnowledgeEdgeEnabled(): boolean {
+  return readBool("KNOWLEDGE_USE_LLM", false) && isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST");
+}
 
 type GenerateClient = Pick<LLMClient, "generate">;
 
@@ -42,7 +57,7 @@ export async function structureKnowledgeWithEdge(
   rawMarkdown: string,
   client?: GenerateClient,
 ): Promise<EdgeStructureResult | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -79,36 +94,6 @@ export async function structureKnowledgeWithEdge(
 }
 
 /**
- * 检索查询改写：自然语言 → 空格分隔关键词（JSON 数组引导，防跑题）。
- */
-export async function rewriteKnowledgeQueryWithEdge(
-  query: string,
-  client?: GenerateClient,
-): Promise<string | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
-
-  try {
-    const llm = client ?? getEdgeClient();
-    const resp = await llm.generate(
-      `把以下问题改写为知识库检索关键词（2-6 个词）。问题：【${truncate(query, 500)}】只回答JSON {"keywords":["词1","词2"]}`,
-      { maxTokens: 60, answerPrefix: '{"keywords":["' },
-    );
-    const parsed = extractJson<{ keywords?: unknown }>(resp.content ?? "");
-    if (parsed && Array.isArray(parsed.keywords)) {
-      const words = parsed.keywords
-        .filter((w): w is string => typeof w === "string" && w.trim().length > 0)
-        .map((w) => w.trim())
-        .slice(0, 8);
-      if (words.length > 0) return words.join(" ");
-    }
-    return null;
-  } catch (err) {
-    logger.debug("[EdgeKnowledge] query rewrite failed", { error: (err as Error).message });
-    return null;
-  }
-}
-
-/**
  * 灰区质量裁决：规则评分略低于阈值时给内容第二次机会。
  */
 export async function judgeKnowledgeQualityWithEdge(
@@ -116,7 +101,7 @@ export async function judgeKnowledgeQualityWithEdge(
   snippet: string,
   client?: GenerateClient,
 ): Promise<{ pass: boolean; reason?: string } | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -146,7 +131,7 @@ export async function isNearDuplicateWithEdge(
   client?: GenerateClient,
 ): Promise<boolean | null> {
   if (candidateTitles.length === 0) return false;
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();
@@ -171,7 +156,7 @@ export async function summarizeKnowledgeWithEdge(
   markdown: string,
   client?: GenerateClient,
 ): Promise<string | null> {
-  if (!isEdgeEnabled("EDGE_KNOWLEDGE_ASSIST")) return null;
+  if (!isKnowledgeEdgeEnabled()) return null;
 
   try {
     const llm = client ?? getEdgeClient();

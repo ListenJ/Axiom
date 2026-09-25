@@ -44,6 +44,21 @@ describe('stopChild', () => {
   })
 })
 
+describe('spawnAxiomServer 日志尾', () => {
+  test('子进程输出持续追加到 _logTail（回归：字符串快照导致永远为空）', async () => {
+    const c = spawnAxiomServer({
+      ...config,
+      serverCommand: process.execPath,
+      serverArgs: ['-e', 'process.stdout.write("line-a\\n"); process.stderr.write("line-b\\n"); setTimeout(()=>process.exit(0), 200)'],
+    })
+    await new Promise<void>((resolve) => c.once('exit', () => resolve()))
+    // childTail 经由 _logTailHolder 读取；若退回旧的字符串快照实现，这里会拿到空串
+    const tail = (c as unknown as { _logTailHolder?: { tail: string } })._logTailHolder?.tail ?? ''
+    expect(tail).toContain('line-a')
+    expect(tail).toContain('line-b')
+  })
+})
+
 describe('startAxiomServer 复用逻辑', () => {
   test('已健康实例直接复用（不 spawn）', async () => {
     const server = http.createServer((_req, res) => {
