@@ -51,6 +51,8 @@ import {
   handleVaultPara,
   handleVaultStats,
   handleVaultIndexCode,
+  handleVaultReindex,
+  handleVaultArchive,
   handleDistill,
   handleKgBuild,
   handleKgStats,
@@ -253,6 +255,16 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
   "vault:index-code": {
     desc: "索引项目代码到 Vault",
     run: async () => { await handleVaultIndexCode(); },
+  },
+
+  "vault:reindex": {
+    desc: "回填 Vault 全量笔记进 FTS 索引（按 path 幂等 upsert，可重复跑）",
+    run: () => { handleVaultReindex(); },
+  },
+
+  "vault:archive": {
+    desc: "记忆遗忘：PARA 归档规则扫描，过期笔记移入 05-Archives（默认 dry-run 只报告，--apply 实际执行；永不删除）",
+    run: (args) => { handleVaultArchive(args); },
   },
 
   "db:query": {

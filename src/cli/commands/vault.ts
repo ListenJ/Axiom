@@ -3,6 +3,8 @@ import { searchAggregator } from "../../crawl/search-engines.js";
 import { unifiedSearch } from "../../crawl/unified-search.js";
 import { DataPipeline } from "../../crawl/data-pipeline.js";
 import { getGlobalVault } from "../../memory/vault-manager.js";
+import { MemoryArchiver } from "../../memory/archiver.js";
+import { readString } from "../../utils/env.js";
 
 export async function handleSearch(args: string[]) {
   const query = args[0];
@@ -198,6 +200,33 @@ export async function handleVaultIndexCode() {
   const result = await vault.indexCode();
   console.log(`[索引完成] ${result.indexed} 个文件`);
   if (result.errors.length) console.log(`[错误] ${result.errors.join(", ")}`);
+}
+
+export async function handleVaultReindex() {
+  const vaultPath = readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
+  const vault = getGlobalVault();
+  const before = vault.getSqliteMemory().stats();
+  const result = vault.getSqliteMemory().syncFromVault(vaultPath);
+  const after = vault.getSqliteMemory().stats();
+  console.log(`[reindex] Vault 全量笔记回填 FTS 索引（${vaultPath}）`);
+  console.log(`  同步 ${result.synced} 篇（按 path 幂等 upsert）；索引条数 ${before.totalNotes} → ${after.totalNotes}`);
+  console.log(`  分类分布: ${JSON.stringify(after.byCategory)}`);
+  if (result.errors.length) {
+    console.log(`  ${result.errors.length} 条错误：`);
+    for (const e of result.errors.slice(0, 5)) console.log(`    ⚠ ${e}`);
+  }
+}
+
+export async function handleVaultArchive(args: string[]) {
+  const apply = args.includes("--apply");
+  const archiver = new MemoryArchiver();
+  const result = await archiver.archive({ dryRun: !apply });
+  const mode = apply ? "已归档（移动到 05-Archives/，未删除）" : "将归档（dry-run，加 --apply 实际执行）";
+  console.log(`[遗忘] PARA 归档规则扫描完成：${mode}`);
+  console.log(`  ${apply ? "已归档" : "将归档"} ${result.archived.length} 篇 / 跳过 ${result.skipped.length} 篇 / 错误 ${result.errors.length}`);
+  for (const f of result.archived.slice(0, 20)) console.log(`  → ${f}`);
+  if (result.archived.length > 20) console.log(`  … 共 ${result.archived.length} 篇`);
+  for (const e of result.errors.slice(0, 5)) console.log(`  ⚠ ${e}`);
 }
 
 export async function handleDistill(args: string[]) {

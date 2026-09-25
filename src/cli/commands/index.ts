@@ -11,6 +11,8 @@ export {
   handleVaultPara,
   handleVaultStats,
   handleVaultIndexCode,
+  handleVaultReindex,
+  handleVaultArchive,
   handleDistill,
 } from "./vault.js";
 

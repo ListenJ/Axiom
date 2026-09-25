@@ -29,6 +29,11 @@ interface ArchiveResult {
   errors: string[];
 }
 
+export interface ArchiveOptions {
+  /** true = 只报告将归档清单，不移动任何文件（dry-run 下 archived 即"将归档"清单） */
+  dryRun?: boolean;
+}
+
 export class MemoryArchiver {
   private vaultPath: string;
   private archivePath: string;
@@ -41,7 +46,8 @@ export class MemoryArchiver {
   /**
    * 执行归档扫描
    */
-  async archive(): Promise<ArchiveResult> {
+  async archive(opts: ArchiveOptions = {}): Promise<ArchiveResult> {
+    const dryRun = opts.dryRun === true;
     const result: ArchiveResult = { archived: [], skipped: [], errors: [] };
     const now = Date.now();
 
@@ -75,20 +81,21 @@ export class MemoryArchiver {
     ];
 
     for (const rule of rules) {
-      logger.info("Archiving rule", { rule: rule.name, maxAgeDays: rule.maxAgeDays });
-      await this.processRule(rule, now, result);
+      logger.info("Archiving rule", { rule: rule.name, maxAgeDays: rule.maxAgeDays, dryRun });
+      await this.processRule(rule, now, result, dryRun);
     }
 
     logger.info("Archive complete", {
       archived: result.archived.length,
       skipped: result.skipped.length,
       errors: result.errors.length,
+      dryRun,
     });
 
     return result;
   }
 
-  private async processRule(rule: ArchiveRule, now: number, result: ArchiveResult): Promise<void> {
+  private async processRule(rule: ArchiveRule, now: number, result: ArchiveResult, dryRun: boolean): Promise<void> {
     const scanDir = async (dir: string, relPrefix: string) => {
       const fullDir = path.join(dir, relPrefix);
       if (!fs.existsSync(fullDir)) return;
@@ -106,7 +113,7 @@ export class MemoryArchiver {
         if (entry.isDirectory()) {
           await scanDir(dir, entryRel);
         } else if (entry.name.endsWith(".md")) {
-          await this.evaluateFile(entryRel, rule, now, result);
+          await this.evaluateFile(entryRel, rule, now, result, dryRun);
         }
       }
     };
@@ -120,15 +127,15 @@ export class MemoryArchiver {
       return;
     }
     for (const entry of rootEntries) {
-      if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("05-Archives")) {
-        await scanDir(this.vaultPath, entry.name);
-      } else if (entry.isFile() && entry.name.endsWith(".md") && rule.sourcePattern.test(entry.name)) {
-        await this.evaluateFile(entry.name, rule, now, result);
-      }
+        if (entry.isDirectory() && !entry.name.startsWith(".") && !entry.name.startsWith("05-Archives")) {
+          await scanDir(this.vaultPath, entry.name);
+        } else if (entry.isFile() && entry.name.endsWith(".md") && rule.sourcePattern.test(entry.name)) {
+          await this.evaluateFile(entry.name, rule, now, result, dryRun);
+        }
     }
   }
 
-  private async evaluateFile(fileRel: string, rule: ArchiveRule, now: number, result: ArchiveResult): Promise<void> {
+  private async evaluateFile(fileRel: string, rule: ArchiveRule, now: number, result: ArchiveResult, dryRun: boolean): Promise<void> {
     if (!rule.sourcePattern.test(fileRel)) return;
 
     const fullPath = path.join(this.vaultPath, fileRel);
@@ -163,6 +170,12 @@ export class MemoryArchiver {
     // 永不过期标记
     if (frontmatter.permanent === true || frontmatter.archived === false) {
       result.skipped.push(fileRel);
+      return;
+    }
+
+    // dry-run：只报告，不落盘（"将归档清单"进 archived，文件原地不动）
+    if (dryRun) {
+      result.archived.push(fileRel);
       return;
     }
 

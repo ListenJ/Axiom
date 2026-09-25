@@ -2452,3 +2452,14 @@
 - **偏差与未做**：frontend 的 @tauri-apps 依赖未动（npm 依赖面，砍壳不影响其编译）；P7 交人；`dist/`、`src-tauri/target` 等生成物未清理（规则 4 例外可删但 dist 是发布链工作区，留待需要空间时处理）。
 - **回滚**：归档分支单分支 revert + `git revert` 本提交即全量还原；P1/P4 归档件在 `archive/` 本地保留。
 - **Commit**：ff463685
+
+## 2026-09-25 03:20 +0800 — T2 记忆树展开与遗忘闭环：vault:reindex / vault:archive 接线 + 44 篇归档执行
+
+- **任务**：检查并展开记忆树、按使用场景处理记忆书、处理记忆遗忘（P7 跟进）。级别 T2（新 CLI 面 + archiver 增选项 + 用户数据面实跑）。
+- **勘察结论**：记忆资产=四载体——活体 vault `axiom-memory/`（183 md，未跟踪）、活体索引 `data/agent.db`（184 行，DATABASE_PATH 单源）、孤儿树 `openclaw-memory/`（41 跟踪文件，零代码引用：code-indexer 实际写 axiom-memory 侧）、旁库 `axiom-memory.db`（4 行测试残留）。**修正我前轮误判**："索引 4/260 盲区"不成立——axiom-memory.db 是旁库，真索引 data/agent.db 本已全量同步。
+- **交付**：①`src/memory/archiver.ts` 增 `ArchiveOptions.dryRun`（dry-run 只报告不动盘，evaluateFile 分支）；②CLI 新增 `vault:reindex`（syncFromVault 首次接出）与 `vault:archive`（默认 dry-run，--apply 执行；永不删除）；③`docs/reviews/2026-09-25-memory-tree.md`（全景树+场景矩阵+双库澄清+遗留登记）；④`tests/memory/archiver-dry-run.test.ts` 3 条新测。
+- **实跑**：`vault:reindex` 183 同步 0 错、索引 184→184 幂等；`vault:archive` dry-run 44 篇（全部 search-results 爬取产物 >14d）→ `--apply` 移入 `axiom-memory/05-Archives/`（源清零、0 删除）→ reindex 复核 184→184 自洽。
+- **登记遗留**：索引孤儿 1 行（09-23 测试残留）；00-Knowledge 无 PARA 映射分支（syncFromVault 兜底 resources、引擎侧 123 篇 uncategorized）；`projects/` 不合 PARA 正名；wiki-link 仅 2 条（蒸馏从未真实运行）。openclaw-memory 与 axiom-memory.db 的处置建议已写入文档 §四，**交用户批准**（记忆内容不自动删）。
+- **验证结果**：单测 9/0（archiver 3 新+6 旧）；七文件门 106/0；audit:runtime 16/16；tsc 零错。
+- **回滚**：archiver dryRun 为可选参数向后兼容；CLI 命令为纯新增；归档移动可整体移回（ARCHIVE-LOG 有清单）。
+- **Commit**：`<待回填>`
