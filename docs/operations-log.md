@@ -2471,4 +2471,4 @@
 - **验证结果**：reindex 后 SQLite `byCategory={archives:44,knowledge:122,meta:16,resources:1}`，引擎 PARA 分布同值（123 uncategorized 清零）；活体检索抽查 `vault:search 记忆` 正常返回；audit:runtime 16/16；memory+门 20 文件 142/0；tsc 零错。
 - **偏差与未做**：`projects/` 正名（牵连写入路径）与蒸馏真实运行仍开放登记；旁库移入 archive/ 属本地归档（gitignore 内），若需服务端留存可后续入归档分支。
 - **回滚**：openclaw-memory 经归档分支/历史可达，`git revert` 即还原；映射为纯增分支；孤儿行内容已在 ARCHIVE-LOG 引用记录（root-scatter 归档留有同源笔记）。
-- **Commit**：`<待回填>`
+- **Commit**：b08f2050
