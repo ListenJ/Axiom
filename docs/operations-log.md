@@ -2514,4 +2514,4 @@
 - **覆盖率**：深审约 21/891 core ≈ 2.4%（1.6%→2.4%）；机械化通道维持 100%。
 - **偏差与未做**：model-router.ts 1180L 全文未读（轮 3）；dre/ 其余 ~50 文件、agents/mcp/routes/utils 等未深审；门学费：kal-determinism console 按约定登记 CLI 白名单。
 - **回滚**：harness 与报告为新增文件，revert 即回滚。
-- **Commit**：`<待回填>`
+- **Commit**：1f03996e
