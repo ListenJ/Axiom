@@ -2552,4 +2552,4 @@
 - **验证结果**：新负例 3 条（hermes cwd 对象 400、review code 超长 400、既有 5 条）+ security-fixes 36 条全绿（审批 D 流程与新 schema 兼容）；全门 136/0；audit:runtime 16/16；tsc 零错。
 - **登记剩余**：memory-api/marketplace/consciousness/knowledge-graph/api-keys 等低危读面（.catch(()=>({})) 已兜）留第三批；F7 二分、e2e-visual 重摄仍开放。
 - **回滚**：三文件备份 .tmp/backups/src/routes/；共享缝为新增文件，revert 即回滚。
-- **Commit**：`<待回填>`
+- **Commit**：e63bec79
