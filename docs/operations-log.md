@@ -2441,3 +2441,14 @@
 - **偏差与未做**：Laya 3 条 AUTO 仅是处置决定记录，实际砍除（归档分支 + git rm）待人批准后按规则 4/9 另行施工；P4/P5/P7 交人；深审主体（入口链细读、dre/、router/）在轮 2。
 - **回滚**：laya-triage.ts 类型改动向前兼容（choice 增必填 instructions/criteria——旧 spec 均为 noul 不受影响）；其余为新增文档/测试，整体 revert 即回滚。
 - **Commit**：8aac4d2c
+
+## 2026-09-25 03:45 +0800 — T2 砍除执行：Laya 决策 P1-P5 落地（src-tauri/harmonyos 退场，41 文件出跟踪面）
+
+- **任务**：用户批准后执行骨架树 §三/§四 的砍除裁定。级别 T2（多目录删除 + 构建面去 tauri 化）。
+- **工具**：主 agent Bash（git rm/归档分支）、串行全量复跑。
+- **执行**：①归档先行——分支 `codex/archive-2026-09-25`（=c916de27）推 internal，`archive/ARCHIVE-LOG.md` 逐项留痕；②P2/P3——`git rm -r src-tauri harmonyos tests/tauri-integration.test.ts`，package.json 去 `build:tauri/tauri:dev/tauri:build` 三脚本，matrix.ts 去 tauri 目标与 --list 段（含鸿蒙段）；③P5 拆分——`.serena/` 退跟踪+gitignore（文件留盘），`.superpowers/` 保留；④P1/P4——lightpanda-linux(126M 缓存,可重建)/python_libs(空)/3 份日志直接删，media-tools 个人脚本与 4 份 ai-daily 会话日志**归档至 archive/**（不可重建内容走可逆形态）；`axiom-memory.db*`、`*.traineddata`、`.superpowers/` 明确保留；P7 双记忆树未动。
+- **验证结果**：tsc 零错；`matrix --list` 零 tauri/鸿蒙残留；audit:runtime 16/16；doc-contract+arch+env+单测 97/0；串行全量复跑：**4320 pass / 4 fail / 34 skip**（418 文件）——残余即 pdf-worker ×3（F7 时序族）+ cache-heap ×1（单跑 9/0、与 pdf-worker 配对 13/0 均绿，全量负载下 GC 计时抖动，与砍除无关）；上一轮的 env 门真红已修为绿。规范件零 src-tauri/harmonyos 引用（D3 不受影响），历史评审文档的提及按"历史留痕不改"口径保留。
+- **证据更正（如实记账）**：骨架树 P2 曾写"脚本断链"——实况 `tauri:dev` 断链（frontend 内无壳）而 `tauri:build` 经 `cd ..` 回根原本可用；已更正树文档，不影响裁定（停更+零引用+Laya archive_then_cut 均成立）。
+- **偏差与未做**：frontend 的 @tauri-apps 依赖未动（npm 依赖面，砍壳不影响其编译）；P7 交人；`dist/`、`src-tauri/target` 等生成物未清理（规则 4 例外可删但 dist 是发布链工作区，留待需要空间时处理）。
+- **回滚**：归档分支单分支 revert + `git revert` 本提交即全量还原；P1/P4 归档件在 `archive/` 本地保留。
+- **Commit**：`<待回填>`

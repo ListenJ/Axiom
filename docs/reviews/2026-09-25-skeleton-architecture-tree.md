@@ -152,7 +152,7 @@ graph TD
 | # | 候选 | 证据 | 说明 |
 | --- | --- | --- | --- |
 | P1 | `lightpanda-linux/`、`media-tools/`、`python_libs/` | 三个目录 **0 个跟踪文件**（纯工作区）；lightpanda-linux=126M 浏览器下载缓存（可重建，src 有 15 处引用属运行时下载目标，**目录本身可清**）；media-tools=2 个个人 PowerShell 脚本（与 Axiom 无关，误入工作区）；python_libs=空目录 | 工作区卫生，非仓库内容 |
-| P2 | `src-tauri/`（跟踪 23 文件） | 最后提交 2026-08-03（近 8 周停更）；`src/`、`config/`、`package.json`、`scripts/` **零引用**；`package.json` 的 `tauri:dev/build` 写的是 `cd frontend && tauri dev`，而 frontend 内**无** src-tauri ⇒ 脚本断链 | 停更平台壳 + 断链脚本 |
+| P2 | `src-tauri/`（跟踪 23 文件） | 最后提交 2026-08-03（近 8 周停更）；`src/`、`config/`、`package.json`、`scripts/` **零引用**；`tauri:dev` 在 frontend 内找不到壳（断链），`tauri:build` 经 `cd ..` 回根**原本可用**（执行记录更正：此前"脚本断链"只对 dev 成立） | 停更平台壳 |
 | P3 | `harmonyos/`（跟踪 17 文件） | 最后提交 2026-08-24；src/config/package/docs/ARCHITECTURE **零引用** | 停更平台 |
 | P4 | 根目录未跟踪散件：`ai-daily-*.md`×4、`mcp-test*.log`、`tmpwebapp*.log`、`axiom-memory.db*` 运行态在根 | 全部 gitignored/未跟踪；会话日志与测试日志堆在根 | 根卫生；axiom-memory.db 是**在用**运行态（health checks.database），只宜挪位或保持 |
 | P5 | `.superpowers/`（15）+ `.serena/`（2） | 过程性 brief/工具配置入库 | 工具状态入库存疑，量小 |
@@ -195,8 +195,14 @@ graph TD
 
 **下刀计划**（轮 2）：入口链细读（launcher.ts 431L 的派发面 + main.ts 935L 的中间件链）→ L1 dre/（54 文件，确定性引擎）→ L3 router/（20 文件）。
 
-## 六、待办与残余
+## 六、执行记录与待办（2026-09-25 03:30 更新）
 
-- Laya 已裁定的 3 条 AUTO（P1 delete_now、P2 archive_then_cut、P3 archive_then_cut）**尚未执行**——实际砍除属"归档分支 + git rm"施工，按规则 4/9 待人批准后另行开工（本报告 §四 的护栏条目已证明自动链不删文件）。
-- P4/P5 两条 margin 不足交人；P7 双记忆树属用户数据，禁止自动处置。
-- 深审主体（入口链细读、dre/、router/、kal 运行时确定性 N≥5）在轮 2 推进。
+**已执行**（归档分支 `codex/archive-2026-09-25` = c916de27 先行落地，ARCHIVE-LOG.md 逐项留痕）：
+- P1 ✅ lightpanda-linux（126M 缓存，可重建）与 python_libs（空）直接删；media-tools 两个个人脚本**归档至 `archive/media-tools/`**（不可重建内容走可逆形态）。
+- P2 ✅ `git rm -r src-tauri` + `tests/tauri-integration.test.ts`（被测面随壳移除）+ package.json 三个 tauri 脚本 + matrix.ts 的 tauri 目标。
+- P3 ✅ `git rm -r harmonyos`。
+- P4 ✅ 根散件：4 份 ai-daily 会话日志归档至 `archive/root-scatter-2026-09-25/`，3 份可重建日志删除；`axiom-memory.db*` 与 `*.traineddata` **保留**（在用运行态）。
+- P5 ✅ 拆分处置：`.serena/` 退出跟踪（纯本机工具状态，文件留盘 + gitignore）；`.superpowers/` **保留跟踪**（交接 brief）。
+- P7 ⛔ 未动（用户数据，禁自动处置）。
+
+**待办**：P4/P5 的最终归置若用户另有想法可再裁；深审轮 2 按树推进（入口链细读 → dre/ → router/）。

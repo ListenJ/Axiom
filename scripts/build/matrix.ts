@@ -7,7 +7,6 @@
  *   bun run scripts/build/matrix.ts --platform=all     # 跨平台编译全部
  *   bun run scripts/build/matrix.ts --target=server --platform=all
  *   bun run scripts/build/matrix.ts --target=frontend  # 仅构建前端
- *   bun run scripts/build/matrix.ts --target=tauri     # Tauri 桌面端
  *   bun run scripts/build/matrix.ts --target=go        # Go 服务交叉编译
  *   bun run scripts/build/matrix.ts --list             # 列出所有目标
  *
@@ -73,7 +72,7 @@ const GO_PLATFORMS: Array<{ os: string; arch: string }> = [
 // ═══════════════════════════════════════════════════════════════
 
 interface BuildArgs {
-  target: string;       // all | server | cli | mcp | bun | frontend | tauri | go | native
+  target: string;       // all | server | cli | mcp | bun | frontend | go | native
   platform: string;     // current | all | windows | macos | linux
   list: boolean;
 }
@@ -174,15 +173,6 @@ async function buildFrontend(): Promise<void> {
   }
 }
 
-/** 构建 Tauri 桌面端 (当前平台安装包) */
-async function buildTauri(): Promise<void> {
-  console.log("\n[tauri] Desktop app build (current platform)");
-  console.log("  → Windows: .msi/.exe  macOS: .dmg  Linux: .deb/.AppImage");
-  const ok = await run(["bun", "run", "tauri:build"]);
-  if (ok) { console.log("  ✓ tauri built"); stats.success++; }
-  else { console.error("  ✗ tauri build failed"); stats.failed++; }
-}
-
 /** Go 服务交叉编译 */
 async function buildGoServices(platformFilter: string): Promise<void> {
   const targets = platformFilter === "all"
@@ -261,19 +251,11 @@ function listTargets(): void {
   console.log(`  平台: ${GO_PLATFORMS.map(p => `${p.os}/${p.arch}`).join(", ")}`);
 
   console.log("\n📦 前端 (Vite 静态资源):");
-  console.log("  • frontend/dist/ → 可部署到任意 HTTP 服务器或 Tauri");
-
-  console.log("\n📦 Tauri 桌面端 (当前平台安装包):");
-  console.log("  • Windows: .msi / .exe");
-  console.log("  • macOS:   .dmg");
-  console.log("  • Linux:   .deb / .AppImage");
+  console.log("  • frontend/dist/ → 可部署到任意 HTTP 服务器");
 
   console.log("\n📦 Rust Native 模块:");
   console.log("  • native/crates/local — 本地推理加速");
   console.log("  • native/crates/cloud — 云端推理代理");
-
-  console.log("\n📦 鸿蒙 (HarmonyOS):");
-  console.log("  • harmonyos/ — ArkTS WebView 壳工程 (见 Phase 5)");
 
   console.log("\n" + "═".repeat(60));
   console.log("  用法: bun run scripts/build/matrix.ts --target=<目标> --platform=<平台>");
@@ -321,9 +303,6 @@ async function main(): Promise<void> {
     case "frontend":
       await buildFrontend();
       break;
-    case "tauri":
-      await buildTauri();
-      break;
     case "go":
       await buildGoServices(args.platform);
       break;
@@ -333,15 +312,12 @@ async function main(): Promise<void> {
     case "all":
       await buildBunTargets(args.platform);
       await buildFrontend();
-      if (args.platform === "current") {
-        await buildTauri();
-      }
       await buildGoServices(args.platform);
       await buildNative();
       break;
     default:
       console.error(`未知目标: ${args.target}`);
-      console.error("可用目标: all | server | cli | mcp | bun | frontend | tauri | go | native");
+      console.error("可用目标: all | server | cli | mcp | bun | frontend | go | native");
       process.exit(1);
   }
 

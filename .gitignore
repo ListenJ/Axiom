@@ -184,3 +184,4 @@ plugins/dsh/preview/screenshots/
 .server-pid.txt
 tmp-toctou-target/
 .v2c/
+.serena/
