@@ -45,7 +45,6 @@ import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store
 // 2026-09-28 Rust 全退役：Native Bridge（Rust sidecar）删除，搜索/路由由纯 TS 实现承载。
 const edition = "local" as const;
 logger.info(`[Edition] ${edition}（Rust sidecar 已退役，纯 TS 运行时）`);
-void readBool;
 // ════════════════════════════════════════════════════════════════
 // 核心架构组件
 // ════════════════════════════════════════════════════════════════

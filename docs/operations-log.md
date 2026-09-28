@@ -84,3 +84,15 @@
 - **治理同步（棘轮正常拦截，全部过账）**：出网基线登记 `laya-cli.ts` 探活出网点（env 型，内网 /health/live）；来源分布 env 6→7；arch-integrity 两白名单收 `laya-calibrate.ts`（console 交付物 / env 直读校验层）；隔离守卫 R3 白名单收 `calibrate:laya`。
 - **验证**：tsc 0 错；decision 21/0、隔离+integrity 28/0、棘轮+doc 门 62/0、高压 22/0、audit:runtime 16/16。
 - **Commit**：`ce518360`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — audit(review): 三轴审核（Standards/Spec/五轴）+ 修复批次（R1 结构化错误等）
+
+- **任务**：用户指令"使用这些 skill 完成当前项目审核与检查"。固定点 `41baaa1b`，7 提交，diff +1568/−5758。方法：code-review 双轴（Standards=AGENTS.md+smell baseline / Spec=会话指令）+ code-review-and-quality 五轴深审并行子代理 + 本机验证电池（verification-before-completion）+ eval-harness-first 对照标定 harness。
+- **验证电池（全绿实证）**：tsc 双端 rc=0；串行全量 **4,668 用例 0 fail**（relaxed 预算校准后首次全绿，含此前环境性红的 Layer0+1+2）；audit:runtime 16/16；治理棘轮组 81/0；Laya 全链 40/0；local-llm 复活面 47/0；前端 308/308。
+- **硬违规 2 处（已修复）**：①证据文档内网 IP 明文（规则 11）→ `<gitea-host>` 占位化；②native 面删除无 ARCHIVE-LOG 登记（规则 4）→ 补偿性条目（历史锚 41baaa1b 全量可达）。
+- **Required/Spec 补强（已修复，测试锁定）**：R1 postJson 消息嗅探→`LayaHttpError{retryable,status}` 结构化分类（毒化探针：4xx body 含"（重试候选）"仍 0 重试立即抛）；Spec(a)1 同序不变式长度+id 双校验（错位 mock 红→绿）；N2 补跑过并发闸；N3 守卫收紧（无空格/副作用/require/.ts 变体自检 6 形态）+ R3 白名单口径；N5 无分布用例跳过并计数；N6 输出路径 `.json5`/大小写；N1 注释对齐契约；判断3 SKILL §10 路径纠正（scripts/laya→src/decision）；判断5 `void readBool` 死抑制清除；探活去重（laya-cli 复用 layaHealth，实服务复验 200）。
+- **裁定留痕（Spec b2：relaxed 预算 2000→10000ms）**：裁定依据——该测试文件头 2026-09-20 口径"默认套件只做防挂起上界"，实测高负载（load 10–15/16 核，441%CPU）p99 15–18s，2000ms 上界连防挂起语义都罩不住；strict 200ms（AXIOM_PERF_ASSERT=1 专属性能门）不动。属预算重校准而非断言放宽，根因是环境负载非产品回归（同 HEAD 单文件 3×22/0）。
+- **Phase-0 差距（eval-harness-first 对照，未修复属已知遗留）**：calibrate:laya 达 0.5/6 项——缺 ≥100 traces 开放编码、per-failure-mode graders、drift-suite（措辞敏感性是最大漂移源）、baseline gate token。最低成本补齐路径：用例 ≥20 含措辞变体、按域分桶、baseline 冻结进 git。
+- **并发语义澄清（Spec c1）**：acquireSlot 钳制批请求粒度（≤2 在途批），条目级并发经 body.concurrency（≤8 clamp）按契约交服务端——客户端无法替代服务端调度，注释已明示两层语义。
+- **验证**：修复后 tsc 0；Laya 全链 23/0（新增 3 测试：长度违约/id 错位/毒化探针入 tests/decision）；隔离守卫 4/0（含 6 形态绕过自检）。
+- **Commit**：本条同批（hash 见 git log 回填）

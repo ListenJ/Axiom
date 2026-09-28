@@ -146,6 +146,18 @@ function requireBaseUrl(cfg: LayaHttpConfig): string {
   return cfg.baseUrl;
 }
 
+/** postJson 的结构化错误：retryable 显式携带重试语义，不靠消息文本嗅探（2026-09-28 审核修复 R1）。 */
+export class LayaHttpError extends Error {
+  constructor(
+    message: string,
+    readonly retryable: boolean,
+    readonly status?: number,
+  ) {
+    super(message);
+    this.name = "LayaHttpError";
+  }
+}
+
 async function postJson<T>(url: string, body: unknown, timeoutMs: number, cfg: LayaHttpConfig): Promise<T> {
   let lastErr: Error = new Error("unreached");
   for (let attempt = 0; attempt <= cfg.maxRetries; attempt++) {
@@ -157,20 +169,19 @@ async function postJson<T>(url: string, body: unknown, timeoutMs: number, cfg: L
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.ok) return (await res.json()) as T;
-      // 4xx（除 429）是请求问题：重试无意义，直接抛。
+      const text = await res.text().catch(() => "");
+      // 4xx 除 429 是请求问题：重试无意义，非 retryable 直接抛（契约 §错误处理）。
       if (res.status !== 429 && res.status < 500) {
-        const text = await res.text().catch(() => "");
-        throw new Error(`Laya HTTP ${res.status}：${text.slice(0, 200)}`);
+        throw new LayaHttpError(`Laya HTTP ${res.status}：${text.slice(0, 200)}`, false, res.status);
       }
-      lastErr = new Error(`Laya HTTP ${res.status}（重试候选）`);
+      throw new LayaHttpError(`Laya HTTP ${res.status}`, true, res.status);
     } catch (err) {
-      // AbortSignal.timeout 触发与网络错误同属"重试候选"；上面抛出的 4xx 也会进这里，
-      // 用 retryable 标记区分。
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!msg.startsWith("Laya HTTP") || msg.includes("（重试候选）")) {
-        lastErr = err instanceof Error ? err : new Error(msg);
+      // LayaHttpError 按自身 retryable 决定去向；网络错误/超时（AbortSignal.timeout）默认可重试。
+      if (err instanceof LayaHttpError) {
+        if (!err.retryable) throw err;
+        lastErr = err;
       } else {
-        throw err;
+        lastErr = err instanceof Error ? err : new Error(String(err));
       }
     }
     if (attempt < cfg.maxRetries) {
@@ -253,7 +264,9 @@ export async function layaDecideBatch(
   const chunks: Array<typeof items> = [];
   for (let i = 0; i < items.length; i += LAYA_BATCH_LIMIT) chunks.push(items.slice(i, i + LAYA_BATCH_LIMIT));
 
-  // 同时批次数 ≤2（契约第五节），并发度闸由服务端 CPU 容量决定（≤8 硬顶）。
+  // 同时批次数 ≤2（契约第五节）。并发语义分两层：批请求粒度由 acquireSlot 运行时钳制；
+  // 条目级并发经 body.concurrency（≤8 硬顶，getLayaHttpConfig clamp）按契约交服务端执行——
+  // 客户端无法替代服务端执行条目级调度，此字段是契约义务而非仅建议值。
   const results: LayaBatchItemResult[] = new Array(items.length);
   let nextChunk = 0;
   const workers = Array.from({ length: Math.min(2, chunks.length) }, async () => {
@@ -275,6 +288,12 @@ export async function layaDecideBatch(
           cfg,
         );
         // 服务端 results 与请求 items 严格同序 ⇒ 按块偏移直填，天然保序。
+        // 同序不变式：长度与 id 序列双重校验，服务端违约（漏项/错位）fail-loud 而非静默空洞。
+        if (resp.results.length !== mine.length || resp.results.some((r, i) => r.id !== mine[i].id)) {
+          const got = resp.results.map((r) => r.id).join(",");
+          const want = mine.map((m) => m.id).join(",");
+          throw new Error(`Laya 契约违约：batch results 与请求不同序/不等长（got=[${got}] want=[${want}]）`);
+        }
         resp.results.forEach((r, i) => { results[chunkStart + i] = r; });
       } finally {
         releaseSlot();
@@ -283,11 +302,15 @@ export async function layaDecideBatch(
   });
   await Promise.all(workers);
 
-  // 一次失败项补跑：只补 5xx/超时类（4xx 是请求问题，补跑同样失败）。
+  // 一次失败项补跑：只补 5xx/超时/网络类（4xx 是请求问题，补跑同样失败）。
+  // 判定依据 http_status 字段（服务端回填）而非错误文本；无 status = 网络层失败，可补。
   let clientRetried = 0;
   const retryIdx = results
     .map((r, i) => ({ r, i }))
-    .filter(({ r }) => r && r.ok === false && (!r.http_status || r.http_status >= 500))
+    .filter(({ r }) => {
+      if (!r || r.ok !== false) return false;
+      return r.http_status === undefined || r.http_status === null || r.http_status >= 500;
+    })
     .map(({ i }) => i);
   if (retryIdx.length > 0) {
     clientRetried = retryIdx.length;
@@ -297,7 +320,17 @@ export async function layaDecideBatch(
       concurrency: cfg.maxConcurrency,
       model: cfg.model,
     };
-    const resp = await postJson<LayaBatchResponse>(`${base}/v1/systemone/batch`, body, cfg.batchTimeoutMs, cfg);
+    // N2：补跑与主路径同受并发闸约束（2 行纪律）。
+    await acquireSlot(cfg.maxConcurrency);
+    let resp: LayaBatchResponse;
+    try {
+      resp = await postJson<LayaBatchResponse>(`${base}/v1/systemone/batch`, body, cfg.batchTimeoutMs, cfg);
+    } finally {
+      releaseSlot();
+    }
+    if (resp.results.length !== redo.length || resp.results.some((r, i) => r.id !== redo[i].id)) {
+      throw new Error(`Laya 契约违约：retry results 与请求不同序/不等长`);
+    }
     resp.results.forEach((r, i) => { results[retryIdx[i]] = r; });
   }
 

@@ -11,6 +11,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { readString } from "../utils/env.js";
+import { layaHealth } from "./laya-http.js";
 import {
   AUDIT_STAGE_IDS,
   AUDIT_STAGES,
@@ -100,18 +101,11 @@ export async function checkLayaAvailability(
 ): Promise<LayaAvailability> {
   const url = readString("LAYA_DECISION_URL", "").trim();
   if (url !== "") {
-    try {
-      const res = await fetch(`${url.replace(/\/+$/, "")}/health/live`, { signal: AbortSignal.timeout(3000) });
-      return res.ok
-        ? { available: true, mode: "http", detail: `HTTP ${url} /health/live 200（开发流程落点就绪）` }
-        : { available: false, mode: "http", detail: `HTTP ${url} /health/live ${res.status}` };
-    } catch (err) {
-      return {
-        available: false,
-        mode: "http",
-        detail: `LAYA_DECISION_URL=${url} 不可达：${(err as Error).message.slice(0, 80)}（检查服务端拓扑，不回退 python）`,
-      };
-    }
+    // 复用 laya-http 的健康探活（单一事实源；detail 文案在此层组装）
+    const ok = await layaHealth({ baseUrl: url });
+    return ok
+      ? { available: true, mode: "http", detail: `HTTP ${url} /health/live 200（开发流程落点就绪）` }
+      : { available: false, mode: "http", detail: `LAYA_DECISION_URL=${url} 不可达（/health/live 未通过；检查服务端拓扑，不回退 python）` };
   }
   const probe = opts.probePython ?? probePythonLocally;
   const r = await probe();

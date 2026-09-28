@@ -98,7 +98,7 @@ top1−top2 = 0.010，理由无验证器可识别。**换 substrate 买不到独
 ## 10. HTTP 落点与运行时隔离（2026-09-28 方向修正）
 
 内网 Laya 决策服务（multilingual，契约唯一来源 `~/.axiom/axiom-secrets/laya-service.contract.md`）：
-- **客户端**：`scripts/laya/laya-http.ts`（开发流程工具区）——单条/批量（≤500/批、结果保序、
+- **客户端**：`src/decision/laya-http.ts`（decision 自链，服务开发流程）——单条/批量（≤500/批、结果保序、
   5xx/超时类失败项一次补跑）/健康探测/并发硬顶 8（>8 吞吐反降）/指数退避仅 429·5xx·网络（4xx 不重试）。
   基址 `LAYA_DECISION_URL` env（按规则 11 不入仓库）。
 - **运行时隔离（硬边界）**：`src/` **不得** import 任何 Laya 模块——守卫
@@ -107,7 +107,7 @@ top1−top2 = 0.010，理由无验证器可识别。**换 substrate 买不到独
   两条都使运行时接入既无容量纪律也无语义依据。运行时灰区初筛/显著性/意图分类由
   `src/local-llm` 边缘层（默认全关，显式授权）与确定性规则路径承担。
 - **开发流程用法**：开发期批量判定/分诊/审计链 stage 用 `LAYA_DECISION_URL=… bun run decide:laya -- --spec <json> --run`；
-  或直连 `bun run scripts/laya/laya-http.ts` 内的 API（import 自 `./laya-http.js`）。
+  或以库形态复用：`import { layaDecide, layaDecideBatch } from "../src/decision/laya-http.js"`（仅限开发流程脚本，运行时 import 被守卫拦截）。
   在线并发 1–2，批处理 4–8；`choice` 概率差 <0.15 视为拿不定（§7 升级门槛同样适用于 HTTP 落点）。
 - **confidence 阈值标定**：闸 3 门槛（0.15）不再只靠 ADR-008 实测区间，用
   `bun run calibrate:laya -- --cases docs/decisions/laya/calibration-cases.template.json`

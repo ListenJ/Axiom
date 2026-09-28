@@ -41,6 +41,8 @@ interface DomainReport {
   /** 正确用例的 top1−top2 margin 分布（min/p50），门槛建议的依据 */
   marginMin: number;
   marginP50: number;
+  /** 服务端未回传 probabilities 的用例数（不参与 margin 统计与门槛建议） */
+  noDistribution: number;
   misses: Array<{ id: string; expected: string; got: string; margin: number }>;
 }
 
@@ -119,20 +121,29 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
   for (const [domain, list] of domains) {
     const misses: DomainReport["misses"] = [];
     const correctMargins: number[] = [];
+    let noDistribution = 0;
     for (const c of list) {
       const r = byId.get(c.id);
       const ans = r?.answers?.[c.question];
       const got = ans?.choice ?? "<none>";
-      const margin = marginOf(ans?.probabilities);
+      if (!ans?.probabilities) {
+        // 缺分布：跳过 margin 统计（0 会把门槛拉向 0 / 1 会虚高），报告显式计数
+        noDistribution++;
+        if (got !== c.expected) misses.push({ id: c.id, expected: c.expected, got, margin: Number.NaN });
+        continue;
+      }
+      const margin = marginOf(ans.probabilities);
       if (got === c.expected) correctMargins.push(margin);
       else misses.push({ id: c.id, expected: c.expected, got, margin });
     }
     const sorted = [...correctMargins].sort((x, y) => x - y);
+    const effective = list.length - noDistribution;
     domainReport[domain] = {
       cases: list.length,
-      hitRate: Number((correctMargins.length / list.length).toFixed(4)),
+      hitRate: Number((correctMargins.length / Math.max(1, effective)).toFixed(4)),
       marginMin: Number((sorted[0] ?? 0).toFixed(4)),
       marginP50: Number(percentile(sorted, 50).toFixed(4)),
+      noDistribution,
       misses,
     };
   }
@@ -145,13 +156,14 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
   }
   (report as { thresholdSuggestions: Record<string, number | null> }).thresholdSuggestions = suggestions;
 
-  const out = a.out ?? a.cases.replace(/\.json$/, "") + ".report.json";
+  const out = a.out ?? a.cases.replace(/\.json5?$/i, "") + ".report.json";
   writeFileSync(out, JSON.stringify(report, null, 2) + "\n");
 
   console.log(`标定完成：${cases.length} 用例（batch ok=${resp.ok} failed=${resp.failed}）→ ${out}`);
   for (const [domain, r] of Object.entries(domainReport)) {
     const s = suggestions[domain];
-    console.log(`  ${domain}: 命中率=${(r.hitRate * 100).toFixed(1)}% margin(min/p50)=${r.marginMin}/${r.marginP50} ⇒ 建议门槛=${s ?? "不可标定（人工域）"}`);
+    const nd = r.noDistribution > 0 ? `（${r.noDistribution} 条无分布已剔除）` : "";
+    console.log(`  ${domain}: 命中率=${(r.hitRate * 100).toFixed(1)}%${nd} margin(min/p50)=${r.marginMin}/${r.marginP50} ⇒ 建议门槛=${s ?? "不可标定（人工域）"}`);
   }
   console.log("下一步：人工复核报告后，把建议门槛落回 src/decision/laya-triage.ts 闸 3 常量（改判定前读 ADR-008 更正节）。");
   return 0;

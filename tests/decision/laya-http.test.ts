@@ -177,6 +177,32 @@ describe("layaDecideBatch —— 分块/保序/补跑", () => {
     expect(res.results[502]?.id).toBe("i502");
   });
 
+  test("服务端违约：results 长度 != items 长度 ⇒ fail loud（不静默空洞）", async () => {
+    fetchImpl = async (_url, _init) =>
+      new Response(JSON.stringify(batchResp([{ id: "only-one", ok: true, answers: {} }])), { status: 200 });
+    const items = [
+      { id: "a", state: "sa", questions: { q: { type: "noul" as const, instructions: "x" } } },
+      { id: "b", state: "sb", questions: { q: { type: "noul" as const, instructions: "x" } } },
+    ];
+    await expect(layaDecideBatch({ items })).rejects.toThrow(/契约违约/);
+  });
+
+  test("服务端违约：results 长度相等但 id 错位 ⇒ fail loud", async () => {
+    fetchImpl = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };
+      const rotated = [...body.items.slice(1), body.items[0]];
+      return new Response(
+        JSON.stringify(batchResp(rotated.map((m) => ({ id: m.id, ok: true, answers: {} })))),
+        { status: 200 },
+      );
+    };
+    const items = [
+      { id: "a", state: "sa", questions: { q: { type: "noul" as const, instructions: "x" } } },
+      { id: "b", state: "sb", questions: { q: { type: "noul" as const, instructions: "x" } } },
+    ];
+    await expect(layaDecideBatch({ items })).rejects.toThrow(/契约违约/);
+  });
+
   test("5xx 失败项一次补跑后转 ok；4xx 失败项不补跑", async () => {
     fetchImpl = async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };

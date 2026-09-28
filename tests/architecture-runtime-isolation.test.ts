@@ -33,13 +33,15 @@ function* walk(dir: string): Generator<string> {
   }
 }
 
-/** 判定一次 import 是否指向 Laya 链模块（相对/别名/裸路径都算） */
+/** 判定一次 import 是否指向 Laya 链模块（相对/别名/裸路径/无空格/副作用/require/.ts 变体都算） */
 function importsLayaChain(code: string, importerRel: string): boolean {
   const inDecisionSelfChain = importerRel.startsWith("src/decision/");
-  const re = /from\s+["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)/g;
+  // from"..." 无空格 | from "..." 常规 | import "..."/import("...") 副作用与动态 | require("...")
+  const re = /from\s*["']([^"']+)["']|import\s*\(?\s*["']([^"']+)["']|require\(\s*["']([^"']+)["']\s*\)/g;
   for (const m of code.matchAll(re)) {
-    const spec = (m[1] ?? m[2] ?? "").replace(/\.js$/, "");
-    if (LAYA_CHAIN_FILES.some((f) => spec.endsWith(`/${f}`) || spec === f)) {
+    const spec = (m[1] ?? m[2] ?? m[3] ?? "").replace(/(\.js|\.ts)+(\?[^"']*)?$/, "");
+    const base = spec.split("/").pop() ?? spec;
+    if (LAYA_CHAIN_FILES.some((f) => base === f)) {
       // decision 自链内部互引合法
       if (inDecisionSelfChain) continue;
       return true;
@@ -61,6 +63,24 @@ describe("Laya 运行时隔离守卫（开发流程专用）", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("R1+: 检测器对绕过形态的自检（无空格/副作用/require/.ts 变体全部命中）", () => {
+    const evasions = [
+      'import { x } from"./laya-http.js";',
+      'import "./laya-http.js";',
+      'const m = require("./laya-http.js");',
+      'import { x } from "../decision/laya-http.ts";',
+      'import { x } from "./laya-http.js.js";',
+      'await import("./decision/laya-triage.js");',
+    ];
+    for (const code of evasions) {
+      expect(importsLayaChain(code, "src/agents/somewhere.ts")).toBe(true);
+    }
+    // decision 自链内部互引合法
+    expect(importsLayaChain('import { layaHealth } from "./laya-http.js";', "src/decision/laya-cli.ts")).toBe(false);
+    // 注释中的路径不算使用点
+    expect(importsLayaChain('// see src/decision/laya-http.js', "src/agents/somewhere.ts")).toBe(false);
+  });
+
   it("R2: 运行时灰区初筛归 local-llm/risk-screen；decision/ 下不得有运行时适配层", () => {
     expect(existsSync(join(ROOT, "src", "local-llm", "risk-screen.ts"))).toBe(true);
     expect(existsSync(join(ROOT, "src", "decision", "risk-screen.ts"))).toBe(false);
@@ -71,6 +91,7 @@ describe("Laya 运行时隔离守卫（开发流程专用）", () => {
     const layaScripts = Object.entries(pkg.scripts ?? {})
       .filter(([k, v]) => /laya/i.test(`${k}${v}`))
       .map(([k]) => k);
+    // R3 口径：scripts 键中含 laya 的必须是白名单内的显式 CLI（防生命周期脚本暗挂）
     // 白名单 = 开发流程显式 CLI（分诊/审计链/标定），全部人工发起、不进自动化生命周期
     for (const k of layaScripts) {
       expect(["decide:laya", "audit:chain", "calibrate:laya"]).toContain(k);

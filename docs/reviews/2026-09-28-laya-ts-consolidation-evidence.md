@@ -26,9 +26,11 @@ PASS  并发 32 请求被钳到 8  — cap=8
 ## 推送回执
 
 ```
-To ssh://192.168.0.10:2222/agent/openclaw-fusion.git
+To ssh://git@<gitea-host>:2222/agent/openclaw-fusion.git
    41baaa1b..e6c77347  codex/main-unify-2026-09-26 -> codex/main-unify-2026-09-26
 ```
+
+> 按规则 11，远端主机地址以 `<gitea-host>` 占位（实址见 `git remote -v`，不入库）。
 
 ## 门禁终态（复核命令）
 
