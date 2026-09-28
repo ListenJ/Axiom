@@ -53,4 +53,4 @@
 - **改动**：新增 `docs/superpowers/plans/2026-09-28-architecture-refresh-and-optimization.md`——架构基线全实测（src 38 模块 / 451 文件 / 121,591 行；4,664 用例串行 0 红；189 工具；deps 9+3；分层/数据面/安全面/检索面四视图）；优化分级 P0（架构权威文档漂移、codeindex 索引系 Windows 检出残留、agent.db freelist 23%、F7 群聚族 mock 纪律、`C:/` 异物）、P1（LINUX-SMOKE 六道、systemd 常驻、runtime-go 节点更新、退役分支归档=归一计划第 8 步）、P2（embedding 提供方、wiki_links 持久化、EDGE_RISK 灰区复核、codeindex 独立库、测试并行化探索）。
 - **关键实测**：agent.db 133.2MB / freelist 30.7MB（23%），大头为 codeindex 产物（code_calls 41,605 + code_symbols 14,996）而非业务数据；`docs/ARCHITECTURE.md`（自称唯一权威）统计表与实际差近一倍、§2 缺 8 个后归一模块、§10 拓扑仍为 Windows 编排器叙事；仓库根 `C:/` 为空目录树残留。
 - **验证**：文档数字可由其 §四 复现命令重放；本提交 doc-contract 35/0 复跑绿。
-- **Commit**：`<占位-本提交>`
+- **Commit**：`dbca9c37`（已推送，按规则 9 以本记录维护提交回填）
