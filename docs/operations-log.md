@@ -45,4 +45,4 @@
 - **规则变更（AGENTS.md v1.6→v1.7）**：新增**规则 14**——①唯一副本保管（legacy 载荷封存，git/LFS 面以 `internal` 为准，处置须用户裁定）；②恢复口径（units 同批还原/WAL 不拆批、复制式零覆盖、碰撞预检、`.legacy-YYYYMMDD` 后缀保真、SHA256SUMS 全量对账）；③已裁决不需要项（`u5` .qoder 与 legacy `db/` 快照封存不落地）；④新机即拉即用双层面（git 面 + 数据面）。版本头按 0.7 记录变更依据与来源问题。
 - **裁决落地（不需要项处置）**：①`u5` 不恢复（宿主 IDE 已随旧机退役、非仓库运行数据、含 .auth 凭据不宜散布；单元封存可随时回取）；②legacy `db/` 4 快照不合并（现行 u2 库为其后继状态，封存于载荷）；③`.git/hooks/post-checkout` 的 Windows Qoder tracker 段修剪（死代码，规则 4 例外：未跟踪工具态；codegraph sync 段保留；备份 `.tmp/backups/hooks-post-checkout`）。
 - **验证**：结构校验（规则 1–14 连续、引用无死链、内网地址明文 0 处）；doc-contract 35 pass / 0 fail；docs-consistency 9 pass / 0 fail；hook `bash -n` 语法通过、Qoder 引用 0 残留。
-- **Commit**：`<占位-本提交>`
+- **Commit**：`db574efb`（已推送，按规则 9 以本记录维护提交回填）
