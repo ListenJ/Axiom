@@ -13,8 +13,8 @@
     "$note": "AST 计数，不用 grep。grep 版口径把 Bun.serve 的 fetch 处理器、方法声明、注释文本都算成出网点（实测 26 文件），AST 版是 23 文件。别名形态必须计入引用：只扫 fetch( 会漏掉整个 frontend-review.ts。"
   },
   "totals": {
-    "files": 23,
-    "directCalls": 27,
+    "files": 22,
+    "directCalls": 26,
     "globalThisFetchRefs": 4
   },
   "urlSourceValues": [
@@ -294,17 +294,6 @@
       "reachable": true,
       "endpoint": "own-loopback",
       "note": "EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认端点；proxy-fetch.ts 明文点名它不经本模块。给它套默认拒绝的守卫会把它自己的默认配置判死（实测），故必须与 allow-list 同步做"
-    },
-    {
-      "file": "src/decision/laya-cli.ts",
-      "direct": 1,
-      "aliased": 0,
-      "urlSource": "env",
-      "guard": "none",
-      "redirectPerHop": false,
-      "reachable": true,
-      "endpoint": "intranet-service",
-      "note": "decide:laya --check 的 HTTP 落点探活（LAYA_DECISION_URL /health/live，3s 超时）；2026-09-28 开发流程方向修正新增；URL 未配置时不经此路径（走 python 探测）"
     }
   ]
 }
