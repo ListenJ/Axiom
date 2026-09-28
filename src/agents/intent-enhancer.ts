@@ -21,7 +21,7 @@
 
 import { z } from "zod";
 import { callProvider } from "../router/provider-caller.js";
-import { isEdgeEnabled } from "../decision/risk-screen.js";
+import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { isPrivacyMode } from "./prompt-optimizer.js";
 import type { LLMClient } from "../dre/llm/client.js";
 import { logger } from "../utils/logger.js";
@@ -132,15 +132,17 @@ export async function enhanceIntentWithLLM(
     : userInput;
   const providerCall = callProviderFn ?? callProvider;
 
-  // ── 第一层：边缘决策层（2026-09-28：注入 client 优先（测试 fake）；否则 Laya choice 判别式） ──
-  // 失败/非法输出时继续走下方 zhipu 路径，构成双轨回退链。
-  // 生成式分类（原 MiniCPM JSON 输出）退役：Laya 直接输出 choice 标签 + 概率，
-  // 不再经"生成 JSON 再解析"的脆路径。
-  if (client) {
+  // ── 第一层：边缘小模型（本地免费 ~150ms） ──
+  // 失败/非法输出时继续走下方 zhipu 路径，构成双轨回退链
+  if (isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")) {
     try {
-      const edgeResp = await client.generate(buildEdgeClassifierPrompt(truncatedInput), { maxTokens: 64 });
+      const edgeResp = await (client ?? getEdgeClient()).generate(
+        buildEdgeClassifierPrompt(truncatedInput),
+        { maxTokens: 64, answerPrefix: '{"intent":"' },
+      );
       const parsed = parseClassifierResponse((edgeResp.content ?? "").trim());
       if (parsed && VALID_INTENTS.has(parsed.intent)) {
+        // 1B 模型 confidence 无校准（常为 0），有效枚举标签统一给到 0.6 下限
         return buildEnhancedResult(
           { intent: parsed.intent, confidence: Math.max(parsed.confidence, 0.6) },
           baseIntent,
@@ -151,31 +153,6 @@ export async function enhanceIntentWithLLM(
       });
     } catch (err) {
       logger.debug("Intent enhancer: edge call failed, falling back to zhipu", {
-        error: (err as Error).message,
-      });
-    }
-  } else if (isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")) {
-    try {
-      const { layaDecide } = await import("../decision/laya-http.js");
-      const resp = await layaDecide(truncatedInput, {
-        intent: {
-          type: "choice",
-          instructions:
-            "Classify the user's request intent for an agent runtime. Answer with the best-fitting label.",
-          criteria: ["code", "research", "knowledge", "write", "plan", "chat"],
-        },
-      });
-      const choice = resp.answers.intent?.choice;
-      if (choice && VALID_INTENTS.has(choice)) {
-        const p = resp.answers.intent?.probabilities?.[choice] ?? 0.6;
-        // 与旧边缘层同一纪律：有效枚举标签 confidence 给 0.6 下限（Laya confidence 未按正确率校准）
-        return buildEnhancedResult({ intent: choice, confidence: Math.max(p, 0.6) }, baseIntent);
-      }
-      logger.debug("Intent enhancer: invalid laya choice, falling back to zhipu", {
-        choice: String(choice).slice(0, 60),
-      });
-    } catch (err) {
-      logger.debug("Intent enhancer: laya call failed, falling back to zhipu", {
         error: (err as Error).message,
       });
     }

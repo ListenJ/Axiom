@@ -20,9 +20,8 @@ import {
 import { wsManager } from "../../src/utils/websocket.js";
 import { contextManager } from "../../src/context/context-manager.js";
 import { apiLimiter, multiDimLimiter } from "../../src/utils/rate-limiter.js";
-import { isEdgeEnabled } from "../../src/decision/risk-screen.js";
-import { extractJson } from "../../src/utils/extract-json.js";
-import { screenPayloadWithEdge } from "../../src/decision/risk-screen.js";
+import { isEdgeEnabled, extractJson, getEdgeClient } from "../../src/local-llm/edge-client.js";
+import { screenPayloadWithEdge } from "../../src/local-llm/risk-screen.js";
 import {
   registerResource,
   unregisterResource,
@@ -134,19 +133,15 @@ describe("句柄与状态回落", () => {
   });
 });
 
-describe("兜底机制（边缘增强·失败回退，2026-09-28 Laya 承载）", () => {
-  it("灰区初筛在服务不可达时降级 degraded（fail-open）", async () => {
-    // 指向无监听端口 ⇒ 网络错误 ⇒ fail-open（与原"模型失败降级"同语义，零 mock）
-    const prevUrl = process.env.LAYA_DECISION_URL;
-    process.env.LAYA_DECISION_URL = "http://127.0.0.1:19999";
-    try {
-      const res = await screenPayloadWithEdge("ls -la", "command");
-      expect(res.degraded).toBe(true);
-      expect(res.risk).toBe("low");
-    } finally {
-      if (prevUrl === undefined) delete process.env.LAYA_DECISION_URL;
-      else process.env.LAYA_DECISION_URL = prevUrl;
-    }
+describe("兜底机制（边缘增强·失败回退）", () => {
+  it("边缘风险初筛在模型失败时降级 degraded（fail-open）", async () => {
+    const failing = {
+      generate: async () => {
+        throw new Error("edge service down");
+      },
+    } as never;
+    const res = await screenPayloadWithEdge("ls -la", "command", failing);
+    expect(res.degraded).toBe(true);
   });
 
   it("功能开关与容错 JSON 解析可用", () => {
@@ -157,6 +152,22 @@ describe("兜底机制（边缘增强·失败回退，2026-09-28 Laya 承载）"
     expect(extractJson<{ a: number }>('```json\n{"a":1}\n```')).toEqual({ a: 1 });
     expect(extractJson<{ b: number }>("前缀 {\"b\":2} 后缀")).toEqual({ b: 2 });
     expect(extractJson("完全不是 json")).toBeNull();
+  });
+
+  it("边缘 LLM 客户端带熔断/重试配置（共享单例，仅断言能力存在）", () => {
+    // 2026-09-20：EDGE_LLM_URL 由"有默认值"改为**必填**（原默认 127.0.0.1:9001 实测无服务在监听），
+    // 故构造前需显式提供；用完立即还原，避免同进程其它测试文件受影响。
+    const prevUrl = process.env.EDGE_LLM_URL;
+    process.env.EDGE_LLM_URL = prevUrl ?? "http://127.0.0.1:19999";
+    try {
+      const client = getEdgeClient();
+      expect(typeof client.generate).toBe("function");
+      expect(client.getCircuitState()).toBeDefined();
+      expect(Number.isFinite(client.getStats().retryCount)).toBe(true);
+    } finally {
+      if (prevUrl === undefined) delete process.env.EDGE_LLM_URL;
+      else process.env.EDGE_LLM_URL = prevUrl;
+    }
   });
 });
 

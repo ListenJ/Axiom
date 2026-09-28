@@ -62,7 +62,7 @@
 ### 1.7 删除 `127.0.0.1:9001` 的影响面（**小且封闭**）
 
 实测依赖方仅 3 个文件（+1 处注释）：
-- `src/local-llm/edge-embeddings.ts`（模块本体，`:14` 硬编码 `http://127.0.0.1:9001`） <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+- `src/local-llm/edge-embeddings.ts`（模块本体，`:14` 硬编码 `http://127.0.0.1:9001`）
 - `src/core/settings-search.ts`（唯一运行时消费者）
 - `tests/settings-search.test.ts`
 - `src/utils/proxy-fetch.ts`（**注释**中提到该模块，非依赖）
@@ -231,9 +231,9 @@
 - 产出：全量测试绿；迁移告警有测试覆盖。
 
 **切片 D｜删除 `127.0.0.1:9001`（Q4）** —— 🟡 **部分完成（2026-09-20，随知识库语义层切片 1 执行）**
-- ✅ **embedding 侧已完成**：按规则 4 归档 `src/local-llm/edge-embeddings.ts` → `archive/edge-embeddings-removal-2026-09-20/`， <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+- ✅ **embedding 侧已完成**：按规则 4 归档 `src/local-llm/edge-embeddings.ts` → `archive/edge-embeddings-removal-2026-09-20/`，
   登记 `archive/ARCHIVE-LOG.md`（并显式推翻 2026-09-18 归档里"保留不动"的结论），随后 `git rm`。
-- ⚠️ **9001 并未从仓库消失**：`src/local-llm/edge-client.ts` 仍**默认** `http://127.0.0.1:9001` —— 那是**边缘 LLM 通道**， <!-- doc-caliber:absent: src/local-llm/edge-client.ts -->
+- ⚠️ **9001 并未从仓库消失**：`src/local-llm/edge-client.ts` 仍**默认** `http://127.0.0.1:9001` —— 那是**边缘 LLM 通道**，
   2026-09-18 归档记录明确「保留不动 …edge-client.ts（LLM 调用通道）」。用户的删除指令指向 `edge-embeddings.ts`，
   故本次**只删 embedding 侧**；**LLM 通道是否也弃用 9001 需用户单独裁定**（当前默认关闭：`isEdgeEnabled()` 未设置即关）。
 - `src/core/settings-search.ts` 的语义腿：按 §2.1 的分层策略处置（先退化为词法；同义词扩展层见切片 F）。

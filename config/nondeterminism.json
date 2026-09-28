@@ -7,7 +7,7 @@
   },
   "defaults": {
     "isEdgeEnabled": {
-      "file": "src/decision/risk-screen.ts",
+      "file": "src/local-llm/edge-client.ts",
       "value": "0",
       "$note": "env 未设置即视为关闭（2026-09-26 归一采 ku 线默认关闭策略）：isEdgeEnabled() → readString(flag) 无默认值，仅显式授权（\"1\"/\"true\"/\"yes\" 等非零值）放行"
     }
@@ -18,7 +18,7 @@
       "name": "设置项语义检索",
       "role": "decision",
       "switch": "EDGE_SETTINGS_SEARCH",
-      "switchFile": "src/memory/semantic-layer.ts",
+      "switchFile": "src/local-llm/edge-embeddings.ts",
       "default": "1",
       "defaultVia": "readString-default",
       "codeFile": "src/core/settings-search.ts",
@@ -132,16 +132,16 @@
     },
     {
       "id": "ND-10",
-      "name": "记忆显著性灰区裁决（Laya noul 判别式）",
+      "name": "记忆摘要/蒸馏（边缘 LLM 生成）",
       "role": "generation",
       "switch": "EDGE_MEMORY_ASSIST",
-      "switchFile": "src/memory/edge-assist.ts",
+      "switchFile": "src/memory/distiller.ts",
       "default": "0",
       "defaultVia": "isEdgeEnabled",
       "codeFile": "src/memory/edge-assist.ts",
       "provenance": false,
       "provenanceField": null,
-      "fallback": "规则路径（规则 confidence 即最终结论；Laya 不可用 fail-open）"
+      "fallback": "确定性截断 summarize()"
     },
     {
       "id": "ND-11",

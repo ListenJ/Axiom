@@ -300,8 +300,9 @@ export function selectRunnerKind(platform: string = process.platform): "wsl" | "
 
 /**
  * 按当前平台选生产 runner；LAYA_DECISION_URL 已配置时**优先走 HTTP 服务 runner**
- * （多语言决策收拢 TS，不依赖 python venv/WSL/本地权重；2026-09-28）。
- * 测试用 platform 参数固定分支。
+ * （2026-09-28：Laya 决策服务接入**开发流程**——decide:laya CLI / audit:chain 的
+ * HTTP 落点，显式 opt-in，不依赖 python venv/WSL/本地权重。运行时热路径不引用
+ * Laya，守卫见 tests/architecture-runtime-isolation.test.ts）。测试用 platform 固定分支。
  */
 export function createPlatformLayaRunner(
   opts: WslLayaRunnerOptions & LocalLayaRunnerOptions & HttpLayaRunnerOptions & { platform?: string } = {},
@@ -314,10 +315,11 @@ export function createPlatformLayaRunner(
 }
 
 /**
- * HTTP 服务 runner：内网 Laya 决策服务（multilingual，契约见
- * ~/.axiom/axiom-secrets/laya-service.contract.md，基址按规则 11 经 env 读取）。
+ * HTTP 服务 runner（开发流程链的 HTTP 落点）：内网 Laya 决策服务（multilingual，
+ * 契约见 ~/.axiom/axiom-secrets/laya-service.contract.md，基址按规则 11 经 env 读取）。
  * 与 python runner 逐参数同形——同一 LayaGateSpec 入、同一 {decisionId: {question: answer}} 出，
  * 裁定层与失败方向（runner 抛错 ⇒ UNAVAILABLE，绝不退化 AUTO）完全不变。
+ * 本链路仅服务开发流程（分诊/审计链）；运行时不得 import（隔离守卫锁死）。
  * state 为结构化上下文 ⇒ JSON 序列化成契约要求的文本；choice/score 的 criteria 归一为标签数组。
  */
 export interface HttpLayaRunnerOptions {

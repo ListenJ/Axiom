@@ -12,8 +12,7 @@
  *   - 通用边缘开关读取（isEdgeEnabled）
  */
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { isEdgeEnabled } from "../../src/decision/risk-screen.js";
-import { layaHealth } from "../../src/decision/laya-http.js";
+import { isEdgeEnabled } from "../../src/local-llm/edge-client.js";
 import { isRewriteEnabled } from "../../src/agents/prompt-optimizer.js";
 import { judgeKnowledgeQualityWithEdge } from "../../src/knowledge/edge-assist.js";
 import { judgeSignificanceWithEdge } from "../../src/memory/edge-assist.js";
@@ -43,35 +42,17 @@ afterEach(() => {
   }
 });
 
-/** fetch 计数器：验证"未授权零调用"（2026-09-28 起边缘链路经 Laya HTTP） */
-const REAL_FETCH = globalThis.fetch;
-function installCountingFetch(impl: (body: { questions?: Record<string, unknown> }) => unknown) {
+/** 计数 fake：任何调用都会被记录 */
+function countingClient(content: string) {
   let calls = 0;
-  process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
-  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-    calls++;
-    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    return new Response(JSON.stringify(impl(body)), { status: 200 });
-  }) as typeof fetch;
   return {
-    getCalls: () => calls,
-    restore: () => {
-      globalThis.fetch = REAL_FETCH;
+    client: {
+      generate: async () => {
+        calls++;
+        return { content, model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" };
+      },
     },
-  };
-}
-
-/** 按请求的问题键回填 noul 答案（mock 与问题键解耦） */
-function noulRespFor(body: { questions?: Record<string, unknown> }, v: number) {
-  const answers: Record<string, unknown> = {};
-  for (const k of Object.keys(body.questions ?? {})) {
-    answers[k] = { type: "noul", noul: v, confidence: v };
-  }
-  return {
-    model: "laya-rl-agent",
-    answers,
-    usage: { input_tokens: 10, output_tokens: 0 },
-    routing: { model: "multilingual" },
+    getCalls: () => calls,
   };
 }
 
@@ -107,52 +88,36 @@ describe("isRewriteEnabled —— 提示词改写默认关闭", () => {
   });
 });
 
-describe("知识采集链 —— 默认不调 Laya", () => {
+describe("知识采集链 —— 默认不调 LLM", () => {
   test("无授权：质量裁决不调用模型并返回 null（回退规则）", async () => {
-    const f = installCountingFetch((body: { questions?: Record<string, unknown> }) => noulRespFor(body, 0.9));
-    try {
-      const r = await judgeKnowledgeQualityWithEdge("t", "s");
-      expect(r).toBeNull();
-      expect(f.getCalls()).toBe(0);
-    } finally {
-      f.restore();
-    }
+    const { client, getCalls } = countingClient('{"pass":true}');
+    const r = await judgeKnowledgeQualityWithEdge("t", "s", client);
+    expect(r).toBeNull();
+    expect(getCalls()).toBe(0);
   });
   test("仅 EDGE_KNOWLEDGE_ASSIST=1 而 KNOWLEDGE_USE_LLM 未开 → 仍关闭（任务形态未授权）", async () => {
     process.env.EDGE_KNOWLEDGE_ASSIST = "1";
-    const f = installCountingFetch((body: { questions?: Record<string, unknown> }) => noulRespFor(body, 0.9));
-    try {
-      const r = await judgeKnowledgeQualityWithEdge("t", "s");
-      expect(r).toBeNull();
-      expect(f.getCalls()).toBe(0);
-    } finally {
-      f.restore();
-    }
+    const { client, getCalls } = countingClient('{"pass":true}');
+    const r = await judgeKnowledgeQualityWithEdge("t", "s", client);
+    expect(r).toBeNull();
+    expect(getCalls()).toBe(0);
   });
-  test("双开关同时授权 → 放行（Laya noul ≥0.5 = 值得）", async () => {
+  test("双开关同时授权 → 放行并解析", async () => {
     process.env.EDGE_KNOWLEDGE_ASSIST = "1";
     process.env.KNOWLEDGE_USE_LLM = "1";
-    const f = installCountingFetch((body: { questions?: Record<string, unknown> }) => noulRespFor(body, 0.9));
-    try {
-      const r = await judgeKnowledgeQualityWithEdge("t", "s");
-      expect(r?.pass).toBe(true);
-      expect(f.getCalls()).toBe(1);
-    } finally {
-      f.restore();
-    }
+    const { client, getCalls } = countingClient('{"pass":true}');
+    const r = await judgeKnowledgeQualityWithEdge("t", "s", client);
+    expect(r?.pass).toBe(true);
+    expect(getCalls()).toBe(1);
   });
 });
 
-describe("记忆整理链 —— 默认不调 Laya", () => {
+describe("记忆整理链 —— 默认不调 LLM", () => {
   test("无授权：返回 null 且不调用模型", async () => {
-    const f = installCountingFetch((body: { questions?: Record<string, unknown> }) => noulRespFor(body, 0.9));
-    try {
-      const r = await judgeSignificanceWithEdge("q", "a");
-      expect(r).toBeNull();
-      expect(f.getCalls()).toBe(0);
-    } finally {
-      f.restore();
-    }
+    const { client, getCalls } = countingClient('{"worth":true}');
+    const r = await judgeSignificanceWithEdge("q", "a", client);
+    expect(r).toBeNull();
+    expect(getCalls()).toBe(0);
   });
 });
 

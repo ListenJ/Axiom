@@ -29,7 +29,7 @@
 | 设施 | 位置 | 现状 |
 |---|---|---|
 | 余弦函数 | `src/utils/math.ts` `cosineSimilarity` | 存在，被多处复用 |
-| **本地** embedding 服务 | `src/local-llm/edge-embeddings.ts`（OpenAI 兼容 `/v1/embeddings`） | 存在；失败/超时/非 2xx **返回 null 不抛错** | <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+| **本地** embedding 服务 | `src/local-llm/edge-embeddings.ts`（OpenAI 兼容 `/v1/embeddings`） | 存在；失败/超时/非 2xx **返回 null 不抛错** |
 | 本地 embedding 消费者 | `src/core/settings-search.ts` | **当前唯一消费者** |
 | **远端** embedding | `src/db/codegraph-sync.ts` → `api.siliconflow.cn/v1/embeddings` | 仍存在（此前计划要砍的正是它） |
 | 休眠向量路径 | `src/dre/consciousness/stream.ts`、`src/dre/pipeline/pipeline.ts` | 有 embedding 字段与 cosine 调用，**无调用方传参** |
@@ -45,14 +45,14 @@
 ⇒ 该链路**已在 2026-09-17 切断**，不属剩余待办。（`src/db/codegraph-sync.ts` 的远端调用仍在，但它在 codegraph 同步路径上，**不在**设置检索链；两者不可混为一谈。）
 
 **(b) 一处真实的"声明 vs 实现"漂移（需在切片 1 修）**
-`src/local-llm/edge-embeddings.ts` 的模块注释仍称「由上层回落 **模型路由 embedding**，再回落关键词」， <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+`src/local-llm/edge-embeddings.ts` 的模块注释仍称「由上层回落 **模型路由 embedding**，再回落关键词」，
 与同仓库 `src/core/settings-search.ts` 的"已移除远端回落链"**不一致**。
 **更正（同日）**：此处原写"直接矛盾"**过强** —— `ModelRouter.embeddings()`（`src/router/model-router.ts`）**确实存在**，
 该注释引用的**能力**是真的；不成立的是"**由上层回落**"这条**链路**（`settings-search.ts` 已于 2026-09-17 不再回落）。
 故准确定性为：**能力仍在、回落链已断**，该注释描述的是已废弃的调用关系。
 
 **(c) 本地 embedding 路径默认是开启的（影响 D1 的可实施性）**
-`src/local-llm/edge-embeddings.ts` `readString("EDGE_SETTINGS_SEARCH","1") !== "0"` ⇒ **默认 enabled**； <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+`src/local-llm/edge-embeddings.ts` `readString("EDGE_SETTINGS_SEARCH","1") !== "0"` ⇒ **默认 enabled**；
 默认指向 `:14 http://127.0.0.1:9001`、模型 `:15 BAAI/bge-m3`、超时 `:16` 5000ms。
 ⇒ 由于本项目**已砍掉本地推理子系统**，该 `127.0.0.1:9001` 服务当前**是否仍然存在**必须由你确认；若不存在，则"仅本地 embedding"（D1 选项 a）在落地时需要先解决服务供给问题。
 
@@ -128,7 +128,7 @@
 2026-09-17 移除的是**默认、静默**的远端回落（`src/core/settings-search.ts`）。
 本计划引入的是**显式授权后**的远端调用，两者**不同**：未授权时**零网络请求**，因此"无静默回落"这一性质**继续成立**。
 
-**遗留处置**：本地 `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在 D1 裁定下**不再是主来源**；其去留（降级为 legacy / 移除 / 保留为可选）+ 陈旧注释（§1.3b）并入切片 1 处理。 <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+**遗留处置**：本地 `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在 D1 裁定下**不再是主来源**；其去留（降级为 legacy / 移除 / 保留为可选）+ 陈旧注释（§1.3b）并入切片 1 处理。
 
 ---
 
@@ -195,7 +195,7 @@
   （授权门在切片 3、向量落地在切片 4）⇒ 现在写就是**制造新的 doc-vs-impl drift**。
   **故顺延**：该口径更新并入切片 3/4 落地时同批完成。
 - **本轮实际执行（可如实描述现状的部分）**：
-  - 按规则 4 **归档并删除** `src/local-llm/edge-embeddings.ts`（用户已定"不再使用 127.0.0.1:9001"）； <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+  - 按规则 4 **归档并删除** `src/local-llm/edge-embeddings.ts`（用户已定"不再使用 127.0.0.1:9001"）；
     归档记录显式**推翻** 2026-09-18 归档里"保留不动 edge-embeddings.ts"的结论，避免两份记录互相矛盾。
   - `src/core/settings-search.ts`：移除内置 embedding 供给 ⇒ **默认纯关键词、零网络请求**；`embedder` 注入接缝保留。
   - **影响披露**（Q4 要求，已写入 README / ARCHITECTURE / LIMITATIONS）：
@@ -288,7 +288,7 @@
    若未开通，D1 的落地形态须重新裁定（**不得**默默退回 `127.0.0.1:9001`）。
 7. **[阻塞切片 3 的精度，不阻塞开工]** Token 估算所需的 `charsPerToken` 边界常量**尚无权威来源**：
    当前只有方法（§2.1），常量取值需按 API key 对应模型的分词器特性确定；在确定前只能给出**保守区间**并标注为估算。
-8. `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在**砍掉本地推理子系统之后**是否仍有服务在跑 **未核验**； <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
+8. `127.0.0.1:9001`（`src/local-llm/edge-embeddings.ts`）在**砍掉本地推理子系统之后**是否仍有服务在跑 **未核验**；
    D1 已裁定以 API key 模型为主来源，故它**不再是前置条件**，但其去留须在切片 1 落定（见 §4 切片 1）。
 9. 本地 embedding 服务的**真实可用性、维度、模型版本**未实测（需服务运行环境）。
 10. **本计划的验收标准尚未在任何真机上跑过一次** —— A1–A10 全部为**待实现**状态，不得当作既有能力引用。

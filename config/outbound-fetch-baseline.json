@@ -285,7 +285,7 @@
       "note": "Laya 决策服务（LAYA_DECISION_URL，内网 multilingual；契约见 ~/.axiom/axiom-secrets/laya-service.contract.md）；postJson 整批请求级重试（仅 429/5xx/网络），layaHealth 健康探测；无 Key"
     },
     {
-      "file": "src/memory/semantic-layer.ts",
+      "file": "src/local-llm/edge-embeddings.ts",
       "direct": 1,
       "aliased": 0,
       "urlSource": "env",
@@ -293,7 +293,7 @@
       "redirectPerHop": false,
       "reachable": true,
       "endpoint": "own-loopback",
-      "note": "设置语义搜索 embedding（2026-09-28 自 local-llm/edge-embeddings 折叠入本文件；EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认）；失败返回 null 由调用方降级关键词路径"
+      "note": "EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认端点；proxy-fetch.ts 明文点名它不经本模块。给它套默认拒绝的守卫会把它自己的默认配置判死（实测），故必须与 allow-list 同步做"
     }
   ]
 }

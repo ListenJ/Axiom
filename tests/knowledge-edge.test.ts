@@ -1,15 +1,15 @@
 /**
- * 知识库边缘增强测试 —— 验证 src/knowledge/edge-assist.ts（Laya 判别式版）与 store 标题查询
+ * 知识库边缘增强测试 —— 验证 src/knowledge/edge-assist.ts 与 store 标题查询
  *
- * 2026-09-28 迁移（src/local-llm 删除）：
- *   1. structureKnowledgeWithEdge  — 生成类退役：恒 null（pipeline 回退 GLM → TF-IDF）
- *   2. judgeKnowledgeQualityWithEdge — 灰区质量裁决 → Laya noul
- *   3. isNearDuplicateWithEdge       — 近重复判断 → Laya noul
- *   4. summarizeKnowledgeWithEdge    — 生成类退役：恒 null
+ * 四个子能力（全部可空返回；LLM 默认关闭，需 KNOWLEDGE_USE_LLM=1 + EDGE_KNOWLEDGE_ASSIST=1 双授权）：
+ *   1. structureKnowledgeWithEdge  — 文档结构化（title/summary/keywords/quality_score）
+ *   2. judgeKnowledgeQualityWithEdge — validateContent 灰区质量裁决
+ *   3. isNearDuplicateWithEdge       — 近重复判断
+ *   4. summarizeKnowledgeWithEdge    — 采集摘要
  *
- * 受控 fetch mock 驱动真实现，不访问真实端点；LLM 默认关闭策略口径不变（双开关授权）。
+ * 全部 DI fake client，不访问真实端点。
  */
-import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { describe, test, expect, beforeEach } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,116 +21,139 @@ import {
 } from "../src/knowledge/edge-assist.js";
 import { KnowledgeStore } from "../src/knowledge/store.js";
 
-const REAL_FETCH = globalThis.fetch;
-let layaCalls = 0;
-let layaImpl: (body: { questions?: Record<string, unknown> }) => unknown = () => ({});
-let fetchInstalled = false;
-
-function installLayaFetch() {
-  if (fetchInstalled) return;
-  process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
-  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
-    layaCalls++;
-    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
-    return new Response(JSON.stringify(layaImpl(body)), { status: 200 });
-  }) as typeof fetch;
-  fetchInstalled = true;
-}
-function restoreLayaFetch() {
-  if (!fetchInstalled) return;
-  globalThis.fetch = REAL_FETCH;
-  fetchInstalled = false;
-}
-function noulAnswers(body: { questions?: Record<string, unknown> }, v: number) {
-  const answers: Record<string, unknown> = {};
-  for (const k of Object.keys(body.questions ?? {})) {
-    answers[k] = { type: "noul", noul: v, confidence: v };
-  }
-  return { model: "laya-rl-agent", answers, usage: { input_tokens: 10, output_tokens: 0 }, routing: { model: "multilingual" } };
-}
-
+// LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开双开关
 beforeEach(() => {
-  // LLM 默认关闭策略（用户指令 2026-09-18）：本文件用例验证"已授权"路径，显式打开双开关
   process.env.KNOWLEDGE_USE_LLM = "1";
   process.env.EDGE_KNOWLEDGE_ASSIST = "1";
-  layaCalls = 0;
-  layaImpl = (body) => noulAnswers(body, 0.9);
-  installLayaFetch();
 });
-afterEach(restoreLayaFetch);
+
+function fakeClient(impl: (prompt: string) => { content: string }) {
+  let calls = 0;
+  return {
+    client: {
+      generate: async (prompt: string) => {
+        calls++;
+        const r = impl(prompt);
+        return { content: r.content, model: "mock", usage: { promptTokens: 0, completionTokens: 0 }, finishReason: "stop" };
+      },
+    },
+    getCalls: () => calls,
+  };
+}
 
 // ─────────────────────────────────────────────────────────
-// structureKnowledgeWithEdge（生成类退役）
+// structureKnowledgeWithEdge
 // ─────────────────────────────────────────────────────────
 
-describe("structureKnowledgeWithEdge（退役）", () => {
-  test("恒 null：pipeline 回退 GLM → fallbackTFIDF", async () => {
-    expect(await structureKnowledgeWithEdge("# Nginx 指南\n内容...")).toBeNull();
-    expect(layaCalls).toBe(0);
+describe("structureKnowledgeWithEdge", () => {
+  test("合法 JSON 返回结构化结果（缺省字段补默认值）", async () => {
+    const { client } = fakeClient(() => ({
+      content: '{"title":"Nginx 反向代理指南","summary":"介绍 nginx 反向代理配置","keywords":["nginx","proxy"],"quality_score":0.8}',
+    }));
+    const r = await structureKnowledgeWithEdge("# Nginx 指南\n内容...", client);
+    expect(r).not.toBeNull();
+    expect(r!.title).toBe("Nginx 反向代理指南");
+    expect(r!.keywords).toEqual(["nginx", "proxy"]);
+    expect(r!.quality_score).toBe(0.8);
+    expect(r!.sections).toEqual([]);
+    expect(r!.entities).toEqual([]);
+    expect(r!.structured_data).toBeNull();
+  });
+
+  test("缺 title 视为无效 → null", async () => {
+    const { client } = fakeClient(() => ({ content: '{"summary":"只有摘要"}' }));
+    expect(await structureKnowledgeWithEdge("content", client)).toBeNull();
+  });
+
+  test("垃圾输出 → null", async () => {
+    const { client } = fakeClient(() => ({ content: "这是一篇好文章" }));
+    expect(await structureKnowledgeWithEdge("content", client)).toBeNull();
+  });
+
+  test("模型异常 → null", async () => {
+    const { client } = fakeClient(() => { throw new Error("down"); });
+    expect(await structureKnowledgeWithEdge("content", client)).toBeNull();
+  });
+
+  test("EDGE_KNOWLEDGE_ASSIST=0 → null 且不调用", async () => {
+    process.env.EDGE_KNOWLEDGE_ASSIST = "0";
+    try {
+      const { client, getCalls } = fakeClient(() => ({ content: '{"title":"t","summary":"s"}' }));
+      expect(await structureKnowledgeWithEdge("content", client)).toBeNull();
+      expect(getCalls()).toBe(0);
+    } finally {
+      delete process.env.EDGE_KNOWLEDGE_ASSIST;
+    }
   });
 });
 
 // ─────────────────────────────────────────────────────────
-// judgeKnowledgeQualityWithEdge（Laya noul）
+// judgeKnowledgeQualityWithEdge
 // ─────────────────────────────────────────────────────────
 
-describe("judgeKnowledgeQualityWithEdge（Laya）", () => {
-  test("noul≥0.5 → pass=true；noul<0.5 → pass=false", async () => {
-    expect((await judgeKnowledgeQualityWithEdge("标题", "摘要..."))?.pass).toBe(true);
-    layaImpl = (body) => noulAnswers(body, 0.2);
-    expect((await judgeKnowledgeQualityWithEdge("标题", "摘要..."))?.pass).toBe(false);
-    expect(layaCalls).toBe(2);
+describe("judgeKnowledgeQualityWithEdge", () => {
+  test("pass=true/false 正确解析", async () => {
+    const { client: c1 } = fakeClient(() => ({ content: '{"pass": true, "reason": "内容详实"}' }));
+    expect((await judgeKnowledgeQualityWithEdge("标题", "摘要...", c1))?.pass).toBe(true);
+    const { client: c2 } = fakeClient(() => ({ content: '{"pass": false}' }));
+    expect((await judgeKnowledgeQualityWithEdge("标题", "摘要...", c2))?.pass).toBe(false);
   });
 
-  test("answers 缺失/服务异常 → null（fail-open 回规则）", async () => {
-    layaImpl = () => ({ model: "laya-rl-agent", answers: {}, usage: { input_tokens: 1, output_tokens: 0 }, routing: { model: "multilingual" } });
-    expect(await judgeKnowledgeQualityWithEdge("t", "s")).toBeNull();
-    restoreLayaFetch();
-    process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
-    globalThis.fetch = (async () => {
-      throw new Error("down");
-    }) as unknown as typeof fetch;
-    fetchInstalled = true;
-    expect(await judgeKnowledgeQualityWithEdge("t", "s")).toBeNull();
+  test("垃圾/异常 → null", async () => {
+    const { client: c1 } = fakeClient(() => ({ content: "看不懂" }));
+    expect(await judgeKnowledgeQualityWithEdge("t", "s", c1)).toBeNull();
+    const { client: c2 } = fakeClient(() => { throw new Error("down"); });
+    expect(await judgeKnowledgeQualityWithEdge("t", "s", c2)).toBeNull();
   });
 });
 
 // ─────────────────────────────────────────────────────────
-// isNearDuplicateWithEdge（Laya noul）
+// isNearDuplicateWithEdge
 // ─────────────────────────────────────────────────────────
 
-describe("isNearDuplicateWithEdge（Laya）", () => {
-  test("noul≥0.5 → true（重复）；noul<0.5 → false", async () => {
-    expect(await isNearDuplicateWithEdge("Nginx 代理配置", "内容...", ["Nginx 反向代理配置指南"])).toBe(true);
-    layaImpl = (body) => noulAnswers(body, 0.1);
-    expect(await isNearDuplicateWithEdge("Docker 入门", "内容...", ["Nginx 指南"])).toBe(false);
+describe("isNearDuplicateWithEdge", () => {
+  test("判定重复 → true", async () => {
+    const { client } = fakeClient(() => ({ content: '{"duplicate": true}' }));
+    expect(await isNearDuplicateWithEdge("Nginx 代理配置", "内容...", ["Nginx 反向代理配置指南"], client)).toBe(true);
+  });
+
+  test("判定不重复 → false", async () => {
+    const { client } = fakeClient(() => ({ content: '{"duplicate": false}' }));
+    expect(await isNearDuplicateWithEdge("Docker 入门", "内容...", ["Nginx 指南"], client)).toBe(false);
   });
 
   test("无候选标题直接 false（不调模型）", async () => {
-    layaCalls = 0;
-    expect(await isNearDuplicateWithEdge("t", "s", [])).toBe(false);
-    expect(layaCalls).toBe(0);
+    const { client, getCalls } = fakeClient(() => ({ content: '{"duplicate": true}' }));
+    expect(await isNearDuplicateWithEdge("t", "s", [], client)).toBe(false);
+    expect(getCalls()).toBe(0);
   });
 
-  test("服务异常 → null（调用方按不重复处理）", async () => {
-    restoreLayaFetch();
-    process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
-    globalThis.fetch = (async () => {
-      throw new Error("down");
-    }) as unknown as typeof fetch;
-    fetchInstalled = true;
-    expect(await isNearDuplicateWithEdge("t", "s", ["x"])).toBeNull();
+  test("垃圾/异常 → null", async () => {
+    const { client: c1 } = fakeClient(() => ({ content: "可能重复吧" }));
+    expect(await isNearDuplicateWithEdge("t", "s", ["x"], c1)).toBeNull();
+    const { client: c2 } = fakeClient(() => { throw new Error("down"); });
+    expect(await isNearDuplicateWithEdge("t", "s", ["x"], c2)).toBeNull();
   });
 });
 
 // ─────────────────────────────────────────────────────────
-// summarizeKnowledgeWithEdge（生成类退役）
+// summarizeKnowledgeWithEdge
 // ─────────────────────────────────────────────────────────
 
-describe("summarizeKnowledgeWithEdge（退役）", () => {
-  test("恒 null：调用方按无摘要处理", async () => {
-    expect(await summarizeKnowledgeWithEdge("长文...".repeat(100))).toBeNull();
-    expect(layaCalls).toBe(0);
+describe("summarizeKnowledgeWithEdge", () => {
+  test("返回摘要", async () => {
+    const { client } = fakeClient(() => ({ content: "本文介绍 nginx 反向代理的配置步骤与常见坑。" }));
+    expect(await summarizeKnowledgeWithEdge("长文...".repeat(100), client)).toContain("nginx");
+  });
+
+  test("过短输出 → null", async () => {
+    const { client } = fakeClient(() => ({ content: "短" }));
+    expect(await summarizeKnowledgeWithEdge("content", client)).toBeNull();
+  });
+
+  test("模型异常 → null", async () => {
+    const { client } = fakeClient(() => { throw new Error("down"); });
+    expect(await summarizeKnowledgeWithEdge("content", client)).toBeNull();
   });
 });
 

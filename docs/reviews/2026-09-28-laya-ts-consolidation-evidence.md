@@ -1,5 +1,11 @@
 # Laya TS 接入 + local-llm/Rust 退役 —— 冒烟与门禁证据（2026-09-28）
 
+> **方向修正（2026-09-28 同日）**：用户澄清 Laya 属**开发流程**（分诊/审计链）而非项目运行时——
+> 本文涉及的运行时接线（decision/risk-screen 运行时适配、local-llm 退役）已回退；
+> 本文件保留的**有效部分**：Laya 实服务冒烟读数（HTTP 客户端现服务开发流程链）、
+> Rust 退役门禁、推送回执。最终口径见 operations-log 方向修正条目与
+> skills/laya-local-decision-model §10。
+>
 > 主体记录见 `docs/operations-log.md` 2026-09-28 条目；本文件是可重放的机器证据。
 > 代码提交 `e6c77347`，日志提交 `a85fd022`，分支 `codex/main-unify-2026-09-26`（gitea）。
 

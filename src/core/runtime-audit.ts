@@ -273,9 +273,9 @@ export async function checkFallbackLlm(): Promise<AuditCheck> {
 }
 
 export async function checkFallbackEdge(): Promise<AuditCheck> {
-  const edge = readSource("../decision/risk-screen.ts");
+  const edge = readSource("../local-llm/edge-client.ts");
   const assist = readSource("../memory/edge-assist.ts");
-  const enabled = edge.includes("degraded: true");
+  const enabled = edge.includes("isEdgeEnabled");
   const fallback = assist.includes("return null");
   const ok = enabled && fallback;
   return {

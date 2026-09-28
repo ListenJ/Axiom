@@ -1,6 +1,6 @@
 ---
 name: laya-local-decision-model
-description: 本仓库 Laya（421M ModernBERT 判别式 System-1 决策头，convaiinnovations 开源，同 Jev/TypeSafe AI 一类）的调用、Linux/WSL 两种落点、爆炸半径登记、升级门槛，以及它不能用于何处与全自动审计链（bun run audit:chain）的用法。当需要给任务做分诊、决定某步骤是否自动执行、或跑全自动审计链时使用。数值推理、否定组合、跨措辞稳定性均不适合交给它。
+description: 本仓库 Laya（421M ModernBERT 判别式 System-1 决策头，convaiinnovations 开源，同 Jev/TypeSafe AI 一类）的调用、Linux/WSL/HTTP 三种落点、爆炸半径登记、升级门槛，以及它不能用于何处与全自动审计链（bun run audit:chain）的用法。当需要给任务做分诊、决定某步骤是否自动执行、或跑全自动审计链时使用。数值推理、否定组合、跨措辞稳定性均不适合交给它。**Laya 只服务开发流程（分诊/审计/批量核查），严禁进入项目运行时（src/ 不得 import，守卫 tests/architecture-runtime-isolation.test.ts 锁死）。**
 ---
 
 # Laya 本地决策模型（System-1 分诊 + 全自动审计链）
@@ -94,3 +94,18 @@ top1−top2 = 0.010，理由无验证器可识别。**换 substrate 买不到独
 - Jev：TypeSafe AI 博客《Introducing System One Models & Jev》（2026-09-15）；
   LangChain / Hugging Face / dev.to / Fly.io 的 Jev 使用指南（2026-09）
 - 本仓库实测：ADR-008 及其 2026-09-24 更正节；`docs/research/system-one-decision-model-skills-2026-09-25.md`
+
+## 10. HTTP 落点与运行时隔离（2026-09-28 方向修正）
+
+内网 Laya 决策服务（multilingual，契约唯一来源 `~/.axiom/axiom-secrets/laya-service.contract.md`）：
+- **客户端**：`scripts/laya/laya-http.ts`（开发流程工具区）——单条/批量（≤500/批、结果保序、
+  5xx/超时类失败项一次补跑）/健康探测/并发硬顶 8（>8 吞吐反降）/指数退避仅 429·5xx·网络（4xx 不重试）。
+  基址 `LAYA_DECISION_URL` env（按规则 11 不入仓库）。
+- **运行时隔离（硬边界）**：`src/` **不得** import 任何 Laya 模块——守卫
+  `tests/architecture-runtime-isolation.test.ts` 锁死（R1 源码面 import 禁令 / R2 文件落点 /
+  R3 生命周期脚本禁挂）。Laya 不进 per-message 热路径：4–5 QPS CPU 容量 + confidence 未校准，
+  两条都使运行时接入既无容量纪律也无语义依据。运行时灰区初筛/显著性/意图分类由
+  `src/local-llm` 边缘层（默认全关，显式授权）与确定性规则路径承担。
+- **开发流程用法**：开发期批量判定/分诊/审计链 stage 用 `LAYA_DECISION_URL=… bun run decide:laya -- --spec <json> --run`；
+  或直连 `bun run scripts/laya/laya-http.ts` 内的 API（import 自 `./laya-http.js`）。
+  在线并发 1–2，批处理 4–8；`choice` 概率差 <0.15 视为拿不定（§7 升级门槛同样适用于 HTTP 落点）。

@@ -181,8 +181,10 @@ describe("D0 口径扫描范围自证", () => {
     //   docs/reviews/2026-09-19-shared-mutable-state-inventory.md（ku 线共享可变状态盘点）
     //   docs/reviews/2026-09-20-env-sensitive-assertions-inventory.md（ku 线 env 敏感断言盘点）
     // 均为证据/盘点性质：保留问题原话与实测读数，不得被口径规则改写。
+    // 58→59（2026-09-28）：docs/reviews/2026-09-28-laya-ts-consolidation-evidence.md
+    // （Laya 开发流程接入与退役任务的冒烟/门禁证据，证据性质同上）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(58);
+    expect(exempted.length).toBeLessThanOrEqual(59);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 
@@ -439,17 +441,14 @@ describe("D3 文档引用存活", () => {
       // BrowserPanel/工具台随 2026-09-25 Chat 页移除（右栏 panels.tsx），文内历史叙述按墓碑口径点名。
       "docs/BROWSER-AGENT-STRATEGY-2026-08-09.md",
       "docs/COMPREHENSIVE-GUIDE.md",
-      // 2026-09-28 local-llm/native 退役：EDGE-LLM/LIMITATIONS/SECURITY-MEASURES 的历史叙述、
-      // PROJECT-GUIDE 拓扑行、TEST-STRATEGY 覆盖率行、2026-09-19 两份计划文档的历史引用按墓碑口径点名。
-      "docs/EDGE-LLM.md",
+      // 2026-09-28 native 退役：LIMITATIONS 退役行、PROJECT-GUIDE 拓扑行、
+      // TEST-STRATEGY 覆盖率行的 native-bridge 历史引用按墓碑口径点名。
+      // （local-llm 于同日方向修正中恢复，其墓碑已撤；Laya 仅入开发流程不入运行时。）
       "docs/LIMITATIONS.md",
       "docs/PROJECT-GUIDE.md",
-      "docs/SECURITY-MEASURES.md",
       "docs/TEST-STRATEGY-2026-08-21.md",
       "docs/functional-check-2026-08-16-sensenova.md",
       "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
-      "docs/plans/2026-09-19-knowledge-semantic-layer.md",
-      "docs/plans/2026-09-19-user-configured-models-and-usage-trace.md",
     ]);
   });
 });

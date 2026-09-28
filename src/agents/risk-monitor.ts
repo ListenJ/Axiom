@@ -27,9 +27,8 @@
  */
 
 import { z } from "zod";
-import { isEdgeEnabled } from "../decision/risk-screen.js";
-import { extractJson } from "../utils/extract-json.js";
-import { screenPayloadWithEdge, type EdgeRisk, type PayloadKind } from "../decision/risk-screen.js";
+import { isEdgeEnabled, extractJson } from "../local-llm/edge-client.js";
+import { screenPayloadWithEdge, type EdgeRisk, type PayloadKind } from "../local-llm/risk-screen.js";
 import { auditLogger } from "../utils/audit-logger.js";
 import { UNATTRIBUTED_PRINCIPAL } from "../utils/call-context.js";
 import { readString } from "../utils/env.js";

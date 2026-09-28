@@ -65,3 +65,12 @@
 - **验证**：tsc 双端 0 错；串行全量 4,637 用例 1 fail（high-intensity-load 墙钟阈值，文件头自注"干净 HEAD 上同样红"，单文件 3× 复跑全绿——当日机器高负载〔load 10–15/16 核，Steam/Proton 441%CPU〕非回归）；audit:runtime 16/16；doc-contract 35/0；出网棘轮 16/16；前端 vitest 308/308。
 - **遗留**：Laya confidence 阈值标定需业务标注（契约第六节），未标定——下游全 fail-open 降级设计，不阻塞。
 - **Commit**：`e6c77347`（已推送 codex/main-unify-2026-09-26 → gitea，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — fix(direction): 方向修正——Laya 定界为开发流程专用，local-llm 恢复，Rust 退役保持
+
+- **任务**：用户方向澄清（2026-09-28 会话）——①Laya 决策服务接入**开发流程**（分诊/审计链），不是接入**项目运行时**；②内部决策与 skill 使用按标准方案（本仓库 `skills/` 目录 + SKILL.md 规范）；③Rust 退役后除 Go 高并发（runtime-go）外全部由 TS 完成。分级 **T3**（方向回摆 + 架构守卫 + skill 规范化）。
+- **回摆**：`src/local-llm` 三文件及其 7 个消费方/测试/ND 登记从会话前基线 `41baaa1b` 恢复（用户裁定"恢复"）；删除运行时 Laya 适配层 `src/decision/risk-screen.ts`；出网基线回摆（edge-embeddings 回归、semantic-layer 条目撤）；文档墓碑甄别（local-llm 类 12 处撤除、native 类保留）；ND-10 文档行回摆原文；D0 豁免面 58→59（新增证据件入册）。
+- **保留**：Laya 实服务冒烟读数（7/7）与 HTTP 客户端 `src/decision/laya-http.ts`（现服务开发流程自链：decide:laya / audit:chain 的 HTTP 落点）；Rust 全退役（native/、native-bridge、tauri 胶水）全部保持——运行时纯 TS，Go 负责 runtime-go 高并发场景，与用户口径一致。
+- **标准方案落地**：`skills/laya-local-decision-model/SKILL.md` 增 §10（HTTP 落点 + 运行时隔离边界 + 开发流程用法）；新增架构守卫 `tests/architecture-runtime-isolation.test.ts`（R1：src/ 除 decision 自链外禁 import Laya 链；R2：运行时灰区初筛归 local-llm；R3：生命周期脚本不挂 Laya）。
+- **验证**：tsc 0 错；串行全量 4,661 用例 1 fail（已知环境性墙钟 flaky）；隔离守卫 3/3、出网棘轮+doc-contract+docs-consistency+arch-integrity 85/0、local-llm 复活面 47/0、Laya 链 33/0、env 模板完整性 2/2、audit:runtime 16/16。
+- **Commit**：本条同批提交（hash 见 git log，按规则 9 回填）
