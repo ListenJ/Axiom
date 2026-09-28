@@ -103,7 +103,9 @@ const LARGE_FILE_EXEMPTIONS: Record<string, number> = {
     "eval/eval-runner.ts",
     // decision/laya-cli.ts 与上面几个同属 CLI 入口：它的 console 输出就是交付物
     // （人/agent 读的分诊结果），判定逻辑在 laya-triage.ts 里且返回结果不打字。
+    // decision/laya-calibrate.ts 同理（标定报告/建议门槛是交付物，2026-09-28）。
     "decision/laya-cli.ts",
+    "decision/laya-calibrate.ts",
     // decision/audit-chain.ts 同属 CLI 入口（bun run audit:chain / --stages-only）：
     // stage 台账打到终端是交付物；扫描实现体不打字。
     "decision/audit-chain.ts",
@@ -142,6 +144,9 @@ const ENV_WHITELIST = new Set([
   "utils/proxy-fetch.ts",
   "utils/api-key-store.ts",
   "memory/vault-manager.ts",
+  // decision/laya-calibrate.ts：CLI 前置校验层（缺 LAYA_DECISION_URL 拒跑），
+  // 与 laya-cli.ts / laya-triage.ts 的 env.ts 直读豁免同口径（2026-09-28）。
+  "decision/laya-calibrate.ts",
   "main.ts",
   "router/models/providers.ts",
 ]);

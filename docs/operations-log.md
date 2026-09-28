@@ -74,3 +74,13 @@
 - **标准方案落地**：`skills/laya-local-decision-model/SKILL.md` 增 §10（HTTP 落点 + 运行时隔离边界 + 开发流程用法）；新增架构守卫 `tests/architecture-runtime-isolation.test.ts`（R1：src/ 除 decision 自链外禁 import Laya 链；R2：运行时灰区初筛归 local-llm；R3：生命周期脚本不挂 Laya）。
 - **验证**：tsc 0 错；串行全量 4,661 用例 1 fail（已知环境性墙钟 flaky）；隔离守卫 3/3、出网棘轮+doc-contract+docs-consistency+arch-integrity 85/0、local-llm 复活面 47/0、Laya 链 33/0、env 模板完整性 2/2、audit:runtime 16/16。
 - **Commit**：`37f60c61`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — feat(decision): 开发流程收尾——CLI HTTP 探活 + confidence 标定 harness + relaxed 预算校准
+
+- **任务**：37f60c61 方向修正的三项收尾（同会话继续）。分级 **T2**（决策链两文件 + 测试 3 + 阈值校准）。
+- **CLI HTTP 探活**：`decide:laya --check` 感知 HTTP 落点——`LAYA_DECISION_URL` 配置时探 `/health/live`（3s 超时，**不静默回退 python**，避免把服务端拓扑变更误报成本机环境缺失）；未配置保持 python 探测。实服务验证 200 落点就绪；守卫 3 用例。
+- **confidence 标定 harness**（契约第六节遗留项工具化）：`src/decision/laya-calibrate.ts` + `calibrate:laya` 脚本 + cases 模板。人工标注 expected（缺标注拒绝"裸跑"）→ `layaDecideBatch`（在线并发 2）→ 按域（triage/review/batch）输出命中率/margin 分布/门槛建议；命中率 <0.9 ⇒ null = 人工域不自动标定；numeric/engineering 不适用（继承 ADR-008 §7）。实服务演示：triage 100% margin 0.291、review 100% margin 0.987。守卫 4 用例（mock）。
+- **relaxed 预算校准**：high-intensity-load 四处 `perfBudget(200, 2000→10_000)`——文件口径"默认只拦卡死/数量级爆炸"，实测高负载 p99 15–18s，2000 连防挂起语义都罩不住；strict 200（`AXIOM_PERF_ASSERT=1`）不动。
+- **治理同步（棘轮正常拦截，全部过账）**：出网基线登记 `laya-cli.ts` 探活出网点（env 型，内网 /health/live）；来源分布 env 6→7；arch-integrity 两白名单收 `laya-calibrate.ts`（console 交付物 / env 直读校验层）；隔离守卫 R3 白名单收 `calibrate:laya`。
+- **验证**：tsc 0 错；decision 21/0、隔离+integrity 28/0、棘轮+doc 门 62/0、高压 22/0、audit:runtime 16/16。
+- **Commit**：`ce518360`（已推送，按规则 9 以本记录维护提交回填）

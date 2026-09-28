@@ -66,13 +66,14 @@ describe("Laya 运行时隔离守卫（开发流程专用）", () => {
     expect(existsSync(join(ROOT, "src", "decision", "risk-screen.ts"))).toBe(false);
   });
 
-  it("R3: 生命周期脚本不挂 Laya（decide:laya / audit:chain 显式 CLI 除外）", () => {
+  it("R3: 生命周期脚本不挂 Laya（开发流程显式 CLI 白名单除外）", () => {
     const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
     const layaScripts = Object.entries(pkg.scripts ?? {})
       .filter(([k, v]) => /laya/i.test(`${k}${v}`))
       .map(([k]) => k);
+    // 白名单 = 开发流程显式 CLI（分诊/审计链/标定），全部人工发起、不进自动化生命周期
     for (const k of layaScripts) {
-      expect(["decide:laya", "audit:chain"]).toContain(k);
+      expect(["decide:laya", "audit:chain", "calibrate:laya"]).toContain(k);
     }
   });
 });
