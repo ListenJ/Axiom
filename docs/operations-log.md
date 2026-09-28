@@ -4849,4 +4849,11 @@
 - **根因 1（adaptive-proxy-exit.test.ts:83）**：bun 1.4.2 实测 it() 回调首参是 done 回调（`(err?: unknown) => void`）而非 TestContext——运行时探针确认原型链无 `skip`（与 tsc TS2339 同源），`t.skip` 走到即 TypeError。修复：删除 t 参数，spawn 基础设施两次失败时 `console.warn` 后提前返回（让步语义保留，正常环境断言全量执行）。
 - **根因 2（resource-sync.test.ts）**：bun test 单进程跨文件共享 `ResourceBudgetManager` 单例——全量运行时被前序文件留在 8192，硬编码 8000 落进 H-07 防抖带（|Δ|/curr<5%）被滤 ⇒ 红；单文件新进程（DEFAULT 4000）恒绿、失败点随状态漂移。修复：beforeEach 跳 `2×original` 归位（≥100% 必过防抖），用例目标一律取 current 倍数，afterEach 从 ≥2× 回跳 original——对进入值/执行顺序/宿主机全解耦。
 - **验证**：`bunx tsc --noEmit` rc=0；`bun test --timeout 15000 ./tests` = **4664 tests / 468 files / 0 fail**（修复前 1 fail）；doc-contract 35/0、audit:runtime 16/16、architecture-integrity 25/25、count-tools 189 复核绿。
+- **Commit**：`56057aca`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — docs(reviews): 主干归一报告落库——19 冲突面/34 双边面逐文件裁决表 + 门禁终态
+
+- **任务**：主干归一计划第 7 步后半：归一报告补齐（第 6 步推 main 同批执行，hash 见下条回填与 `git ls-remote internal main`）。分级 **T1**（纯文档，事实全部 git 实测重构）。
+- **改动**：新增 `docs/reviews/2026-09-26-trunk-unification.md`——执行事实表（执行序 1–8 状态）；双口径说明（计划 19 = merge-tree 冲突面，实测 34 = fork 点 `93620c29` 双边改动面）；逐文件裁决表（ours 4 / theirs 2 / union 28，由 `git diff --quiet <parent> <merge>` 三方实测）；两处与计划口径的偏差及留痕依据（path-safety 取 ku 能力判定内核重写、tool-registry 走并集——ops log 2026-09-26 行 1460/1474/1477）；门禁终态六项全绿；执行偏差与回滚。
+- **验证**：doc-contract 复跑 35/0（新增 docs 文件不破坏文档契约）；文件路径与计划第 7 步冻结名一致。
 - **Commit**：`<占位-本提交>`
