@@ -4842,3 +4842,11 @@
 - **判定固化**：该目录**需保留**——git/LFS 面冗余（75/75 head 已在现行可达集、LFS 105↔105 双向差集 0），数据面独有（`model-outputs` 与现行树交集 0、66M Linux 期 `agent.log*` 无副本、旧机会话转录 186 件），且源机已退役 ⇒ 唯一副本。
 - **未决/后续**：`adaptive-proxy-exit.test.ts:83` tsc 红未修；`bun test` 串行全量未跑；`internal/main` 仍未推（按计划第 6 步等门禁绿）；ops log 本月条目待按月拆分。
 - **Commit**：`603f484c`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — fix(tests): 归一收口清红——adaptive-proxy-exit 适配 bun 1.4 done 回调 + resource-sync 去环境耦合
+
+- **任务**：主干归一计划第 5 步收尾（用户指令 2026-09-28「完成统一」）。分级 **T2**（tests/unit 两文件，产品代码零改动）。
+- **根因 1（adaptive-proxy-exit.test.ts:83）**：bun 1.4.2 实测 it() 回调首参是 done 回调（`(err?: unknown) => void`）而非 TestContext——运行时探针确认原型链无 `skip`（与 tsc TS2339 同源），`t.skip` 走到即 TypeError。修复：删除 t 参数，spawn 基础设施两次失败时 `console.warn` 后提前返回（让步语义保留，正常环境断言全量执行）。
+- **根因 2（resource-sync.test.ts）**：bun test 单进程跨文件共享 `ResourceBudgetManager` 单例——全量运行时被前序文件留在 8192，硬编码 8000 落进 H-07 防抖带（|Δ|/curr<5%）被滤 ⇒ 红；单文件新进程（DEFAULT 4000）恒绿、失败点随状态漂移。修复：beforeEach 跳 `2×original` 归位（≥100% 必过防抖），用例目标一律取 current 倍数，afterEach 从 ≥2× 回跳 original——对进入值/执行顺序/宿主机全解耦。
+- **验证**：`bunx tsc --noEmit` rc=0；`bun test --timeout 15000 ./tests` = **4664 tests / 468 files / 0 fail**（修复前 1 fail）；doc-contract 35/0、audit:runtime 16/16、architecture-integrity 25/25、count-tools 189 复核绿。
+- **Commit**：`<占位-本提交>`
