@@ -54,3 +54,14 @@
 - **关键实测**：agent.db 133.2MB / freelist 30.7MB（23%），大头为 codeindex 产物（code_calls 41,605 + code_symbols 14,996）而非业务数据；`docs/ARCHITECTURE.md`（自称唯一权威）统计表与实际差近一倍、§2 缺 8 个后归一模块、§10 拓扑仍为 Windows 编排器叙事；仓库根 `C:/` 为空目录树残留。
 - **验证**：文档数字可由其 §四 复现命令重放；本提交 doc-contract 35/0 复跑绿。
 - **Commit**：`dbca9c37`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-28 — feat(decision): Laya 决策服务 TS 接入 + local-llm 退役 + Rust 全退役
+
+- **任务**：用户指令双线合一（2026-09-28 会话）——①内网 Laya 决策服务按契约封装为项目风格 TS 客户端；②「不再使用 Rust，全部 TS 完成」⇒ Rust 全退役。分级 **T3**（决策层多文件 + 模块删除 + 治理棘轮同步）。
+- **Laya 接入**：新增 `src/decision/laya-http.ts`（单条/批量/健康/分块≤500/并发硬顶 8/指数退避仅 429·5xx·网络/逐条容错保序；契约唯一来源 `~/.axiom/axiom-secrets/laya-service.contract.md`，基址按规则 11 走 `LAYA_DECISION_URL` env 不入库）；`laya-triage` 增 `createHttpLayaRunner`（URL 设置即走 HTTP，回退 python venv；裁定层三闸门与失败方向零改动）。实服务冒烟 7/7（noul=0.9963、choice、预校验、批量保序 481ms/3 条、422 不重试、并发钳制）。
+- **local-llm 退役**：`src/local-llm` 三文件删除；`isEdgeEnabled`/`screenPayloadWithEdge` 同名迁 `src/decision/risk-screen.ts`（Laya choice 承载灰区初筛，fail-open 保留）；分类类迁移（显著性/质量/近重复→Laya noul、意图→Laya choice）；生成类退役回规则路径（标题/标签/摘要/结构化回退链原样）；embedding 客户端折叠进 `semantic-layer`；6 个测试文件改写 Laya fetch-mock 形态。
+- **Rust 全退役**：`native/`（4 crates 22 文件）、native-bridge、native-routes、run-native、edge-health、tauri 前端胶水与依赖删除；main/routes/tui/matrix/package.json 同步；运行时纯 TypeScript（`runtime-go` 为 Go 工具链，不在范围）。
+- **治理同步**：出网基线移除 native 面 5 点、登记 laya-http(2)+semantic-layer(1)；ND-01/ND-10/isEdgeEnabled 出处改指；D11 改退役反向断言；D3 墓碑 12 处；LIMITATIONS/EDGE-LLM/CROSS-PLATFORM 等口径校准。
+- **验证**：tsc 双端 0 错；串行全量 4,637 用例 1 fail（high-intensity-load 墙钟阈值，文件头自注"干净 HEAD 上同样红"，单文件 3× 复跑全绿——当日机器高负载〔load 10–15/16 核，Steam/Proton 441%CPU〕非回归）；audit:runtime 16/16；doc-contract 35/0；出网棘轮 16/16；前端 vitest 308/308。
+- **遗留**：Laya confidence 阈值标定需业务标注（契约第六节），未标定——下游全 fail-open 降级设计，不阻塞。
+- **Commit**：`e6c77347`（已推送 codex/main-unify-2026-09-26 → gitea，按规则 9 以本记录维护提交回填）
