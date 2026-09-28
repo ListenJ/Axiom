@@ -81,18 +81,61 @@ function parseArgs(argv: string[]) {
   };
 }
 
-async function doCheck(): Promise<number> {
+/** 可用性探测结果（mode = http | python，开发流程两种落点，见 skill §10） */
+export interface LayaAvailability {
+  available: boolean;
+  mode: "http" | "python";
+  detail: string;
+}
+
+/**
+ * 落点可用性探测（--check）。
+ * LAYA_DECISION_URL 已配置 ⇒ 探 HTTP /health/live（3s 超时），**不静默回退 python**
+ * （配置了 HTTP 却探 python 会把"服务端拓扑变更"误报成"本机环境缺失"）；未配置 ⇒ 原 python 探测。
+ */
+export async function checkLayaAvailability(
+  opts: {
+    probePython?: () => Promise<{ available: boolean; detail: string }>;
+  } = {},
+): Promise<LayaAvailability> {
+  const url = readString("LAYA_DECISION_URL", "").trim();
+  if (url !== "") {
+    try {
+      const res = await fetch(`${url.replace(/\/+$/, "")}/health/live`, { signal: AbortSignal.timeout(3000) });
+      return res.ok
+        ? { available: true, mode: "http", detail: `HTTP ${url} /health/live 200（开发流程落点就绪）` }
+        : { available: false, mode: "http", detail: `HTTP ${url} /health/live ${res.status}` };
+    } catch (err) {
+      return {
+        available: false,
+        mode: "http",
+        detail: `LAYA_DECISION_URL=${url} 不可达：${(err as Error).message.slice(0, 80)}（检查服务端拓扑，不回退 python）`,
+      };
+    }
+  }
+  const probe = opts.probePython ?? probePythonLocally;
+  const r = await probe();
+  return { available: r.available, mode: "python", detail: r.detail };
+}
+
+/** 原 python 落点探测（WSL + venv + 权重；--check 秒级，不加载模型）。 */
+async function probePythonLocally(): Promise<{ available: boolean; detail: string }> {
   const gate = toWslPath(path.resolve(process.cwd(), "scripts", "laya", "laya_gate.py"));
   const python = readString("LAYA_PYTHON", "/root/.venvs/laya/bin/python");
-  // Windows 宿主经 WSL；Linux 原生直接调 venv python（--check 秒级，不加载模型）
+  // Windows 宿主经 WSL；Linux 原生直接调 venv python
   const cmd = selectRunnerKind() === "wsl"
     ? ["wsl.exe", "-d", readString("LAYA_WSL_DISTRO", "Arch"), "--", python, gate, "--check"]
     : [python, path.resolve(process.cwd(), "scripts", "laya", "laya_gate.py"), "--check"];
   const p = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
   const code = await p.exited;
   const out = await new Response(p.stdout).text();
-  console.log(out.trim() || JSON.stringify({ ok: false, error: `laya_gate --check 退出码 ${code}` }));
-  return code === 0 ? 0 : 1;
+  return { available: code === 0, detail: out.trim() || `laya_gate --check 退出码 ${code}` };
+}
+
+async function doCheck(): Promise<number> {
+  const r = await checkLayaAvailability();
+  console.log(r.detail);
+  return r.available ? 0 : 1;
 }
 
 export async function main(argv: string[] = process.argv.slice(2)): Promise<number> {

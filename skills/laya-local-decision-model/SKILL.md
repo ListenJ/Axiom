@@ -109,3 +109,8 @@ top1−top2 = 0.010，理由无验证器可识别。**换 substrate 买不到独
 - **开发流程用法**：开发期批量判定/分诊/审计链 stage 用 `LAYA_DECISION_URL=… bun run decide:laya -- --spec <json> --run`；
   或直连 `bun run scripts/laya/laya-http.ts` 内的 API（import 自 `./laya-http.js`）。
   在线并发 1–2，批处理 4–8；`choice` 概率差 <0.15 视为拿不定（§7 升级门槛同样适用于 HTTP 落点）。
+- **confidence 阈值标定**：闸 3 门槛（0.15）不再只靠 ADR-008 实测区间，用
+  `bun run calibrate:laya -- --cases docs/decisions/laya/calibration-cases.template.json`
+  （先人工填满 expected；域限 triage/review/batch，numeric/engineering 不标定不适用）
+  产出 `calibration-cases.report.json`（命中率/margin 分布/门槛建议）；人工复核后
+  才落回 `laya-triage.ts` 闸 3 常量。命中率 <0.9 的域建议为 null＝不可自动标定，维持人工。

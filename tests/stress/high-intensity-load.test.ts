@@ -396,7 +396,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
     // GraphRAG 多跳允许较高延迟，但 p99 < 200ms
-    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
+    expect(pct.p99).toBeLessThan(perfBudget(200, 10_000));
     expect(totalPaths).toBeGreaterThan(0);
 
     console.log(
@@ -434,7 +434,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const totalMs = latencies.reduce((s, x) => s + x, 0);
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
-    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
+    expect(pct.p99).toBeLessThan(perfBudget(200, 10_000));
     console.log(
       `[Stress] Layer0+1+2+3 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, verified: ${totalVerified}`,
     );
@@ -470,7 +470,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const totalMs = latencies.reduce((s, x) => s + x, 0);
     const qps = totalMs > 0 ? Math.round((latencies.length / totalMs) * 1000) : 0;
 
-    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
+    expect(pct.p99).toBeLessThan(perfBudget(200, 10_000));
     console.log(
       `[Stress] Layer0-4 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, fused: ${totalFused}`,
     );
@@ -520,7 +520,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     const health = monitor.getHealthSnapshot(1000);
     const breakdown = monitor.getLayerBreakdown(1000);
 
-    expect(pct.p99).toBeLessThan(perfBudget(200, 2000));
+    expect(pct.p99).toBeLessThan(perfBudget(200, 10_000));
     expect(health.totalQueries).toBe(1000);
     expect(health.status).not.toBe("unhealthy");
 

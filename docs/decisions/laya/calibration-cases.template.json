@@ -1,0 +1,18 @@
+[
+  {
+    "id": "case-001",
+    "domain": "triage",
+    "state": "任务：修复 src/utils/env.ts 中 readBool 对 'yes' 不识别的缺陷；改动范围单文件、可逆、无外部副作用",
+    "question": "action",
+    "criteria": ["auto_fix", "manual_review", "reject"],
+    "expected": "auto_fix"
+  },
+  {
+    "id": "case-002",
+    "domain": "review",
+    "state": "待复核提交：新增测试文件，断言与实现一致，无生产代码改动",
+    "question": "verdict",
+    "criteria": ["approve", "request_changes"],
+    "expected": "approve"
+  }
+]

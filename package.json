@@ -88,7 +88,8 @@
     "eval:runtime:heldout": "bun run src/agent-evals/runtime-cli.ts --split=held-out",
     "decide:laya": "bun run src/decision/laya-cli.ts",
     "audit:chain": "bun run src/decision/audit-chain.ts",
-    "package:linux": "bun run scripts/package/linux-bundles.ts"
+    "package:linux": "bun run scripts/package/linux-bundles.ts",
+    "calibrate:laya": "bun run src/decision/laya-calibrate.ts"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",
