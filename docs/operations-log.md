@@ -73,4 +73,4 @@
 - **保留**：Laya 实服务冒烟读数（7/7）与 HTTP 客户端 `src/decision/laya-http.ts`（现服务开发流程自链：decide:laya / audit:chain 的 HTTP 落点）；Rust 全退役（native/、native-bridge、tauri 胶水）全部保持——运行时纯 TS，Go 负责 runtime-go 高并发场景，与用户口径一致。
 - **标准方案落地**：`skills/laya-local-decision-model/SKILL.md` 增 §10（HTTP 落点 + 运行时隔离边界 + 开发流程用法）；新增架构守卫 `tests/architecture-runtime-isolation.test.ts`（R1：src/ 除 decision 自链外禁 import Laya 链；R2：运行时灰区初筛归 local-llm；R3：生命周期脚本不挂 Laya）。
 - **验证**：tsc 0 错；串行全量 4,661 用例 1 fail（已知环境性墙钟 flaky）；隔离守卫 3/3、出网棘轮+doc-contract+docs-consistency+arch-integrity 85/0、local-llm 复活面 47/0、Laya 链 33/0、env 模板完整性 2/2、audit:runtime 16/16。
-- **Commit**：本条同批提交（hash 见 git log，按规则 9 回填）
+- **Commit**：`37f60c61`（已推送，按规则 9 以本记录维护提交回填）
