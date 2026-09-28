@@ -2,48 +2,298 @@
   "$comment": "出网裸 fetch 的棘轮在册清单（D-A）。判据在 tests/outbound-fetch-ratchet.test.ts。只允许变短：新增文件、新增调用点、新增无守卫的模型可控出网点都会让门变红。字段口径见 docs/superpowers/plans/2026-09-23-safefs-and-outbound-enforcement-design.md 的 D-A 节。",
   "scan": {
     "root": "src",
-    "excludeSuffixes": [".test.ts", ".d.ts"],
+    "excludeSuffixes": [
+      ".test.ts",
+      ".d.ts"
+    ],
     "forms": [
       "fetch(...) 直接调用（Identifier callee）",
       "globalThis.fetch 的任意引用（含赋值给变量的别名形态）"
     ],
     "$note": "AST 计数，不用 grep。grep 版口径把 Bun.serve 的 fetch 处理器、方法声明、注释文本都算成出网点（实测 26 文件），AST 版是 23 文件。别名形态必须计入引用：只扫 fetch( 会漏掉整个 frontend-review.ts。"
   },
-  "totals": { "files": 23, "directCalls": 29, "globalThisFetchRefs": 4 },
-  "urlSourceValues": ["hardcoded", "env", "caller-param", "inbound-request", "mixed"],
-  "guardValues": ["none", "decideCapability", "isSafeUrl"],
+  "totals": {
+    "files": 22,
+    "directCalls": 26,
+    "globalThisFetchRefs": 4
+  },
+  "urlSourceValues": [
+    "hardcoded",
+    "env",
+    "caller-param",
+    "inbound-request",
+    "mixed"
+  ],
+  "guardValues": [
+    "none",
+    "decideCapability",
+    "isSafeUrl"
+  ],
   "policy": {
-    "$comment": "三份名单按「谁能决定目的主机」切分，不按 URL 变量长相切分：native-routes 的 host 是字面量回环、只有 path/query 随入站请求变，换不掉主机，用 inbound-request 一个标签会把这种本质不同的点混成一谈。",
-    "modelControllableHostSites": ["src/knowledge/document-ingest.ts", "src/tools/read-tool.ts"],
-    "hostPathOnlySites": ["src/routes/native-routes.ts"],
-    "operatorWritableHostSites": ["src/router/provider-caller.ts", "src/utils/api-key-store.ts", "src/workers/pdf-worker.ts"],
-    "inboundUrlSources": ["inbound-request", "mixed"],
+    "$comment": "三份名单按「谁能决定目的主机」切分：2026-09-28 native 面退役（native-routes 的 hostPathOnly 点随之移除）；Laya 决策服务（laya-http）为主机固定（operator 经 LAYA_DECISION_URL 配置、path 固定）的 env 型出网点，不属受外部输入影响主机。",
+    "modelControllableHostSites": [
+      "src/knowledge/document-ingest.ts",
+      "src/tools/read-tool.ts"
+    ],
+    "hostPathOnlySites": [],
+    "operatorWritableHostSites": [
+      "src/router/provider-caller.ts",
+      "src/utils/api-key-store.ts",
+      "src/workers/pdf-worker.ts"
+    ],
+    "inboundUrlSources": [
+      "inbound-request",
+      "mixed"
+    ],
     "guardWithRedirectGapMax": 0,
     "unreachableSitesMax": 2
   },
   "sites": [
-    { "file": "src/cli.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "平台健康检查表，URL 全为源码字面量；env 只供 API Key 头" },
-    { "file": "src/computer-use/frontend-review.ts", "direct": 0, "aliased": 1, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "opts.fetchImpl ?? globalThis.fetch 的别名形态；baseUrl 默认公网 https，可由 SENSENOVA_BASE_URL 改写" },
-    { "file": "src/core/health-checker.ts", "direct": 2, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "provider /models 探活 + GitHub/NPM 连通性 HEAD，两处 URL 皆为表内字面量" },
-    { "file": "src/cron/scheduler.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "与 health-checker 同形的定时探活表" },
-    { "file": "src/dre/llm/client.ts", "direct": 2, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "this.config.baseUrl 来自 EDGE_LLM_URL / DRE_LLM_URL，两处默认值都是回环，未配置即打本机" },
-    { "file": "src/dre/port/knowledge-port.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": false, "deadProofSymbol": "createRemotePort", "deadProofFiles": 3, "endpoint": "caller-supplied", "note": "RemoteKnowledgePort/createRemotePort 在 src/ 内只有定义处与两处 re-export 桶文件，无调用方；tests 里以回环实参构造但不触发该 fetch" },
-    { "file": "src/dre/synapse/engine.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": false, "deadProofSymbol": "createLocalModelAssist", "deadProofFiles": 3, "endpoint": "caller-supplied", "note": "createLocalModelAssist 同样只有定义处与两处 re-export 桶文件；其注释声称的 MIND_LOCAL_LLM_URL 全仓无读取点，属注释与实现不符" },
-    { "file": "src/knowledge/document-ingest.ts", "direct": 0, "aliased": 1, "urlSource": "inbound-request", "guard": "isSafeUrl", "redirectPerHop": true, "reachable": true, "endpoint": "model-or-caller", "note": "逐跳复查的原创实现（B3-Medium 修复）：redirect manual + 循环 isSafeUrl + 跳数上限；read-tool 的 D-B 修复与之同形，全仓这类点共 2 处" },
-    { "file": "src/knowledge/pipeline.ts", "direct": 1, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "KNOWLEDGE_LLM_BASE_URL，默认公网 https；只校验 KEY 存在，不校验 URL" },
-    { "file": "src/knowledge/sources/github-trending.ts", "direct": 2, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "主机字面量 github.com / api.github.com，模型可控的 query 已过 encodeURIComponent" },
-    { "file": "src/knowledge/sources/z-library.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "主机取自 OPEN_BOOK_SOURCES 内的 searchUrl 模板（全为写死公网主机）；文件名与内容不符，册内无 z-library 条目" },
-    { "file": "src/knowledge/vision.ts", "direct": 1, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "GLM_VISION_BASE_URL，默认公网 https；filePath 只 base64 进请求体，不进 URL" },
-    { "file": "src/launcher.ts", "direct": 2, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "own-loopback", "note": "自家 gateway/mcp 的 /health，主机为 localhost 字面量，端口来自 CONFIG 常量" },
-    { "file": "src/local-llm/edge-embeddings.ts", "direct": 1, "aliased": 0, "urlSource": "env", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "own-loopback", "note": "EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认端点；proxy-fetch.ts 明文点名它不经本模块。给它套默认拒绝的守卫会把它自己的默认配置判死（实测），故必须与 allow-list 同步做" },
-    { "file": "src/main.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "platformEndpoints 表的 6 条公网 https 字面量，索引键与表一一对应，env 不参与 URL 构造" },
-    { "file": "src/native-bridge.ts", "direct": 4, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "own-loopback", "note": "Rust sidecar 的 4 个回环端点，端口为源码字面量（无 env 改写路径）；无差别 SSRF 拒绝会直接改变其行为" },
-    { "file": "src/router/provider-caller.ts", "direct": 1, "aliased": 2, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "baseURL 链：POST /models 请求体 → data/model-config.json → model.baseURL；回落 api-key-store 的 override > env *_BASE_URL > 硬编码表。别名形态为 const fetchFn = globalThis.fetch" },
-    { "file": "src/routes/models.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-provider", "note": "KNOWN_PROVIDERS 的 baseURL 全为写死公网 https；路径参数只能选表内 id，未知 id 直接 404" },
-    { "file": "src/routes/native-routes.ts", "direct": 1, "aliased": 0, "urlSource": "mixed", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "own-loopback", "note": "主机为 NATIVE_BASE 字面量回环，pathname 与 search 由入站请求原样拼接 → 换不来主机，但可越到 sidecar 的其它端点" },
-    { "file": "src/tools/query-tool.ts", "direct": 1, "aliased": 0, "urlSource": "hardcoded", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "public-scrape", "note": "html.duckduckgo.com 字面量 + encodeURIComponent(query)" },
-    { "file": "src/tools/read-tool.ts", "direct": 1, "aliased": 0, "urlSource": "inbound-request", "guard": "decideCapability", "redirectPerHop": true, "reachable": true, "endpoint": "model-or-caller", "note": "source=web 分支的 path 直接来自 MCP 工具入参；D-B（2026-09-23）改为 redirect:\"manual\" + 逐跳 decideCapability + 跳数上限，被拒跳转那一跳不再发出请求（行为证据在 tests/read-tool-fence.test.ts 的 [D-B] 组）" },
-    { "file": "src/utils/api-key-store.ts", "direct": 1, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "getEffectiveBaseURL 的 override 可由 POST /api-keys 请求体写入，写路径只有 http/https 协议校验，不查主机与内网" },
-    { "file": "src/workers/pdf-worker.ts", "direct": 2, "aliased": 0, "urlSource": "caller-param", "guard": "none", "redirectPerHop": false, "reachable": true, "endpoint": "operator-configured", "note": "baseUrl 两个来源：CLI 旗标（不过任何守卫）与 MCP 工具入参 ?? AXIOM_PDF_WORKER_URL；后者由 tool-registry 的 adjudicateCallPayloads 裁决" }
+    {
+      "file": "src/cli.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "平台健康检查表，URL 全为源码字面量；env 只供 API Key 头"
+    },
+    {
+      "file": "src/computer-use/frontend-review.ts",
+      "direct": 0,
+      "aliased": 1,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "opts.fetchImpl ?? globalThis.fetch 的别名形态；baseUrl 默认公网 https，可由 SENSENOVA_BASE_URL 改写"
+    },
+    {
+      "file": "src/core/health-checker.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "provider /models 探活 + GitHub/NPM 连通性 HEAD，两处 URL 皆为表内字面量"
+    },
+    {
+      "file": "src/cron/scheduler.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "与 health-checker 同形的定时探活表"
+    },
+    {
+      "file": "src/dre/llm/client.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "operator-configured",
+      "note": "this.config.baseUrl 来自 EDGE_LLM_URL / DRE_LLM_URL，两处默认值都是回环，未配置即打本机"
+    },
+    {
+      "file": "src/dre/port/knowledge-port.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "caller-param",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": false,
+      "deadProofSymbol": "createRemotePort",
+      "deadProofFiles": 3,
+      "endpoint": "caller-supplied",
+      "note": "RemoteKnowledgePort/createRemotePort 在 src/ 内只有定义处与两处 re-export 桶文件，无调用方；tests 里以回环实参构造但不触发该 fetch"
+    },
+    {
+      "file": "src/dre/synapse/engine.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "caller-param",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": false,
+      "deadProofSymbol": "createLocalModelAssist",
+      "deadProofFiles": 3,
+      "endpoint": "caller-supplied",
+      "note": "createLocalModelAssist 同样只有定义处与两处 re-export 桶文件；其注释声称的 MIND_LOCAL_LLM_URL 全仓无读取点，属注释与实现不符"
+    },
+    {
+      "file": "src/knowledge/document-ingest.ts",
+      "direct": 0,
+      "aliased": 1,
+      "urlSource": "inbound-request",
+      "guard": "isSafeUrl",
+      "redirectPerHop": true,
+      "reachable": true,
+      "endpoint": "model-or-caller",
+      "note": "逐跳复查的原创实现（B3-Medium 修复）：redirect manual + 循环 isSafeUrl + 跳数上限；read-tool 的 D-B 修复与之同形，全仓这类点共 2 处"
+    },
+    {
+      "file": "src/knowledge/pipeline.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "KNOWLEDGE_LLM_BASE_URL，默认公网 https；只校验 KEY 存在，不校验 URL"
+    },
+    {
+      "file": "src/knowledge/sources/github-trending.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-scrape",
+      "note": "主机字面量 github.com / api.github.com，模型可控的 query 已过 encodeURIComponent"
+    },
+    {
+      "file": "src/knowledge/sources/z-library.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-scrape",
+      "note": "主机取自 OPEN_BOOK_SOURCES 内的 searchUrl 模板（全为写死公网主机）；文件名与内容不符，册内无 z-library 条目"
+    },
+    {
+      "file": "src/knowledge/vision.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "GLM_VISION_BASE_URL，默认公网 https；filePath 只 base64 进请求体，不进 URL"
+    },
+    {
+      "file": "src/launcher.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "own-loopback",
+      "note": "自家 gateway/mcp 的 /health，主机为 localhost 字面量，端口来自 CONFIG 常量"
+    },
+    {
+      "file": "src/main.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "platformEndpoints 表的 6 条公网 https 字面量，索引键与表一一对应，env 不参与 URL 构造"
+    },
+    {
+      "file": "src/router/provider-caller.ts",
+      "direct": 1,
+      "aliased": 2,
+      "urlSource": "caller-param",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "operator-configured",
+      "note": "baseURL 链：POST /models 请求体 → data/model-config.json → model.baseURL；回落 api-key-store 的 override > env *_BASE_URL > 硬编码表。别名形态为 const fetchFn = globalThis.fetch"
+    },
+    {
+      "file": "src/routes/models.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-provider",
+      "note": "KNOWN_PROVIDERS 的 baseURL 全为写死公网 https；路径参数只能选表内 id，未知 id 直接 404"
+    },
+    {
+      "file": "src/tools/query-tool.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "hardcoded",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "public-scrape",
+      "note": "html.duckduckgo.com 字面量 + encodeURIComponent(query)"
+    },
+    {
+      "file": "src/tools/read-tool.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "inbound-request",
+      "guard": "decideCapability",
+      "redirectPerHop": true,
+      "reachable": true,
+      "endpoint": "model-or-caller",
+      "note": "source=web 分支的 path 直接来自 MCP 工具入参；D-B（2026-09-23）改为 redirect:\"manual\" + 逐跳 decideCapability + 跳数上限，被拒跳转那一跳不再发出请求（行为证据在 tests/read-tool-fence.test.ts 的 [D-B] 组）"
+    },
+    {
+      "file": "src/utils/api-key-store.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "caller-param",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "operator-configured",
+      "note": "getEffectiveBaseURL 的 override 可由 POST /api-keys 请求体写入，写路径只有 http/https 协议校验，不查主机与内网"
+    },
+    {
+      "file": "src/workers/pdf-worker.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "caller-param",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "operator-configured",
+      "note": "baseUrl 两个来源：CLI 旗标（不过任何守卫）与 MCP 工具入参 ?? AXIOM_PDF_WORKER_URL；后者由 tool-registry 的 adjudicateCallPayloads 裁决"
+    },
+    {
+      "file": "src/decision/laya-http.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "intranet-service",
+      "note": "Laya 决策服务（LAYA_DECISION_URL，内网 multilingual；契约见 ~/.axiom/axiom-secrets/laya-service.contract.md）；postJson 整批请求级重试（仅 429/5xx/网络），layaHealth 健康探测；无 Key"
+    },
+    {
+      "file": "src/memory/semantic-layer.ts",
+      "direct": 1,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "own-loopback",
+      "note": "设置语义搜索 embedding（2026-09-28 自 local-llm/edge-embeddings 折叠入本文件；EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认）；失败返回 null 由调用方降级关键词路径"
+    }
   ]
 }

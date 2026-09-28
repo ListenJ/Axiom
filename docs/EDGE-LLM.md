@@ -1,3 +1,5 @@
+> **退役口径（2026-09-28）**：`src/local-llm` 已整体删除——生成类边缘能力（标题/标签/摘要/结构化/提示词优化，即本文大部分内容）退役回规则路径；判别式决策类（风险灰区初筛/显著性/质量裁决/意图分类）由内网 Laya 决策服务承载（`src/decision/`，契约见 `~/.axiom/axiom-secrets/laya-service.contract.md`）。本文保留为历史叙述与判据沉淀，运行时口径以 `docs/AXIOM-ARCHITECTURE.md` 与 `.env.example` 注释为准。
+
 # EDGE-LLM — 边缘小模型层
 
 > 引入版本：v4.1（2026-07-25）｜ 入口模块：`src/local-llm/`
@@ -8,7 +10,7 @@
 确定性 fast path → 边缘 LLM slow path → 失败静默回退（行为退化为接入前）
 ```
 
-> **默认关闭（2026-09-18 起）**：下表所有 `EDGE_*` 能力开关**未设置即关闭**，运行时默认只走内部规则路径，不隐式调用任何辅助 LLM。仅用户显式设为 `1` / `true` / `yes` 后才放行，授权逐能力生效，不存在"一开全开"。判定实现见 `src/local-llm/edge-client.ts`（`isEdgeEnabled`）与 `src/agents/prompt-optimizer.ts`（`isRewriteEnabled`），回归防线见 `tests/unit/llm-default-off-policy.test.ts`。
+> **默认关闭（2026-09-18 起）**：下表所有 `EDGE_*` 能力开关**未设置即关闭**，运行时默认只走内部规则路径，不隐式调用任何辅助 LLM。仅用户显式设为 `1` / `true` / `yes` 后才放行，授权逐能力生效，不存在"一开全开"。判定实现见 `src/local-llm/edge-client.ts`（`isEdgeEnabled`）与 `src/agents/prompt-optimizer.ts`（`isRewriteEnabled`），回归防线见 `tests/unit/llm-default-off-policy.test.ts`。 <!-- doc-caliber:absent: src/local-llm/edge-client.ts -->
 
 ## 部署
 

@@ -72,7 +72,7 @@ const GO_PLATFORMS: Array<{ os: string; arch: string }> = [
 // ═══════════════════════════════════════════════════════════════
 
 interface BuildArgs {
-  target: string;       // all | server | cli | mcp | bun | frontend | go | native
+  target: string;       // all | server | cli | mcp | bun | frontend | go
   platform: string;     // current | all | windows | macos | linux
   list: boolean;
 }
@@ -211,19 +211,8 @@ async function buildGoServices(platformFilter: string): Promise<void> {
   }
 }
 
-/** Rust native 模块构建 */
-async function buildNative(): Promise<void> {
-  const nativeDir = path.join(ROOT, "native");
-  if (!existsSync(nativeDir)) {
-    console.log("\n[native] 跳过: native/ 目录不存在");
-    stats.skipped++;
-    return;
-  }
-  console.log("\n[native] cargo build --release (local crate)");
-  const ok = await run(["cargo", "build", "--release", "-p", "axiom-local"], { cwd: nativeDir });
-  if (ok) { console.log("  ✓ native built"); stats.success++; }
-  else { console.error("  ✗ native build failed"); stats.failed++; }
-}
+// Rust native 模块构建已移除（2026-09-28 Rust 全退役：native/ 目录删除，
+// 搜索/路由加速由纯 TS 实现承载，见 docs/decisions/ADR-008 与迁移记录）。
 
 // ═══════════════════════════════════════════════════════════════
 // 列表输出
@@ -253,9 +242,6 @@ function listTargets(): void {
   console.log("\n📦 前端 (Vite 静态资源):");
   console.log("  • frontend/dist/ → 可部署到任意 HTTP 服务器");
 
-  console.log("\n📦 Rust Native 模块:");
-  console.log("  • native/crates/local — 本地推理加速");
-  console.log("  • native/crates/cloud — 云端推理代理");
 
   console.log("\n" + "═".repeat(60));
   console.log("  用法: bun run scripts/build/matrix.ts --target=<目标> --platform=<平台>");
@@ -306,18 +292,14 @@ async function main(): Promise<void> {
     case "go":
       await buildGoServices(args.platform);
       break;
-    case "native":
-      await buildNative();
-      break;
     case "all":
       await buildBunTargets(args.platform);
       await buildFrontend();
       await buildGoServices(args.platform);
-      await buildNative();
       break;
     default:
       console.error(`未知目标: ${args.target}`);
-      console.error("可用目标: all | server | cli | mcp | bun | frontend | go | native");
+      console.error("可用目标: all | server | cli | mcp | bun | frontend | go");
       process.exit(1);
   }
 

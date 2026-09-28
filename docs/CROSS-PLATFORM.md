@@ -36,7 +36,6 @@
 - **PowerShell** 与 **cmd.exe** 都支持；推荐 PowerShell 7+ 用于 `logs` 模式（`Get-Content -Wait`）
 - **不需要** WSL；项目原生支持 Windows
 - **路径**：项目内所有路径通过 `node:path` 处理，自动适配 `\` 与 `/`
-- **可执行文件**：`scripts/run-native.ts` 会自动追加 `.exe` 后缀
 
 ### 2.3 Linux 额外说明
 

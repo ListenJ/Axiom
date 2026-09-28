@@ -298,13 +298,76 @@ export function selectRunnerKind(platform: string = process.platform): "wsl" | "
   return platform === "win32" ? "wsl" : "local";
 }
 
-/** 按当前平台选生产 runner；测试用 platform 参数固定分支。 */
+/**
+ * 按当前平台选生产 runner；LAYA_DECISION_URL 已配置时**优先走 HTTP 服务 runner**
+ * （多语言决策收拢 TS，不依赖 python venv/WSL/本地权重；2026-09-28）。
+ * 测试用 platform 参数固定分支。
+ */
 export function createPlatformLayaRunner(
-  opts: WslLayaRunnerOptions & LocalLayaRunnerOptions & { platform?: string } = {},
+  opts: WslLayaRunnerOptions & LocalLayaRunnerOptions & HttpLayaRunnerOptions & { platform?: string } = {},
 ) {
+  const httpConfigured = opts.baseUrl !== undefined ? opts.baseUrl !== "" : readString("LAYA_DECISION_URL", "") !== "";
+  if (httpConfigured) return createHttpLayaRunner(opts);
   return selectRunnerKind(opts.platform) === "wsl"
     ? createWslLayaRunner(opts)
     : createLocalLayaRunner(opts);
+}
+
+/**
+ * HTTP 服务 runner：内网 Laya 决策服务（multilingual，契约见
+ * ~/.axiom/axiom-secrets/laya-service.contract.md，基址按规则 11 经 env 读取）。
+ * 与 python runner 逐参数同形——同一 LayaGateSpec 入、同一 {decisionId: {question: answer}} 出，
+ * 裁定层与失败方向（runner 抛错 ⇒ UNAVAILABLE，绝不退化 AUTO）完全不变。
+ * state 为结构化上下文 ⇒ JSON 序列化成契约要求的文本；choice/score 的 criteria 归一为标签数组。
+ */
+export interface HttpLayaRunnerOptions {
+  baseUrl?: string;
+  model?: string;
+  timeoutMs?: number;
+  maxConcurrency?: number;
+}
+
+export function createHttpLayaRunner(opts: HttpLayaRunnerOptions = {}) {
+  return async (spec: LayaGateSpec): Promise<Record<string, Record<string, LayaAnswer>>> => {
+    const { layaDecideBatch } = await import("./laya-http.js");
+    const items = spec.decisions.map((d) => ({
+      id: d.id,
+      state: JSON.stringify(spec.state ?? {}),
+      questions: Object.fromEntries(
+        Object.entries(d.questions).map(([q, qs]) => [
+          q,
+          qs.type === "noul"
+            ? { type: qs.type, instructions: qs.instructions }
+            : {
+                type: qs.type,
+                instructions: qs.instructions,
+                criteria: Array.isArray(qs.criteria) ? qs.criteria : Object.keys(qs.criteria),
+              },
+        ]),
+      ),
+    }));
+    const resp = await layaDecideBatch(
+      { items },
+      {
+        ...(opts.baseUrl !== undefined ? { baseUrl: opts.baseUrl } : {}),
+        ...(opts.model ? { model: opts.model } : {}),
+        ...(opts.maxConcurrency ? { maxConcurrency: opts.maxConcurrency } : {}),
+        ...(opts.timeoutMs ? { batchTimeoutMs: opts.timeoutMs } : {}),
+      },
+    );
+    const failed = resp.results.filter((r) => !r?.ok);
+    if (failed.length > 0) {
+      // 契约"逐条容错"是批量吞吐层的语义；闸门语义要求**每个决策都有答案**——
+      // 缺答案的决策宁可 UNAVAILABLE 也不静默放行 ⇒ 有失败即整体抛错（triage 层统一记 UNAVAILABLE）。
+      throw new Error(`Laya HTTP 批量失败 ${failed.length}/${resp.total}：${failed[0]?.error?.slice(0, 120)}`);
+    }
+    const out: Record<string, Record<string, LayaAnswer>> = {};
+    for (const r of resp.results) {
+      if (!r.ok || !r.answers) throw new Error(`Laya HTTP 结果缺答案：id=${r.id}`);
+      out[r.id] = r.answers;
+    }
+    return out;
+  };
 }
 
 /**

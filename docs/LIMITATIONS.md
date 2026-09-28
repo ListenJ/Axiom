@@ -56,7 +56,7 @@
 
 - **审计定位**：`docs/ARCHITECTURE.md` 与 `docs/PROJECT-GUIDE.md` 等旧宣称“零-向量、零-概率、零-embedding”“零-向量全文搜索”（修复前原文用 `git show` 反查），与实现（`src/memory/deterministic-search.ts` 关键词权重 + `src/dre/consciousness/stream.ts` 共享 `cosineSimilarity` 余弦归一化）不一致；`PG-已移除` 旧宣称曾与实际“PG vector 可选（历史能力，默认 SQLite FTS5）”不一致；但该“可选”口径自 H-M1-03（PG 客户端已删，38966d12）起也已废止 —— PG 当前不可启用，现状见 §2.3；`zero-LLM` 旧宣称与实际“`KNOWLEDGE_USE_LLM=false` 默认关闭的可选 LLM（`src/knowledge/pipeline.ts` 的 `readBool("KNOWLEDGE_USE_LLM", false)`）”不一致；工具数旧宣称在多篇文档间各执一词（历史曾见 133/150/172/173），与动态实测去重值不一致。
 - **修复提交**：`docs: 同步架构声明 docs/ARCHITECTURE.md README.md 6.1/6.2`（Task16），`grep 零-向量` 0 命中（active docs 排除 archive/reviews/superpowers/operations-log，旧值以连字符断开避免命中），`grep 133/150/173 MCP` 0 命中。工具数权威计数已升级为动态统计：唯一事实源是 `src/testing/tool-count.ts` 的 `countMcpTools()`，`bun run scripts/count-tools.mjs` 由它生成供文档引用的片段（该脚本自身不计数，只委托），`tests/unit/docs-consistency.test.ts` 对 README、`AXIOM-ARCHITECTURE.md`、`ARCHITECTURE.md`、`MCP_TOOLS_GUIDE.md` 做"声明值 == 实测值"的精确相等断言（受控文件清单以该测试为准，本文与 `docs/PROJECT-GUIDE.md` 不在其内）；本文不复制该数值。
-- **ku 线 2026-09-20 变更（归一后修正披露）**：ku 线曾删除 `src/local-llm/edge-embeddings.ts`（硬编码 `127.0.0.1:9001` 的本地 embedding 客户端）并改写 `src/core/settings-search.ts` 为纯关键词。**归一后事实**：该客户端文件已随资源子系统恢复入树，但 settings-search 的改写已并入 —— **设置项搜索仍为纯关键词**（不再消费内置 embedding；语义召回在该路径上丢失，响应延迟不变或略降）。`searchSettings({ embedder })` 注入接缝保留，待接入用户自配 embedding 模型。
+- **ku 线 2026-09-20 变更（归一后修正披露）**：ku 线曾删除 `src/local-llm/edge-embeddings.ts`（硬编码 `127.0.0.1:9001` 的本地 embedding 客户端）并改写 `src/core/settings-search.ts` 为纯关键词。**归一后事实**：该客户端文件已随资源子系统恢复入树，但 settings-search 的改写已并入 —— **设置项搜索仍为纯关键词**（不再消费内置 embedding；语义召回在该路径上丢失，响应延迟不变或略降）。`searchSettings({ embedder })` 注入接缝保留，待接入用户自配 embedding 模型。 <!-- doc-caliber:absent: src/local-llm/edge-embeddings.ts -->
 
 ### 2.2 校准后声明
 
@@ -71,7 +71,7 @@
 |---|---|---|---|
 | 余弦阈值精度 | `cosineSimilarity`（`src/utils/math.ts` 共享实现）为 FP64 归一化，未含向量归一化预处理差异，阈值 0.7 为经验值 | 跨域检索召回率依赖阈值，极短文本余弦抖动 | 待 `docs/LIMITATIONS.md` 中补充 PBT 用例校准 0.7 阈值 |
 | PG vector 切换 | PG 客户端已随 H-M1-03 删除（`src/db/pg-client.ts`），当前 `src/` 下无任何可调用的 PG 入口（本节旧口径给出的 `isPgAvailable`/`getPG()` 已无宿主，仅存一条说明其已移除的注释） | 默认 FTS5 无向量语义召回；"手动启用"这条路今天不存在，需 PG 时必须重建客户端与索引迁移 | 按规则 4 先裁决 `src/db/pg-schema.sql` 存废（仍在仓库、无运行时消费者），再决定是否恢复该能力；在此之前文档不得给出可调用 PG 符号 <!-- doc-caliber:absent: src/db/pg-client.ts --> |
-| native 云端件的 PG 例外 | `native/crates/cloud`（二进制 `axiom-cloud`，由 `src/native-bridge.ts` 按 edition 选择、经 `package.json` 的 native:build:cloud 构建）在给出 DATABASE_URL 时会 `create_pool` 建 deadpool-postgres 池，但其全部消费点都是存活探针（health 与 cluster_status 只判 connected/error），crate 内 PG 语句执行点实测 0 ⇒ 它不是 PG 数据面，也不改变"TS 运行时无 PG 数据面入口"的口径 | 读者若按"仓库里没有任何 PG 代码"去读 native，会立刻读到矛盾 —— 例外不点名就等于制造口径冲突 | D11 锁死本条与代码同源：该池一旦长出 SQL 执行面，门即红，口径须同步改写 |
+| native 退役（2026-09-28） | `native/`（含 crates/cloud 的 deadpool PG 探针）与 `src/native-bridge.ts` 已整体删除，Rust 面退役；运行时为纯 TypeScript，"TS 运行时无 PG 数据面入口"由例外披露转为事实全称 | 例外不复存在，无需再点名披露；涉及 `axiom-cloud`/`AXIOM_EDITION` 的历史文档按退役口径理解 | 如未来重建 PG 面，须先按规则 4 裁决并重新登记 D11 例外披露 | <!-- doc-caliber:absent: src/native-bridge.ts -->
 | LLM 可选性 | `KNOWLEDGE_USE_LLM=false` 时全走 TF-IDF，无法利用 LLM 结构化 | 长文本结构化召回率低于 LLM 模式 | 待评估 TF-IDF vs LLM 质量对比并披露 |
 | 工具数漂移 | 权威计数与文档声明的相等断言已落地（`tests/unit/docs-consistency.test.ts` 对受控文件清单内的文档做"声明值 == `countMcpTools()` 实测值"精确相等 + 零重复），新增工具后跑生成器取数即可 | 受控清单是测试里硬编码的文件名数组 ⇒ 清单外的规范件（含本文旧版"权威 172"）仍可能各说各话，且这类"手抄公式/代码块/数值"形态本身无门覆盖 | 把受控清单扩到 `caliberDocs` 全量，或规定非权威件不得出现数值；与"手抄件漏拦"合并裁决 |
 

@@ -28,7 +28,7 @@
 | system-resource | `src/dre/system-resource.ts` | P0 | H | **≥90%** | 5次回放 + 并发 100 + 边界 1300/1299 | L1 单元 + L2 集成 | 83% 单测 → 联合 85% 达标 |
 | scheduler | `src/dre/runtime/scheduler.ts` | P0 | H | **≥90%** | 抢占 + deadline + 100 有序 | L1 + L2 管线 | 61% → 需补 |
 | event-bus/actor | `src/dre/runtime/event-bus.ts` + `src/dre/actor/system.ts` | P0 | H | **≥90%** | 100 并发不丢 + 顺序 + 500ms 串行 | L1 + L2 | 85%/61% 已补 |
-| native-bridge | `src/native-bridge.ts` | P0 | H | **≥90%** | Win32 .exe + 僵尸 kill + 真机 `cargo` | L2 集成 + smoke | 96% 达标 |
+| native-bridge | `src/native-bridge.ts` | P0 | H | **≥90%** | Win32 .exe + 僵尸 kill + 真机 `cargo` | L2 集成 + smoke | 96% 达标 | <!-- doc-caliber:absent: src/native-bridge.ts -->
 | permission | `src/utils/permission-middleware.ts` | P1 | M | **≥95%** | 大小写 + 并发 50 | L1 | 69% → 需补 |
 | command-safety | `src/utils/command-safety.ts` | P1 | M | **≥95%** | 11 危险 + 白名单 | L1 + 模糊 | 95% 达标 |
 | url-safety | `src/utils/url-safety.ts` | P1 | M | **≥95%** | 20 拦截 + 整数/hex | L1 + 模糊 | 88% → 补至 95 |

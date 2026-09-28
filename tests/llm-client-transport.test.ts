@@ -1,16 +1,14 @@
 /**
- * 边缘小模型层 (src/local-llm/) 单元测试
+ * LLMClient 传输行为 + extractJson 容错解析（原 tests/local-llm-edge.test.ts 迁移保留段）
  *
- * 覆盖:
- * - LLMClient chatTemplateKwargs 透传 (enable_thinking: false)
- * - getEdgeClient 单例与默认配置
- * - isEdgeEnabled 功能开关
- * - extractJson 容错解析
+ * 2026-09-28：src/local-llm 随边缘生成类能力退役删除；LLMClient（src/dre/llm，仍在役）
+ * 的 chat_template_kwargs/completion 传输行为与 utils/extract-json 的解析容错在本文件
+ * 继续回归。getEdgeClient/isEdgeEnabled 用例随模块退役（isEdgeEnabled 迁移后在
+ * tests/unit/llm-default-off-policy.test.ts 继续覆盖）。
  */
-import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { spawnSync } from "node:child_process";
+import { describe, test, expect } from "bun:test";
 import { LLMClient } from "../src/dre/llm/client.js";
-import { getEdgeClient, isEdgeEnabled, extractJson } from "../src/local-llm/edge-client.js";
+import { extractJson } from "../src/utils/extract-json.js";
 
 describe("LLMClient chatTemplateKwargs", () => {  test("请求体携带 chat_template_kwargs", async () => {
     let capturedBody: Record<string, unknown> | null = null;
@@ -106,49 +104,6 @@ describe("LLMClient completion transport", () => {
   });
 });
 
-describe("getEdgeClient", () => {
-  // 2026-09-20：EDGE_LLM_URL 由"有默认值"改为**必填**（原默认 9001 实测无人监听）。
-  // ⚠️ 必须在 beforeAll 里设、用完立刻还原 —— 若放在**模块作用域**，会因"Bun 先加载全部文件再执行"
-  // 而泄漏到同进程的其它测试文件（实测会让 chat-memory-loop 假通过，掩盖真失败）。
-  const prevUrl = process.env.EDGE_LLM_URL;
-  beforeAll(() => { process.env.EDGE_LLM_URL = "http://127.0.0.1:19999"; });
-  afterAll(() => {
-    if (prevUrl === undefined) delete process.env.EDGE_LLM_URL;
-    else process.env.EDGE_LLM_URL = prevUrl;
-  });
-
-  test("返回单例", () => {
-    const a = getEdgeClient();
-    const b = getEdgeClient();
-    expect(a).toBe(b);
-    expect(a).toBeInstanceOf(LLMClient);
-  });
-});
-
-describe("isEdgeEnabled", () => {
-  test("未设置时默认关闭（LLM 默认不调用，需显式授权）", () => {
-    delete process.env.EDGE_TEST_FLAG;
-    expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(false);
-  });
-
-  test("显式授权 =1 时启用", () => {
-    process.env.EDGE_TEST_FLAG = "1";
-    try {
-      expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(true);
-    } finally {
-      delete process.env.EDGE_TEST_FLAG;
-    }
-  });
-
-  test("'0' 或 'false' 关闭", () => {
-    process.env.EDGE_TEST_FLAG = "0";
-    expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(false);
-    process.env.EDGE_TEST_FLAG = "false";
-    expect(isEdgeEnabled("EDGE_TEST_FLAG")).toBe(false);
-    delete process.env.EDGE_TEST_FLAG;
-  });
-});
-
 describe("extractJson", () => {
   test("解析纯 JSON", () => {
     expect(extractJson<{ a: number }>('{"a": 1}')).toEqual({ a: 1 });
@@ -167,16 +122,3 @@ describe("extractJson", () => {
   });
 });
 
-describe("getEdgeClient 配置缺失（2026-09-20 裁定）", () => {
-  test("未配置 EDGE_LLM_URL 时应立即报错（不再默认 127.0.0.1:9001）", () => {
-    // 单例已在同进程创建过，故用独立进程验证"缺配置"分支
-    const r = spawnSync(
-      "bun",
-      ["-e", 'const m=await import("./src/local-llm/edge-client.ts"); try { m.getEdgeClient(); console.log("NO_THROW"); } catch (e) { console.log("THREW:" + (e as Error).message.slice(0,40)); }'],
-      { encoding: "utf8", cwd: process.cwd(), env: { ...process.env, EDGE_LLM_URL: "" } },
-    );
-    const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
-    expect(out).toContain("THREW:");
-    expect(out).toContain("EDGE_LLM_URL");
-  });
-});

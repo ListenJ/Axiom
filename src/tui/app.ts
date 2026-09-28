@@ -284,24 +284,9 @@ function refreshPerfPanel(): void {
 // ─── Native Status ──────────────────────────────────────────────────────────
 
 async function showNativeStatus(): Promise<void> {
-  chatLog.log("{cyan-fg}[Native Bridge] Checking status...{/cyan-fg}");
-  try {
-    const { isNativeReady, getNativeEdition, nativeStats } = await import("../native-bridge.js");
-    if (isNativeReady()) {
-      const stats = await nativeStats();
-      chatLog.log(`{green-fg}🦀 Rust Core Active — ${getNativeEdition()} edition{/green-fg}`);
-      if (stats) {
-        chatLog.log(`  Version: ${stats.version || "unknown"}`);
-        chatLog.log(`  Uptime: ${stats.uptime_secs || 0}s`);
-        chatLog.log(`  Vault Notes: ${stats.vault_notes || 0}`);
-      }
-    } else {
-      chatLog.log("{gray-fg}📜 TypeScript-only mode (Rust core not running){/gray-fg}");
-      chatLog.log("{gray-fg}  To enable: set AXIOM_NATIVE=true and build Rust core{/gray-fg}");
-    }
-  } catch (e) {
-    chatLog.log(`{red-fg}[Native] Error: ${(e as Error).message}{/red-fg}`);
-  }
+  // 2026-09-28 Rust 全退役：Native Bridge 移除，本命令改为提示纯 TS 模式。
+  chatLog.log("{cyan-fg}[Native Bridge] 已退役（2026-09-28）{/cyan-fg}");
+  chatLog.log("{gray-fg}📜 TypeScript-only mode — Rust sidecar 已移除，搜索/路由由纯 TS 承载{/gray-fg}");
   screen.render();
 }
 
@@ -665,8 +650,7 @@ setInterval(async () => {
     const { getGlobalBlackboard } = await import("../memory/blackboard.js");
     const bb = getGlobalBlackboard();
     const bbStats = bb.stats();
-    const { isNativeReady, getNativeEdition } = await import("../native-bridge.js");
-    const nativeStatus = isNativeReady() ? `{green-fg}🦀 ${getNativeEdition()}{/green-fg}` : "{gray-fg}📜 TS-Only{/gray-fg}";
+    const nativeStatus = "{gray-fg}📜 TS-Only{/gray-fg}";
     chatStatus.setContent(
       "{bold}L1 Decision{/bold}:    [正常]\n" +
       "{bold}L2 Architecture{/bold}: [正常]\n" +

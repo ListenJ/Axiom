@@ -11,8 +11,47 @@
 import { createHash } from "node:crypto";
 import type { Database } from "bun:sqlite";
 import { cosineSimilarity } from "../utils/math.js";
-import { getEdgeEmbeddings, getEdgeEmbedModel } from "../local-llm/edge-embeddings.js";
 import { readBool, readString } from "../utils/env.js";
+
+// ── embedding 客户端（2026-09-28 自 src/local-llm/edge-embeddings.ts 折叠入本文件）──
+// 原 local-llm 模块删除；设置语义搜索（OpenAI 兼容 /v1/embeddings）是本层唯一消费者。
+const DEFAULT_EMBED_BASE = "http://127.0.0.1:9001";
+const DEFAULT_EMBED_MODEL = "BAAI/bge-m3";
+const EMBED_TIMEOUT_MS = 5000;
+
+export function isEdgeEmbeddingsEnabled(): boolean {
+  return readString("EDGE_SETTINGS_SEARCH", "1").toLowerCase() !== "0";
+}
+
+export function getEdgeEmbedBaseUrl(): string {
+  return readString("EDGE_EMBED_URL", readString("EDGE_LLM_URL", DEFAULT_EMBED_BASE));
+}
+
+export function getEdgeEmbedModel(): string {
+  return readString("EDGE_EMBED_MODEL", readString("EDGE_LLM_MODEL", DEFAULT_EMBED_MODEL));
+}
+
+/**
+ * 调用 embedding 服务（OpenAI 兼容 /v1/embeddings）。
+ * 成功返回向量数组；不可用/超时/非 2xx 一律返回 null（不抛错，调用方降级关键词路径）。
+ */
+export async function getEdgeEmbeddings(texts: string[]): Promise<number[][] | null> {
+  if (!isEdgeEmbeddingsEnabled() || texts.length === 0) return null;
+  const base = getEdgeEmbedBaseUrl().replace(/\/+$/, "");
+  try {
+    const res = await fetch(`${base}/v1/embeddings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: getEdgeEmbedModel(), input: texts }),
+      signal: AbortSignal.timeout(EMBED_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { data?: Array<{ embedding?: number[] }> };
+    return data.data?.map((d) => d.embedding ?? []) ?? null;
+  } catch {
+    return null;
+  }
+}
 import { logger } from "../utils/logger.js";
 
 export type SemanticEmbedder = (texts: string[]) => Promise<number[][] | null>;

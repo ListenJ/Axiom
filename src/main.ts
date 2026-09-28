@@ -41,36 +41,11 @@ import { loadOverrides as loadApiKeyStoreOverrides } from "./utils/api-key-store
 // ════════════════════════════════════════════════════════════════
 // Native Bridge — Rust 高性能核心 (v2.3)
 // ════════════════════════════════════════════════════════════════
-import {
-  initNativeBridge,
-  stopNativeBridge,
-  nativeSearch,
-  nativeRouterPerf,
-  nativeStats,
-  isNativeReady,
-  detectEdition,
-} from "./native-bridge.js";
 
-const edition = detectEdition();
-logger.info(`[Edition] Detected: ${edition}`);
-
-// 启动 Rust 核心 (sidecar)
-const nativeEnabled = readBool("AXIOM_NATIVE", true);
-if (nativeEnabled) {
-  const nativeOk = await initNativeBridge({
-    edition,
-    port: 18790,
-    vaultPath: readString("OBSIDIAN_VAULT_PATH", "./axiom-memory"),
-    dbPath: readString("DATABASE_PATH", "./data/agent.db"),
-    databaseUrl: readString("DATABASE_URL"),
-    redisUrl: readString("REDIS_URL"),
-    enabled: true,
-  });
-  if (nativeOk) {
-    logger.info("[NativeBridge] Rust core active — search/routing accelerated");
-  }
-}
-
+// 2026-09-28 Rust 全退役：Native Bridge（Rust sidecar）删除，搜索/路由由纯 TS 实现承载。
+const edition = "local" as const;
+logger.info(`[Edition] ${edition}（Rust sidecar 已退役，纯 TS 运行时）`);
+void readBool;
 // ════════════════════════════════════════════════════════════════
 // 核心架构组件
 // ════════════════════════════════════════════════════════════════
@@ -224,7 +199,7 @@ const startupTime = Date.now();
 logger.info("Axiom AI Agent 启动", {
   version: APP_VERSION,
   edition,
-  native: isNativeReady(),
+  native: false as const,
   node: process.version,
   bun: Bun.version,
   env: readString("NODE_ENV", "development"),
@@ -900,7 +875,6 @@ registerShutdownHook({ name: "vram-probe", handler: () => stopVramProbe(), prior
 registerShutdownHook({ name: "heartbeat", handler: () => stopHeartbeat(), priority: 30 });
 registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().destroy(), priority: 35 });
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
-registerShutdownHook({ name: "native-bridge", handler: () => stopNativeBridge(), priority: 20 });
 registerShutdownHook({ name: "mcp-clients", handler: async () => { const { closeExternalMcpClients } = await import("./mcp/client-connector.js"); await closeExternalMcpClients(); }, priority: 65 });
 registerShutdownHook({ name: "pty-sessions", handler: async () => { const { closeAllSessions } = await import("./terminal/pty-session.js"); await closeAllSessions(); }, priority: 64 });
 
@@ -926,8 +900,7 @@ const lanUrl = `http://${lanIp}:${port}`;
 logger.info(`╔══════════════════════════════════════════════════════════════════════╗
 ║     Axiom Runtime v${APP_VERSION} — Vault 核心记忆引擎运行中          ║
 ║ 记忆: Obsidian Vault (确定性推理)                                   ║
-║ 版本:  ${(edition === "cloud" ? "☁️ Cloud" : "🏠 Local").padEnd(58)} ║
-║ 原生:  ${(isNativeReady() ? "🦀 Rust Core Active" : "📜 TypeScript Only").padEnd(58)} ║
+║ 版本:  🏠 Local（纯 TypeScript 运行时）${"".padEnd(24)} ║
 ║                                                                     ║
 ║ 本地访问:  ${localUrl.padEnd(58)} ║
 ║ 局域网:    ${lanUrl.padEnd(58)} ║

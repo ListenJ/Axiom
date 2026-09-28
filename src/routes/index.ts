@@ -33,7 +33,6 @@ import {
 } from "./eval-routes.js";
 import { handleProxies } from "./proxies.js";
 import { handleListModels, handleAddModel, handleDeleteModel, handleListProviders, handleTestProvider } from "./models.js";
-import { handleNativeSearch, handleNativeRouterPerf, handleNativeStats, handleNativeProxy } from "./native-routes.js";
 import { handlePluginRoutes } from "./plugin-adapter.js";
 import {
   handleKGStats,
@@ -114,11 +113,6 @@ const handlers: RouteHandler[] = [
   handleDeleteSession,
   // OpenAI 兼容端点（/v1/chat/completions）
   handleOpenAIChatCompletions,
-  // Native Bridge (Rust core)
-  handleNativeSearch,
-  handleNativeRouterPerf,
-  handleNativeStats,
-  handleNativeProxy,
 
   // Search
   handleVaultSearch,
@@ -429,12 +423,7 @@ export function registerTrieRoutes(engine: HttpRouter): void {
     { method: "GET", path: "/ocr/**", handler: handleOCRRoutes },
     { method: "POST", path: "/ocr/**", handler: handleOCRRoutes },
 
-    // Native Bridge (Rust core)
-    { method: "POST", path: "/native/search", handler: handleNativeSearch },
-    { method: "GET", path: "/native/router/perf", handler: handleNativeRouterPerf },
-    { method: "GET", path: "/native/stats", handler: handleNativeStats },
-    { method: "GET", path: "/native/**", handler: handleNativeProxy },
-    { method: "POST", path: "/native/**", handler: handleNativeProxy },
+    // 2026-09-28 Rust 全退役：/native/* 路由（Rust sidecar 代理）删除
 
     // Model & Provider Management
     { method: "GET", path: "/models", handler: handleListModels },
@@ -493,7 +482,6 @@ export function defaultResponse(ctx: RouteContext): Response {
       "GET  /                        — Dashboard",
       "GET  /health                  — 健康检查",
       "GET  /components              — 组件健康面",
-      "GET  /agents/native/status    — Native Agent 状态",
       "POST /chat                    — 模型聊天（自动意图识别）",
       "POST /chat/stream             — SSE 流式聊天（text/event-stream）",
       "POST /v1/chat/completions     — OpenAI 兼容聊天端点（支持 stream）",

@@ -13,7 +13,7 @@
 
 import { VaultManager } from "./vault-manager.js";
 import { generateTagsWithEdge } from "./edge-assist.js";
-import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
+import { isEdgeEnabled } from "../decision/risk-screen.js";
 import { logger } from "../utils/logger.js";
 
 
@@ -112,20 +112,12 @@ export class MemoryDistiller {
     });
   }
 
-  /** 边缘摘要（回退：规则截断） */
+  /**
+   * 摘要（规则路径）。2026-09-28 边缘生成类能力退役（src/local-llm 删除）：
+   * 原 LLM 摘要（EDGE_MEMORY_ASSIST）回退规则截断，该路径即现行为——
+   * 判别式决策类增强（风险初筛/显著性 noul）由 Laya 决策服务承接（src/decision）。
+   */
   private async summarizeWithEdge(text: string, maxLength: number): Promise<string> {
-    if (text.length <= maxLength) return this.summarize(text, maxLength);
-    if (!isEdgeEnabled("EDGE_MEMORY_ASSIST")) return this.summarize(text, maxLength);
-    try {
-      const resp = await getEdgeClient().generate(
-        `用不超过100字概括以下内容的核心要点，只输出概括本身：【${text.slice(0, 1500)}】`,
-        { maxTokens: 160 },
-      );
-      const summary = (resp.content ?? "").trim();
-      if (summary.length >= 10) return summary;
-    } catch (err) {
-      logger.debug("[Distiller] edge summary failed, fallback to truncation", { error: (err as Error).message });
-    }
     return this.summarize(text, maxLength);
   }
 

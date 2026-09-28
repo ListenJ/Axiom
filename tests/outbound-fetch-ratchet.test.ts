@@ -280,7 +280,7 @@ describe("D-A 产出：谁能决定目的主机 —— 三分名单（D-B 的输
     const bySource = new Map<string, number>();
     for (const s of roster.sites) bySource.set(s.urlSource, (bySource.get(s.urlSource) ?? 0) + 1);
     expect(Object.fromEntries(bySource)).toEqual({
-      hardcoded: 10, env: 5, "caller-param": 5, "inbound-request": 2, mixed: 1,
+      hardcoded: 9, env: 6, "caller-param": 5, "inbound-request": 2,
     });
   });
 });

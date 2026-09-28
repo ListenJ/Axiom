@@ -61,7 +61,7 @@ Axiom = **Runtime** + **World Model** + **Deterministic Cognitive System**
 | ND-07 | 共形幻觉判定 isHallucination = pValue < alpha | decision | — | alpha=0.1（构造参数） |
 | ND-08 | 工具调用风险边缘初筛（low 即放行，fail-open） | decision | EDGE_RISK_MONITOR | 0 |
 | ND-09 | 知识结构化抽取（边缘 LLM 生成） | generation | EDGE_KNOWLEDGE_ASSIST | 0 |
-| ND-10 | 记忆摘要/蒸馏（边缘 LLM 生成） | generation | EDGE_MEMORY_ASSIST | 0 |
+| ND-10 | 记忆显著性灰区裁决（Laya noul 判别式） | generation | EDGE_MEMORY_ASSIST | 0 |
 | ND-11 | 提示词改写/增强（LLM 生成） | generation | PROMPT_REWRITE | 未设置即开启（!off(readString("PROMPT_REWRITE"))） |
 | ND-12 | Thompson Sampling 模型路由 | scheduling | — | arms=[] 时惰性（未配置臂不参与采样） |
 | ND-13 | 上下文向量记忆层（cosine 相似度检索） | dormant | — | 无独立开关；需配置 embedding 角色模型方生效，且当前 4 个入口零调用方 |

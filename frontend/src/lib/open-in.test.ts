@@ -1,6 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { isTauri } from '@tauri-apps/api/core'
-import { open as shellOpen } from '@tauri-apps/plugin-shell'
+import { describe, it, expect, vi } from 'vitest'
 import {
   buildCursorUrl,
   buildFileManagerUrl,
@@ -11,8 +9,6 @@ import {
 
 const { toastMock } = vi.hoisted(() => ({ toastMock: vi.fn() }))
 
-vi.mock('@tauri-apps/api/core', () => ({ isTauri: vi.fn(() => false) }))
-vi.mock('@tauri-apps/plugin-shell', () => ({ open: vi.fn(() => Promise.resolve()) }))
 vi.mock('@/state/useApp', () => ({
   useApp: { getState: () => ({ toast: toastMock }) },
 }))
@@ -38,30 +34,11 @@ describe('open-in url builders', () => {
   })
 })
 
-describe('openWorkspaceIn', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('opens via tauri shell plugin in Tauri environment', () => {
-    vi.mocked(isTauri).mockReturnValue(true)
-    expect(openWorkspaceIn('vscode', 'D:\\openclaw-fusion')).toBe(true)
-    expect(shellOpen).toHaveBeenCalledWith('vscode://file/D:/openclaw-fusion')
-  })
-
-  it('toasts a fallback hint when tauri shell open fails', async () => {
-    vi.mocked(isTauri).mockReturnValue(true)
-    vi.mocked(shellOpen).mockRejectedValueOnce(new Error('not installed'))
-    openWorkspaceIn('cursor', '/home/dev/repo')
-    await vi.waitFor(() => expect(toastMock).toHaveBeenCalled())
-    expect(toastMock).toHaveBeenCalledWith(expect.stringContaining('Cursor'), 'warning')
-  })
-
-  it('falls back to anchor protocol click outside Tauri', () => {
-    vi.mocked(isTauri).mockReturnValue(false)
+describe('openWorkspaceIn（纯 Web，2026-09-28 桌面壳退役）', () => {
+  it('anchor 协议点击触发系统处理', () => {
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    expect(openWorkspaceIn('vscode', 'D:\\openclaw-fusion')).toBe(true)
     expect(openWorkspaceIn('file-manager', '/home/dev/repo')).toBe(true)
-    expect(shellOpen).not.toHaveBeenCalled()
     expect(click).toHaveBeenCalled()
     click.mockRestore()
   })

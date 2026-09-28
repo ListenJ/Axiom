@@ -439,10 +439,17 @@ describe("D3 文档引用存活", () => {
       // BrowserPanel/工具台随 2026-09-25 Chat 页移除（右栏 panels.tsx），文内历史叙述按墓碑口径点名。
       "docs/BROWSER-AGENT-STRATEGY-2026-08-09.md",
       "docs/COMPREHENSIVE-GUIDE.md",
+      // 2026-09-28 local-llm/native 退役：EDGE-LLM/LIMITATIONS/SECURITY-MEASURES 的历史叙述、
+      // PROJECT-GUIDE 拓扑行、TEST-STRATEGY 覆盖率行、2026-09-19 两份计划文档的历史引用按墓碑口径点名。
+      "docs/EDGE-LLM.md",
       "docs/LIMITATIONS.md",
+      "docs/PROJECT-GUIDE.md",
+      "docs/SECURITY-MEASURES.md",
+      "docs/TEST-STRATEGY-2026-08-21.md",
       "docs/functional-check-2026-08-16-sensenova.md",
-      // 2026-08-11 前端修缮计划引用的 chat-panels/rightbar 随 Chat 页移除（2026-09-25），墓碑点名。
       "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
+      "docs/plans/2026-09-19-knowledge-semantic-layer.md",
+      "docs/plans/2026-09-19-user-configured-models-and-usage-trace.md",
     ]);
   });
 });
@@ -712,29 +719,20 @@ describe("D11 仓库级 PG 否定句需限定范围并披露例外", () => {
     expect(scope.length).toBeGreaterThan(50);
   });
 
-  it("native 云端件的 PG 例外被点名披露（说清它建了什么池、为什么不算数据面）", () => {
+  it("native 已整体退役（2026-09-28）：例外披露退场，LIMITATIONS 保留退役行", () => {
+    // 原断言（native/crates/cloud PG 探针的例外点名披露）随 Rust 全退役删除：
+    // native/ 不存在 ⇒ "TS 运行时无 PG 数据面"由例外披露转为事实全称，无需再点名。
+    // 反向断言保留：哪天 native/ 或 PG 探针代码重新入树，这里必须先重新登记例外。
+    expect(exists("native/crates")).toBe(false);
     const lines = read("docs/LIMITATIONS.md").split("\n");
-    const disclosed = lines.filter((l) => l.includes("native/crates/cloud"));
-    expect(disclosed.length).toBe(1);
-    expect(disclosed[0]).toContain("DATABASE_URL");
-    expect(disclosed[0]).toContain("create_pool");
-    expect(disclosed[0]).toMatch(/探针|探测/);
+    const retired = lines.filter((l) => l.includes("native 退役"));
+    expect(retired.length).toBe(1);
+    expect(retired[0]).toContain("Rust 面退役");
   });
 
-  it("披露与代码同源：native 的 PG 池仍只是存活探针（长出 SQL 执行面即红，逼口径同步）", () => {
-    const pgFiles = rsFiles("native/crates").filter((rel) => /deadpool_postgres|tokio_postgres/.test(read(rel)));
-    expect(pgFiles.length).toBeGreaterThan(0); // 正向对照：整个件被删不得让"零执行点"假绿
-    const sqlSites: string[] = [];
-    for (const rel of pgFiles) {
-      read(rel)
-        .split("\n")
-        .forEach((line, i) => {
-          if (PG_SQL_SITE.test(line)) {
-            sqlSites.push(`${rel}:${i + 1}`);
-          }
-        });
-    }
-    expect(sqlSites).toEqual([]);
+  it("披露与代码同源（退役版）：仓库无 Rust/PG 探针面；任何复活先登记", () => {
+    expect(rsFiles("native/crates").length).toBe(0);
+    expect(exists("src/native-bridge.ts")).toBe(false);
   });
 
   it("判据自检：被禁形态真的会红、限定后的口径不误伤（门不得对自己免检）", () => {

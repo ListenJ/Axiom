@@ -8,7 +8,6 @@ import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "../router/route-table.js";
 import { wsManager } from "../utils/websocket.js";
 import { prepareChatContext, executeChat } from "../services/index.js";
 import { defaultPreflightDeps } from "../services/chat-preflight.js";
-import { getEdgeClient, isEdgeEnabled } from "../local-llm/edge-client.js";
 import { startSelfThought, attachSelfThought, getDefaultSelfEvolve } from "../self-evolve/index.js";
 import { buildSkillToolSurfaces } from "../mcp/server/skill-tools.js";
 import { toOpenAITools } from "../utils/tool-surface.js";
@@ -73,16 +72,10 @@ export async function handleChat(ctx: RouteContext): Promise<Response | null> {
     {
       budget,
       sessionId: recallSessionId,
-      // P0-A 组合根注入：生产边缘客户端（services 层不 import local-llm，架构扇出约束）
+      // 2026-09-28：边缘生成类能力退役（src/local-llm 删除）——合并快路径禁用（edge=null），
+      // preflight 固定走串行路径（确定性优化链，行为语义不变）。
       preflightDeps: {
         ...defaultPreflightDeps(),
-        // 2026-09-20：**仅在能力启用时**才构造边缘客户端。
-        // 原写法 `client: getEdgeClient()` 为**急切求值** —— 即便 EDGE_PROMPT_OPTIMIZER 未启用也照样构造；
-        // 而 getEdgeClient() 现在会在缺 EDGE_LLM_URL 时抛错（fail loud，不再默认指向无人监听的 9001）
-        // ⇒ 急切构造会让"根本没启用"的请求也因配置校验失败，与 PreflightDeps.edge=null（=快路径禁用、走串行）相悖。
-        ...(isEdgeEnabled("EDGE_PROMPT_OPTIMIZER")
-          ? { edge: { enabled: () => true, client: getEdgeClient() } }
-          : {}),
       },
     },
   );

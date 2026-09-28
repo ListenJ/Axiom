@@ -13,13 +13,13 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach, afterAll, spyOn, mock } from "bun:test";
-import * as riskScreen from "../../src/local-llm/risk-screen.js";
+import * as riskScreen from "../../src/decision/risk-screen.js";
 import * as realModelRouterModule from "../../src/router/model-router.js";
 import {
   screenToolCall,
   resetRiskVerdictCache,
 } from "../../src/agents/risk-monitor.js";
-import type { EdgeRiskResult } from "../../src/local-llm/risk-screen.js";
+import type { EdgeRiskResult } from "../../src/decision/risk-screen.js";
 
 // 模块 mock 泄漏防线（口径同 tests/consciousness.test.ts:194-207）：快照须在
 // 任何 mock.module 之前求值（mock.module 原地改写命名空间）。

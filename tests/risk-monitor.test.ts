@@ -19,7 +19,8 @@
  * 全部通过 DI fake 测试，不访问真实端点与真实 router。
  */
 import { describe, test, expect, beforeEach } from "bun:test";
-import { screenPayloadWithEdge } from "../src/local-llm/risk-screen.js";
+import { screenPayloadWithEdge } from "../src/decision/risk-screen.js";
+import { getLayaHttpConfig } from "../src/decision/laya-http.js";
 import {
   screenToolCall,
   reviewSequence,
@@ -127,43 +128,62 @@ describe("extractPayload（能力驱动，不看工具名）", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// screenPayloadWithEdge — 边缘初筛（未改动，保留回归）
+// screenPayloadWithEdge — 灰区初筛（2026-09-28 迁移：Laya choice 承载）
+// 通过受控 fetch mock 驱动真实现（原 LLM fake client 形态已随生成式分类退役）
 // ─────────────────────────────────────────────────────────
 
-describe("screenPayloadWithEdge", () => {
-  test("合法 JSON 返回对应风险等级", async () => {
-    const { client } = fakeClient(() => ({ content: '{"risk":"high","reason":"递归删除"}' }));
-    const r = await screenPayloadWithEdge("rm -rf /tmp/x", "command", client);
-    expect(r.risk).toBe("high");
-    expect(r.degraded).toBe(false);
+const REAL_FETCH = globalThis.fetch;
+async function withLayaFetch<T>(impl: (body: unknown) => unknown, fn: () => Promise<T>): Promise<T> {
+  process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+    return new Response(JSON.stringify(impl(body)), { status: 200 });
+  }) as typeof fetch;
+  try {
+    return await fn();
+  } finally {
+    globalThis.fetch = REAL_FETCH;
+  }
+}
+
+describe("screenPayloadWithEdge（Laya 承载）", () => {
+  test("choice=high 返回 high；choice=low 返回 low", async () => {
+    await withLayaFetch(
+      () => ({ model: "laya-rl-agent", answers: { risk: { type: "choice", choice: "high", probabilities: { high: 0.8, medium: 0.1, low: 0.1 } } }, usage: { input_tokens: 10, output_tokens: 0 }, routing: { model: "multilingual" } }),
+      async () => {
+        const r = await screenPayloadWithEdge("rm -rf /tmp/x", "command");
+        expect(r.risk).toBe("high");
+        expect(r.degraded).toBe(false);
+      },
+    );
+    await withLayaFetch(
+      () => ({ model: "laya-rl-agent", answers: { risk: { type: "choice", choice: "low", probabilities: { low: 0.9 } } }, usage: { input_tokens: 10, output_tokens: 0 }, routing: { model: "multilingual" } }),
+      async () => {
+        const r = await screenPayloadWithEdge("ls -la", "command");
+        expect(r.risk).toBe("low");
+        expect(r.degraded).toBe(false);
+      },
+    );
   });
 
-  test("带 code fence 的 JSON 也能解析", async () => {
-    const { client } = fakeClient(() => ({ content: '```json\n{"risk":"low"}\n```' }));
-    const r = await screenPayloadWithEdge("ls -la", "command", client);
-    expect(r.risk).toBe("low");
-    expect(r.degraded).toBe(false);
+  test("服务异常降级为 low（fail-open，degraded=true）", async () => {
+    process.env.LAYA_DECISION_URL = process.env.LAYA_DECISION_URL ?? "http://laya.test:18081";
+    globalThis.fetch = (async () => {
+      throw new Error("laya down");
+    }) as unknown as typeof fetch;
+    try {
+      const r = await screenPayloadWithEdge("x", "command");
+      expect(r.risk).toBe("low");
+      expect(r.degraded).toBe(true);
+    } finally {
+      globalThis.fetch = REAL_FETCH;
+    }
   });
 
-  test("垃圾输出降级为 low（fail-open）", async () => {
-    const { client } = fakeClient(() => ({ content: "我觉得这个命令有点危险" }));
-    const r = await screenPayloadWithEdge("rm -rf /", "command", client);
-    expect(r.risk).toBe("low");
-    expect(r.degraded).toBe(true);
-  });
-
-  test("非法枚举值降级为 low", async () => {
-    const { client } = fakeClient(() => ({ content: '{"risk":"extreme"}' }));
-    const r = await screenPayloadWithEdge("x", "command", client);
-    expect(r.risk).toBe("low");
-    expect(r.degraded).toBe(true);
-  });
-
-  test("客户端异常降级为 low（fail-open）", async () => {
-    const { client } = fakeClient(() => { throw new Error("circuit open"); });
-    const r = await screenPayloadWithEdge("x", "command", client);
-    expect(r.risk).toBe("low");
-    expect(r.degraded).toBe(true);
+  test("并发配置被钳制 ≤8（契约纪律）", () => {
+    process.env.LAYA_MAX_CONCURRENCY = "16";
+    expect(getLayaHttpConfig({ baseUrl: "http://x" }).maxConcurrency).toBe(8);
+    delete process.env.LAYA_MAX_CONCURRENCY;
   });
 });
 
