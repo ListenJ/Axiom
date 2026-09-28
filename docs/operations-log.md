@@ -4856,4 +4856,4 @@
 - **任务**：主干归一计划第 7 步后半：归一报告补齐（第 6 步推 main 同批执行，hash 见下条回填与 `git ls-remote internal main`）。分级 **T1**（纯文档，事实全部 git 实测重构）。
 - **改动**：新增 `docs/reviews/2026-09-26-trunk-unification.md`——执行事实表（执行序 1–8 状态）；双口径说明（计划 19 = merge-tree 冲突面，实测 34 = fork 点 `93620c29` 双边改动面）；逐文件裁决表（ours 4 / theirs 2 / union 28，由 `git diff --quiet <parent> <merge>` 三方实测）；两处与计划口径的偏差及留痕依据（path-safety 取 ku 能力判定内核重写、tool-registry 走并集——ops log 2026-09-26 行 1460/1474/1477）；门禁终态六项全绿；执行偏差与回滚。
 - **验证**：doc-contract 复跑 35/0（新增 docs 文件不破坏文档契约）；文件路径与计划第 7 步冻结名一致。
-- **Commit**：`<占位-本提交>`
+- **Commit**：`f0fdeb8c`（已推送，按规则 9 以本记录维护提交回填）
