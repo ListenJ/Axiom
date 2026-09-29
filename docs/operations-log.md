@@ -109,3 +109,15 @@
 - **验证**：修复后 tsc 0；Laya 全链 23/0（新增 3 测试：长度违约/id 错位/毒化探针入 tests/decision）；隔离守卫 4/0（含 6 形态绕过自检）。
 - **Commit**：本条同批（hash 见 git log 回填）
 - **补充（同日提交后复验）**：探活去重使 laya-cli 不再直接出网 → 出网基线摘除其条目（23→22，env 7→6），D-A 棘轮 stale 同步过账。审核修复批次全部完成。
+
+## 2026-09-29 — feat(decision)/chore(frontend): 漂移套件 + 前端 native 死链清理 + Phase-0 补面
+
+- **任务**：承接 2026-09-28 三轴审核的遗留项（用户"继续"）。分级 **T2/T3**（决策链 1 文件+测试 1、前端 6 文件、文档 2）。
+- **漂移套件（label-free，eval-harness-first 的 drift-suite 面）**：`laya-calibrate.ts` 增 `--drift` 模式——`judgeDrift` 纯判定（choice 一致性 + margin 极差 ≤0.15 稳定性带；单措辞 ⇒ insufficient 不假绿）+ `runDrift` 套件级（≥2 措辞强校验、`--strict` 不稳定即非零退出）。新增 9 守卫用例（mock）。冻结套件 `docs/decisions/laya/drift-suite.json`（6 命题 × 3 措辞，覆盖 skill §5 弱点域）。
+- **实服务漂移基线（关键实证）**：6 命题 **4 个不稳定**——可逆修复题在措辞变体下 `auto_fix`→`reject` 翻面；阈值比较题在 above/below 翻面（**实证复现 skill §5"不推理数值"**）；margin 极差 0.23–0.47 全部越过 0.15 带。结论入账：闸 3 的门槛在做实事，numeric/engineering 域必须走闸 4（连模型都不问），不稳定命题改人工或固定措辞模板。产物：`drift-suite.drift-report.json`（基线 token）。
+- **Phase-0 补面**：标定模板 2 → **20 条用例**（triage 9 / review 6 / batch 5，含销毁/外写/凭据/覆盖率类场景），18 条待人工标注；拒跑行为实测 exit 2（防裸跑）。Phase-0 仍缺：≥100 traces 与 per-failure-mode graders（业务标注属用户侧，已量化披露）。
+- **前端 native 死链清理（Rust 退役收尾，2026-09-28 审核自查项）**：后端 `/native/stats` 已随 Rust 退役删除，前端仍在拉取 ⇒ 卡片恒显示"未启用或暂无数据"。清理面：`lib/api.ts` 端点、`lib/normalize.ts#normalizeNative`、`pages/Perf.tsx` 卡片+fetch、`components/provider-hub-sections.tsx` 同构段、两测试文件；面板描述改"运行时指标与调用成本统计"。前端 60 文件 **303/303**（-5 native 用例），tsc rc=0。
+- **残留清理**：`native/` 仅剩**空目录树**（find 0 文件，52K）→ 物理删除；cargo/rustc 为宿主系统工具链，非仓库内容，不动。
+- **留痕真实性修正**：2026-09-28 条声称"毒化探针入 tests/decision"实际只在 /tmp 跑过——本次补入 `tests/decision/laya-http.test.ts` 并做**红绿验证**（`retryable:false→true` 突变 ⇒ 2 用例红；恢复 ⇒ 17/0），声明与实物就此对齐。
+- **验证**：tsc 双端 rc=0；串行全量 **4,684 用例 / 0 fail**（137s）；audit:runtime 16/16；门禁组（decision+隔离+integrity+棘轮+doc+docs-consistency+env 模板）123/0。
+- **Commit**：本条同批（hash 见 git log 回填）

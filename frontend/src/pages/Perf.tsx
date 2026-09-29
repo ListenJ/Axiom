@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
-import { Activity, Cpu, Coins } from 'lucide-react'
+import { Activity, Coins } from 'lucide-react'
 import { ShimmerCard, PageHeader, Skeleton } from '@/components/ui'
 import { endpoints } from '@/lib/api'
-import { normalizeMetrics, normalizeNative, normalizePromMetrics, type PerfMetrics } from '@/lib/normalize'
+import { normalizeMetrics, normalizePromMetrics, type PerfMetrics } from '@/lib/normalize'
 
 /** 性能面板（设置页「调试与检查」嵌入用，不含页头） */
 export function PerfPanel() {
   const [m, setM] = useState<PerfMetrics | null>(null)
-  const [native, setNative] = useState<unknown>(null)
   const [cost, setCost] = useState<{ totalUsd: number; totalCny: number; totalTokens: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -15,7 +14,6 @@ export function PerfPanel() {
   useEffect(() => {
     Promise.allSettled([
       endpoints.perf.metrics().then((d) => (typeof d === 'string' ? normalizePromMetrics(d) : normalizeMetrics(d))),
-      endpoints.perf.native().then(normalizeNative).catch(() => null),
       endpoints
         .tokenDetails(7)
         .then((d) => {
@@ -29,13 +27,12 @@ export function PerfPanel() {
             : null
         })
         .catch(() => null),
-    ]).then(([metrics, nat, costData]) => {
+    ]).then(([metrics, costData]) => {
       if (metrics.status === 'fulfilled') {
         setM(metrics.value)
       } else {
         setError(String(metrics.reason?.message ?? metrics.reason))
       }
-      setNative(nat.status === 'fulfilled' ? nat.value : null)
       setCost(costData.status === 'fulfilled' ? costData.value : null)
       setLoading(false)
     })
@@ -120,24 +117,6 @@ export function PerfPanel() {
         )}
       </ShimmerCard>
 
-      <ShimmerCard>
-        <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--text)]">
-          <Cpu className="size-4 text-[var(--accent)]" />
-          原生模块
-        </h2>
-        {native && (native as { available?: boolean })?.available !== false ? (
-          <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs text-[var(--text-secondary)]">
-            {JSON.stringify(native, null, 2)}
-          </pre>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-3 w-full" />
-            ))}
-            <p className="mt-2 text-xs text-[var(--text-muted)]">原生模块未启用或暂无数据。</p>
-          </div>
-        )}
-      </ShimmerCard>
     </div>
   )
 }
@@ -148,7 +127,7 @@ export default function Perf() {
       <PageHeader
         icon={<Activity className="size-5" />}
         title="性能"
-        description="运行时指标与原生模块统计。"
+        description="运行时指标与调用成本统计。"
       />
       <PerfPanel />
     </div>

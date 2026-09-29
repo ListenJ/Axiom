@@ -5,7 +5,6 @@ import Perf from './Perf'
 
 const mocks = vi.hoisted(() => ({
   metrics: vi.fn(),
-  native: vi.fn(),
   tokenDetails: vi.fn(),
 }))
 
@@ -17,7 +16,6 @@ vi.mock('@/lib/api', async () => {
       ...actual.endpoints,
       perf: {
         metrics: mocks.metrics,
-        native: mocks.native,
       },
       tokenDetails: mocks.tokenDetails,
     },
@@ -28,7 +26,6 @@ describe('Perf page integration', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     mocks.metrics.mockResolvedValue({ cpu: 12.5, memory: 45.2, rps: 120, p50: 20, p95: 80 })
-    mocks.native.mockResolvedValue({ tauriVersion: '2.0', arch: 'x86_64' })
     mocks.tokenDetails.mockResolvedValue({ overall: { costUsd: 1.76, costCny: 12.672, totalTokens: 2000000 } })
   })
 
@@ -54,17 +51,7 @@ describe('Perf page integration', () => {
     expect(screen.getByText('80ms')).toBeInTheDocument()
   })
 
-  it('renders native module data as json', async () => {
-    renderPage()
-    await waitFor(() => expect(screen.getByText(/tauriVersion/i)).toBeInTheDocument())
-    expect(screen.getByText(/x86_64/)).toBeInTheDocument()
-  })
 
-  it('handles HTML string native response gracefully', async () => {
-    mocks.native.mockResolvedValue('<html><body>error</body></html>')
-    renderPage()
-    await waitFor(() => expect(screen.getByText('原生模块未启用或暂无数据。')).toBeInTheDocument())
-  })
 
   it('renders near-7-day model cost card', async () => {
     renderPage()
@@ -76,7 +63,6 @@ describe('Perf page integration', () => {
 
   it('shows error banner on metrics failure', async () => {
     mocks.metrics.mockRejectedValue(new Error('network down'))
-    mocks.native.mockResolvedValue(null)
     renderPage()
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent('部分指标暂不可用，请稍后重试。')

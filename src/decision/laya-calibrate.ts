@@ -18,7 +18,13 @@
  * 用法：
  *   bun run calibrate:laya -- --cases docs/decisions/laya/calibration-cases.json \
  *     [--out docs/decisions/laya/calibration-report.json]
+ *   bun run calibrate:laya -- --drift docs/decisions/laya/drift-suite.json [--strict]
  * 先把 cases 模板（同目录 calibration-cases.template.json）人工填满 expected 再跑。
+ *
+ * 漂移套件（--drift，label-free）：skill §5 实测"同一命题换措辞可在 0.30↔0.83 翻面"，
+ * 措辞敏感性是 Laya 最大已知弱点。漂移探针不需要人工标注——对同一命题的多份措辞，
+ * 比 choice 是否一致 + margin 极差是否越过稳定性带（0.15，对齐 ADR-008 闸 3）。
+ * 默认只报告（不稳定是已知缺陷，不是门禁失败）；--strict 时不稳定 ⇒ 非零退出。
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -65,12 +71,14 @@ function parseArgs(argv: string[]) {
   };
   return {
     cases: get("--cases"),
+    drift: get("--drift"),
     out: get("--out"),
   };
 }
 
 async function main(argv = process.argv.slice(2)): Promise<number> {
   const a = parseArgs(argv);
+  if (a.drift) return runDrift(argv);
   if (!a.cases || !existsSync(a.cases)) {
     console.error("需要 --cases <path>（模板：docs/decisions/laya/calibration-cases.template.json，人工填满 expected）");
     return 2;
@@ -166,6 +174,135 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     console.log(`  ${domain}: 命中率=${(r.hitRate * 100).toFixed(1)}%${nd} margin(min/p50)=${r.marginMin}/${r.marginP50} ⇒ 建议门槛=${s ?? "不可标定（人工域）"}`);
   }
   console.log("下一步：人工复核报告后，把建议门槛落回 src/decision/laya-triage.ts 闸 3 常量（改判定前读 ADR-008 更正节）。");
+  return 0;
+}
+
+// ─────────────────────────────────────────────────────────
+// 漂移套件（label-free 自一致性探针）
+// ─────────────────────────────────────────────────────────
+
+/** 稳定性带：对齐 ADR-008 闸 3 的 choice top1−top2 门槛。 */
+export const STABILITY_BAND = 0.15;
+
+export interface DriftSample {
+  choice: string;
+  margin: number;
+}
+
+export interface DriftVerdict {
+  verdict: "stable" | "unstable" | "insufficient";
+  spread: number;
+  reason: string;
+}
+
+/**
+ * 单命题的措辞稳定性判定：choice 全一致 **且** margin 极差在稳定性带内才算 stable。
+ * 单措辞 ⇒ insufficient（一份措辞测不出漂移，不给假绿）。
+ */
+export function judgeDrift(samples: DriftSample[]): DriftVerdict {
+  if (samples.length < 2) {
+    return { verdict: "insufficient", spread: 0, reason: "措辞数 <2，无法判定漂移" };
+  }
+  const choices = new Set(samples.map((s) => s.choice));
+  const margins = samples.map((s) => s.margin);
+  const spread = Number((Math.max(...margins) - Math.min(...margins)).toFixed(4));
+  if (choices.size > 1) {
+    return { verdict: "unstable", spread, reason: `choice 跨措辞翻面：${[...choices].join(" / ")}` };
+  }
+  if (spread > STABILITY_BAND) {
+    return { verdict: "unstable", spread, reason: `margin 极差 ${spread} > 稳定性带 ${STABILITY_BAND}` };
+  }
+  return { verdict: "stable", spread, reason: `choice 一致且 margin 极差 ${spread} ≤ ${STABILITY_BAND}` };
+}
+
+interface DriftCase {
+  id: string;
+  question: string;
+  criteria: string[];
+  paraphrases: string[];
+}
+
+export async function runDrift(argv: string[]): Promise<number> {
+  const a = parseArgs(argv);
+  if (!a.drift || !existsSync(a.drift)) {
+    console.error("需要 --drift <path>（漂移套件：同命题多措辞，见 docs/decisions/laya/drift-suite.json）");
+    return 2;
+  }
+  if (!process.env.LAYA_DECISION_URL) {
+    console.error("需要 LAYA_DECISION_URL（漂移探针打真实服务；基址按规则 11 经 env 提供）");
+    return 2;
+  }
+  const suite = JSON.parse(readFileSync(a.drift, "utf8")) as DriftCase[];
+  if (suite.length === 0) {
+    console.error("漂移套件为空");
+    return 2;
+  }
+  const single = suite.find((c) => (c.paraphrases?.length ?? 0) < 2);
+  if (single) {
+    console.error(`命题 ${single.id} 只有 ${single.paraphrases?.length ?? 0} 份措辞：漂移探针要求同命题 ≥2 份措辞（否则测不出漂移）`);
+    return 2;
+  }
+
+  // 全部措辞一并发（在线并发纪律 2）——id 用 `命题#序号` 保序回填
+  const items = suite.flatMap((c) =>
+    c.paraphrases.map((state, i) => ({
+      id: `${c.id}#${i}`,
+      state,
+      questions: {
+        [c.question]: {
+          type: "choice" as const,
+          instructions: "Answer with the best-fitting label.",
+          criteria: c.criteria,
+        },
+      },
+    })),
+  );
+  const resp = await layaDecideBatch({ items }, { maxConcurrency: 2 });
+  const byId = new Map(resp.results.map((r) => [r.id, r]));
+
+  const propositions = suite.map((c) => {
+    const samples: DriftSample[] = [];
+    for (let i = 0; i < c.paraphrases.length; i++) {
+      const ans = byId.get(`${c.id}#${i}`)?.answers?.[c.question];
+      samples.push({ choice: ans?.choice ?? "<none>", margin: marginOf(ans?.probabilities) });
+    }
+    const v = judgeDrift(samples);
+    return {
+      id: c.id,
+      paraphrases: c.paraphrases.length,
+      choices: samples.map((s) => s.choice),
+      margins: samples.map((s) => Number(s.margin.toFixed(4))),
+      spread: v.spread,
+      verdict: v.verdict,
+      reason: v.reason,
+    };
+  });
+
+  const unstable = propositions.filter((p) => p.verdict === "unstable").length;
+  const insufficient = propositions.filter((p) => p.verdict === "insufficient").length;
+  const report = {
+    generatedAt: new Date().toISOString(),
+    suite: a.drift,
+    stabilityBand: STABILITY_BAND,
+    total: propositions.length,
+    stable: propositions.length - unstable - insufficient,
+    unstable,
+    insufficient,
+    batchFailed: resp.failed,
+    propositions,
+  };
+  const out = a.out ?? a.drift.replace(/\.json5?$/i, "") + ".drift-report.json";
+  writeFileSync(out, JSON.stringify(report, null, 2) + "\n");
+
+  console.log(`漂移套件完成：${propositions.length} 命题（不稳定 ${unstable}，不足 ${insufficient}）→ ${out}`);
+  for (const p of propositions) {
+    const mark = p.verdict === "stable" ? "stable  " : p.verdict === "unstable" ? "UNSTABLE" : "不足    ";
+    console.log(`  [${mark}] ${p.id}: choices=[${p.choices.join(",")}] margins=[${p.margins.join(",")}] spread=${p.spread} — ${p.reason}`);
+  }
+  if (unstable > 0) {
+    console.log("注意：措辞不稳定是 Laya 已知缺陷（skill §5）——该命题在自动化裁定中应走人工或加固定措辞模板。");
+  }
+  if (argv.includes("--strict") && (unstable > 0 || insufficient > 0)) return 1;
   return 0;
 }
 

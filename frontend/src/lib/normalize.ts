@@ -157,16 +157,6 @@ export function normalizeMetrics(raw: unknown): PerfMetrics | null {
   }
 }
 
-/**
- * The native endpoint sometimes returns raw HTML in dev; only keep structured
- * payloads (arrays/objects). Anything else is treated as "no data".
- */
-export function normalizeNative(raw: unknown): unknown {
-  if (typeof raw === 'string') return null
-  if (Array.isArray(raw) || (raw && typeof raw === 'object')) return raw
-  return null
-}
-
 // --- Eval normalizers (mirrors Eval.tsx) ---
 
 export function normalizeEvalResults(raw: unknown): EvalResult[] {

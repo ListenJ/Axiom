@@ -4,7 +4,7 @@
 `src/decision/laya-triage.ts`；模型侧只出概率、不做裁决。
 
 ```
-bun run decide:laya -- --check                     # 探 WSL + venv + 权重是否可用
+bun run decide:laya -- --check                     # 探落点：LAYA_DECISION_URL 已配置探 HTTP /health/live，否则探 WSL + venv + 权重
 bun run decide:laya -- --spec docs/decisions/laya/verification-triage.json
 bun run decide:laya -- --spec ... --run            # 只执行 AUTO 且已注册为可逆的动作
 ```
@@ -15,6 +15,21 @@ bun run decide:laya -- --spec ... --run            # 只执行 AUTO 且已注册
 实测该模型不推理输入里的数值（state 写明 `gain=0.000002`、`threshold=0.0025`，
 问"增益是否高于最小可读数"它答 `noul=0.900`）。所以这些数字是给人核对的锚点，
 不能指望它做算术。
+
+## 标定与漂移套件（confidence 不可当正确率用）
+
+Laya 的 `confidence` 是分布置信度（checkpoint 自带 temperature 告警），阈值必须按业务标注标定：
+
+```
+bun run calibrate:laya -- --cases docs/decisions/laya/calibration-cases.template.json
+#   人工填满 expected 后运行 → 按域输出命中率/margin 分布/门槛建议（命中率<0.9 ⇒ null＝人工域）
+bun run calibrate:laya -- --drift docs/decisions/laya/drift-suite.json [--strict]
+#   label-free 措辞稳定性探针 → choice 一致性 + margin 极差（稳定性带 0.15）
+```
+
+2026-09-28 漂移基线（`drift-suite.drift-report.json`）：6 命题中 4 个不稳定——
+可逆修复题在措辞变体下翻面、阈值比较题在 above/below 间翻面。**结论：numeric/engineering
+域走闸 4（不问模型），自动化裁定对不稳定命题走人工或固定措辞模板。**
 
 ## 字段
 

@@ -114,3 +114,9 @@ top1−top2 = 0.010，理由无验证器可识别。**换 substrate 买不到独
   （先人工填满 expected；域限 triage/review/batch，numeric/engineering 不标定不适用）
   产出 `calibration-cases.report.json`（命中率/margin 分布/门槛建议）；人工复核后
   才落回 `laya-triage.ts` 闸 3 常量。命中率 <0.9 的域建议为 null＝不可自动标定，维持人工。
+- **漂移套件（label-free，无需人工标注）**：`bun run calibrate:laya -- --drift docs/decisions/laya/drift-suite.json`。
+  对同一命题的多份措辞比 choice 一致性 + margin 极差是否越过稳定性带（0.15）。2026-09-28
+  实测基线：6 命题中 **4 个不稳定**——可逆修复题在措辞变体下从 `auto_fix` 翻成 `reject`；
+  阈值比较题在 above/below 间翻面（实证 §5 的"不推理数值"）；margin 极差 0.23–0.47。
+  含义：**闸 3 的 0.15 带在做实事，numeric/engineering 域必须走闸 4（连模型都不问）**；
+  自动化裁定对不稳定命题应走人工或固定措辞模板。默认只报告，`--strict` 时不稳定即非零退出。

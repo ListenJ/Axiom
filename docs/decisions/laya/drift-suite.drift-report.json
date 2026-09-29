@@ -1,0 +1,114 @@
+{
+  "generatedAt": "2026-09-29T12:37:29.867Z",
+  "suite": "docs/decisions/laya/drift-suite.json",
+  "stabilityBand": 0.15,
+  "total": 6,
+  "stable": 2,
+  "unstable": 4,
+  "insufficient": 0,
+  "batchFailed": 0,
+  "propositions": [
+    {
+      "id": "triage-reversible-fix",
+      "paraphrases": 3,
+      "choices": [
+        "auto_fix",
+        "reject",
+        "reject"
+      ],
+      "margins": [
+        0.3373,
+        0.0638,
+        0.102
+      ],
+      "spread": 0.2735,
+      "verdict": "unstable",
+      "reason": "choice 跨措辞翻面：auto_fix / reject"
+    },
+    {
+      "id": "triage-destructive-op",
+      "paraphrases": 3,
+      "choices": [
+        "auto_fix",
+        "auto_fix",
+        "auto_fix"
+      ],
+      "margins": [
+        0.9007,
+        0.9437,
+        0.8845
+      ],
+      "spread": 0.0592,
+      "verdict": "stable",
+      "reason": "choice 一致且 margin 极差 0.0592 ≤ 0.15"
+    },
+    {
+      "id": "triage-external-write",
+      "paraphrases": 3,
+      "choices": [
+        "auto_fix",
+        "auto_fix",
+        "auto_fix"
+      ],
+      "margins": [
+        0.9209,
+        0.6933,
+        0.9252
+      ],
+      "spread": 0.2319,
+      "verdict": "unstable",
+      "reason": "margin 极差 0.2319 > 稳定性带 0.15"
+    },
+    {
+      "id": "review-test-only-change",
+      "paraphrases": 3,
+      "choices": [
+        "approve",
+        "approve",
+        "approve"
+      ],
+      "margins": [
+        0.9812,
+        0.5156,
+        0.6934
+      ],
+      "spread": 0.4656,
+      "verdict": "unstable",
+      "reason": "margin 极差 0.4656 > 稳定性带 0.15"
+    },
+    {
+      "id": "numeric-threshold-compare",
+      "paraphrases": 3,
+      "choices": [
+        "above_threshold",
+        "above_threshold",
+        "below_threshold"
+      ],
+      "margins": [
+        0.1102,
+        0.1894,
+        0.552
+      ],
+      "spread": 0.4418,
+      "verdict": "unstable",
+      "reason": "choice 跨措辞翻面：above_threshold / below_threshold"
+    },
+    {
+      "id": "wording-paraphrase-baseline",
+      "paraphrases": 3,
+      "choices": [
+        "no",
+        "no",
+        "no"
+      ],
+      "margins": [
+        0.9344,
+        0.885,
+        0.7964
+      ],
+      "spread": 0.138,
+      "verdict": "stable",
+      "reason": "choice 一致且 margin 极差 0.138 ≤ 0.15"
+    }
+  ]
+}

@@ -8,13 +8,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   Compass, Heart, Coins, Globe, Shield, CheckCircle2, XCircle, Server,
-  AlertTriangle, Activity, Cpu, ArrowUp, ArrowDown, Clock, HardDrive, Database,
+  AlertTriangle, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database,
 } from 'lucide-react'
 import {
   ShimmerCard, StatCard, PageHeader, InlineEmptyState, Skeleton, BarChart,
 } from '@/components/ui'
 import { endpoints } from '@/lib/api'
-import { normalizeMetrics, normalizeNative, type PerfMetrics } from '@/lib/normalize'
+import { normalizeMetrics, type PerfMetrics } from '@/lib/normalize'
 import { formatClockTime, formatNumber } from '@/lib/format'
 
 // ─── 路由 ────────────────────────────────────────────────────────────────
@@ -382,21 +382,18 @@ export function ProxiesSection() {
 
 export function PerfSection() {
   const [m, setM] = useState<PerfMetrics | null>(null)
-  const [native, setNative] = useState<unknown>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     Promise.allSettled([
       endpoints.perf.metrics().then(normalizeMetrics),
-      endpoints.perf.native().then(normalizeNative).catch(() => null),
-    ]).then(([metrics, nat]) => {
+    ]).then(([metrics]) => {
       if (metrics.status === 'fulfilled') {
         setM(metrics.value)
       } else {
         setError(String(metrics.reason?.message ?? metrics.reason))
       }
-      setNative(nat.status === 'fulfilled' ? nat.value : null)
       setLoading(false)
     })
   }, [])
@@ -406,7 +403,7 @@ export function PerfSection() {
       <PageHeader
         icon={<Activity className="size-5" />}
         title="性能"
-        description="运行时指标与原生模块统计。"
+        description="运行时指标与调用成本统计。"
       />
 
       {error && (
@@ -459,24 +456,6 @@ export function PerfSection() {
         </ShimmerCard>
       </div>
 
-      <ShimmerCard>
-        <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--text)]">
-          <Cpu className="size-4 text-[var(--accent)]" />
-          原生模块
-        </h2>
-        {native ? (
-          <pre className="mt-3 max-h-72 overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--bg)] p-3 text-xs text-[var(--text-secondary)]">
-            {JSON.stringify(native, null, 2)}
-          </pre>
-        ) : (
-          <div className="mt-3 space-y-2">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-3 w-full" />
-            ))}
-            <p className="mt-2 text-xs text-[var(--text-muted)]">原生模块未启用或暂无数据。</p>
-          </div>
-        )}
-      </ShimmerCard>
     </div>
   )
 }

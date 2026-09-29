@@ -542,7 +542,6 @@ export const endpoints = {
   },
   perf: {
     metrics: () => api.get('/metrics'),
-    native: () => api.get('/native/stats').catch(() => null),
   },
   eval: {
     stats: () => api.get('/eval/stats'),

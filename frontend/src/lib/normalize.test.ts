@@ -4,7 +4,6 @@ import {
   normalizeAvailable,
   normalizeTools,
   normalizeMetrics,
-  normalizeNative,
   normalizeEvalResults,
   normalizeEvalAssignments,
   normalizeEvalModels,
@@ -104,26 +103,6 @@ describe('normalizeMetrics', () => {
   })
 })
 
-describe('normalizeNative', () => {
-  it('returns null for strings (HTML response in dev)', () => {
-    expect(normalizeNative('<html>...</html>')).toBeNull()
-    expect(normalizeNative('')).toBeNull()
-  })
-
-  it('passes through arrays and objects', () => {
-    const obj = { foo: 'bar' }
-    const arr = [1, 2, 3]
-    expect(normalizeNative(obj)).toBe(obj)
-    expect(normalizeNative(arr)).toBe(arr)
-  })
-
-  it('returns null for primitives', () => {
-    expect(normalizeNative(null)).toBeNull()
-    expect(normalizeNative(undefined)).toBeNull()
-    expect(normalizeNative(42)).toBeNull()
-    expect(normalizeNative(true)).toBeNull()
-  })
-})
 
 describe('normalizeEvalResults', () => {
   it('returns [] for non-arrays', () => {

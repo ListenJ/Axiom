@@ -1,7 +1,8 @@
-# Axiom 架构权威参考
+# Axiom 架构速览（基线统计与分层约束）
 
-> 最后更新: 2026-07-13
-> 本文件是 Axiom 项目的唯一架构权威参考。所有架构决策、分层规则、模块职责均以此为准。
+> 最后更新: 2026-09-29（Linux 迁移 + 主干归一后校准）
+> **权威指针**：全系统唯一权威参考是 [AXIOM-ARCHITECTURE.md](./AXIOM-ARCHITECTURE.md)（模块详解、核心代码、数据流、工具面）。
+> 本文只承载**可复现的基线统计、分层约束与演进记录**；两文冲突时以 AXIOM-ARCHITECTURE.md 为准（2026-09-29 双权威裁决）。
 
 ---
 
@@ -9,16 +10,15 @@
 
 Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 Agent 之下的基础设施层（ADR-001「Runtime 优先于 Agent」，见 AXIOM-ARCHITECTURE §〇），为上层 Agent/宿主提供确定性认知基建（检索/记忆/KG/推理/工具面）与模型调用效率（缓存/路由/预算），而非又一个 Agent。核心设计理念是**确定性检索（`src/memory/sqlite-memory.ts` 的 SQLite FTS5 为主索引、`src/memory/deterministic-search.ts` 的关键词按匹配次数加分为补，两者均无向量计算；共享 `cosineSimilarity`（`src/utils/math.ts`）仅在有 embedding 的可选语义路径使用）+ PG vector 当前不可启用（PG 客户端已随 H-M1-03 删除，TS 运行时内无 PG 路径，默认且唯一为 SQLite FTS5；native 云端件的探针例外见 `docs/LIMITATIONS.md` §2.3）**。确定性检索（关键词按匹配次数加成，优先级 标题 > 标签 > 路径 > 内容 + PARA + 关系推导）为默认，**知识库结构化（`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关）的 LLM 调用为可选能力（`KNOWLEDGE_USE_LLM=false` 默认关闭）；关闭时走确定性 TF-IDF 回退 `fallbackTFIDF`，开启时依次尝试边缘小模型 `structureKnowledgeWithEdge` 与云端 `structureWithGLM`，再失败仍回退 TF-IDF。**
 
-| 属性 | 值 |
+| 属性 | 值（生成命令：`bun run scripts/count-arch-stats.mjs`；本节数字禁止手抄） |
 |------|-----|
-| 语言 | TypeScript 5.x |
-| 运行时 | Bun 1.3+ |
-| 总源文件 | 260+ 个 |
-| 总代码行 | ~70,000 |
-| 测试文件 | 80+ 个 |
-| 测试总数 | ~1,170 (1042 后端 + 154 前端 + 其他) |
-| PBT invariants | 46 |
-| 类型安全 | `tsc --noEmit` 0 errors, `as any` ≤ 4 |
+| 语言 / 运行时 | TypeScript 5.x / Bun 1.4+ |
+| src/ | **38 模块 / 451 文件 / 121,938 行**（2026-09-29 生成值） |
+| 测试 | **470 个 `*.test.ts`**；串行全套 **4,675 用例（4,608 pass / 67 skip / 0 fail）**，命令与入口见 §4 |
+| MCP 工具 | **189** 个去重工具（零重复）；单一事实源 `src/testing/tool-count.ts`，生成器 `scripts/count-tools.mjs` |
+| 代码质量门 | `as any` ≤ 25（2026-09-29 实测 8）、每文件 ≤ 5、`: any` ≤ 90、`@ts-expect-error` ≤ 1 |
+| 类型安全 | `tsc --noEmit` 0 errors |
+| 非确定性登记 | 见 `docs/security/tool-capability-declarations.md`；与代码一致性由 doc-contract D5/D6 门禁保证（不在此手抄） |
 
 ---
 
@@ -26,19 +26,25 @@ Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 
 
 ```
 src/
+├── agent-evals/     — Agent 运行时评测 (任务集, 指标, 外部对标, 自动演化)
 ├── agents/          — AI Agent 实现 (opencode, hermes, consciousness, orchestrator)
 ├── cli/              — CLI 子命令 (knowledge, vault, eval, kg, db)
+├── codeindex/       — 本地 AST→SQLite 代码索引 (TypeScript Compiler API；本地优先于外部 codegraph)
+├── components/      — 组件内核 (kernel, 契约, 上下文装配/压缩)
+├── computer-use/    — UI 自动化 (浏览器启动守卫, 前端审查, 元素定位)
 ├── constants/       — 共享常量 (叶子层)
 ├── context/         — 上下文管理
 ├── core/            — 核心基础设施 (config-center, http-router, health-checker)
 ├── crawl/           — 数据采集管道 (web fetch, search, serpapi)
 ├── cron/            — 定时任务
 ├── db/              — 数据库访问层 (sqlite, codegraph-sync)
+├── decision/        — 决策链 (Laya 本地决策模型 TS 接入, 分诊, 审计链, 置信度标定)
 ├── dre/             — 确定性推理引擎 (constraint, runtime, pipeline, persona, actor)
 ├── eval/            — 模型评估框架
 ├── kal/             — 知识访问层
 ├── kg/              — 知识图谱增强
 ├── knowledge/        — 知识库系统 (pipeline, collector, searcher, store, sources)
+├── local-llm/       — 本地/边缘小模型接入 (llama.cpp 客户端, 边缘嵌入, 灰区初筛)
 ├── mcp/             — MCP 服务器 + 工具注册表 (15 领域文件)
 ├── memory/          — Vault 核心记忆引擎 (确定性搜索, archiver, distiller)
 ├── ocr/             — OCR 引擎
@@ -46,9 +52,14 @@ src/
 ├── plugins/         — 插件注册表
 ├── router/          — 模型路由 (model-router, thompson, capability-registry)
 ├── routes/          — HTTP API 路由 (chat, search, vault, agents, eval, stats, tools, sandbox, pipeline, traces, models)
+├── runtime/         — RuntimeHost (宿主生命周期与运行态类型)
 ├── sandbox/         — 沙盒执行环境 (docker-sandbox, process-sandbox)
+├── self-evolve/     — 自演化回路 (技能晋升/质量, 心智建议)
+├── semantic/        — 语义表示 schema (意义模式, 符号相似度, 校验管线)
 ├── services/        — 循环依赖解耦层 (见 2.1 节)
 ├── skills/          — Skill 加载器
+├── terminal/        — PTY 终端与命令审批门
+├── testing/         — 测试基础设施 (工具计数单一事实源, 场景/调度/指标)
 ├── tools/           — 通用工具抽象 (read/write/query + pipeline)
 ├── tui/             — 终端 UI
 ├── utils/           — 通用工具函数 (cache, env, logger, security, permissions, agent-trace)
@@ -71,6 +82,9 @@ src/
 - `memory/*` 不得从 `agents/`, `mcp/`, `routes/` 导入
 - 循环依赖仅允许通过 `services/` 层中转
 - 已知设计允许的集成模块: `mcp`, `routes`, `agents` (可引用 8+ 目录)
+
+> 层归属的**执行判据**是 `tests/architecture-integrity.test.ts` 的分层约束与 `src/` 的实际导入（模块清单见 §2 目录树）；
+> 上列各层举例不逐一枚举 38 个模块 —— 需要精确清单时以目录树与门禁为准（2026-09-29 校准注）。
 
 ### 2.2 已知循环依赖 (通过 services/ 解耦)
 
@@ -141,17 +155,22 @@ core   → routes   ← agents        (路由注册)
 
 ## 4. 测试架构
 
-```
-test:core         136 tests  — 核心模块单元测试 (566ms)
-test:arch          22 tests  — 架构完整性约束 (497ms)
-test:perf          32 tests  — 性能基准 (含 200% 超标基线)
-test:integration   11 tests  — 集成/并发测试
-test:e2e           31 tests  — E2E 端到端测试 (真实文件 I/O, HTTP 路由, MCP 工具, 弹性, 配置)
-test:full         232 tests  — 以上全部 (~13s)
-frontend          154 tests  — React 组件测试 (vitest + jsdom)
-```
+测试入口以 `package.json` 脚本为准；**用例数一律以实跑输出为准，不在本文手抄**（历史漂移留证：本表曾记 `test:full` 232 项/~13s，2026-09-29 实测串行全量为 4,675 用例 / 470 文件 / 约 115s）。
 
-### 4.1 架构完整性测试 (22 项)
+| 脚本 | 内容 |
+|------|------|
+| `test` / `test:full` | 全量（`scripts/test-full.ts`；`test` 默认 `--parallel=8`） |
+| `test:core` | 核心模块单元测试（脚本内固定文件清单） |
+| `test:arch` | 架构完整性约束（`tests/architecture-integrity.test.ts`） |
+| `test:docs` | 文档口径契约（`tests/doc-contract.test.ts`） |
+| `test:perf` / `test:stress` / `test:gate` | 性能基准 / 压力 / 性能门禁（`AXIOM_PERF_ASSERT=1`） |
+| `test:integration` | 集成与并发边界（`tests/integration-edge.test.ts`） |
+| `test:e2e` | E2E（`scripts/run-e2e.cjs`） |
+| `test:smoke` | 冒烟（`scripts/test-smoke.ts`） |
+
+串行全量基线（Linux 迁移后，2026-09-29 实测）：`bun test --timeout 15000 ./tests` → **470 文件 / 4,675 用例 / 4,608 pass / 67 skip / 0 fail / 约 115s**。
+
+### 4.1 架构完整性测试
 
 测试 `tests/architecture-integrity.test.ts` 在 CI 中自动运行，验证：
 
@@ -170,25 +189,17 @@ frontend          154 tests  — React 组件测试 (vitest + jsdom)
 | 污点代码 | `throw new Error()` | 描述 ≥ 10 字符 |
 | 工具 | `mcp/server.ts` 行数 | ≤ 500 |
 
-### 4.2 性能合约 (32 项)
+### 4.2 性能合约
 
-| 基准 | 规格 | 极限 |
-|------|------|------|
-| Cache 100k set+get | < 200ms | **实测 43ms** |
-| Cache 1M 内存上限 | 峰值 ≤ 10000 | **实测 10000** |
-| Thompson 50k route | < 500ms | **实测 31ms** |
-| ConfigCenter 50k 读 | < 100ms | **实测 0.8ms** |
-| Solver 50k check | < 500ms | **实测 49ms** |
-| Pipeline 10k empty | < 100ms | **实测 8.7ms** |
-| EventBus 100k pub | < 50ms | **实测 29ms** (O(1) 环形缓冲区) |
+性能断言分两档：默认套件只做**防挂起上界**（宽阈值，防卡死与数量级爆炸）；`AXIOM_PERF_ASSERT=1`（`test:perf` / `test:stress` / `test:gate`）才启用严格基准。各基准的规格与实测值以**实跑输出**为准，不在本文手抄历史快照（2026-09-28 预算重校准留痕见 ops log）。
 
-### 4.3 E2E 端到端测试 (31 项)
+### 4.3 E2E 端到端测试
 
-E2E 测试覆盖真实文件系统 I/O、HTTP 路由、MCP 工具调用、系统弹性与配置加载场景,与架构完整性测试一同在 CI 中自动执行。
+E2E 覆盖真实文件系统 I/O、HTTP 路由、工具调用、系统弹性与配置加载场景（入口 `scripts/run-e2e.cjs`），与架构完整性测试一同在 CI 中自动执行。
 
 ### 4.4 CI/CD
 
-CI 运行 `bun run test:full` (232 项测试, ~13s),代替原先的 `bun test`。架构完整性测试 (22 项) 和 E2E 测试 (31 项) 为 CI 必过门槛。
+CI 运行 `bun run test:full`；架构完整性（`test:arch`）与文档口径契约（`test:docs`）为必过门槛。
 
 ---
 
@@ -204,18 +215,24 @@ CI 运行 `bun run test:full` (232 项测试, ~13s),代替原先的 `bun test`�
 - `proxy-fetch.ts` (代理发现)
 - `api-key-store.ts` (Key 存储)
 - `vault-manager.ts` (构造函数默认值)
+- `decision/laya-calibrate.ts` (CLI 前置校验：缺 `LAYA_DECISION_URL` 拒跑，2026-09-28 增补)
 - `main.ts` (动态 key 读取)
 - `router/models/providers.ts` (provider 配置)
 
+> 白名单的**权威来源**是 `tests/architecture-integrity.test.ts` 的 `ENV_WHITELIST` 常量；本列表如与门禁冲突，以门禁为准（2026-09-29 校准注）。
+
 ### 5.2 `as any` 豁免
 
-仅允许在以下场景使用 `as any`：
-- Bun 内部 API (redis-client.ts)
-- SQLite 查询结果行 (codegraph-sync.ts, model-eval-service.ts)
-- 复杂 DOM/协议类型 (computer-use-agent.ts, adaptive-proxy.ts)
-- 第三方库兼容 (install-wizard.ts: blessed)
+仅允许在以下场景使用 `as any`（2026-09-29 实测：全 `src/` 共 **8 处**，分布如下）：
 
-总数不得 > 20, 每文件不得 > 5。
+- `src/memory/vault-manager.ts`（2）— vault 行与动态字段
+- `src/dre/system-resource.ts`（2）— 系统资源探针返回值
+- `src/utils/redis-client.ts`（1）— Bun 内部 API
+- `src/routes/knowledge-graph.ts`（1）— 请求体动态字段
+- `src/mcp/tool-registry.ts`（1）— 工具参数透传
+- `src/agents/computer-use-agent.ts`（1）— DOM/协议类型
+
+门禁阈值：总数 ≤ 25、每文件 ≤ 5（权威来源 `tests/architecture-integrity.test.ts`）。
 
 ### 5.3 单例模式
 
@@ -261,6 +278,8 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 | 日期 | 变更 | 影响 |
 |------|------|------|
+| 2026-09-29 | Linux 迁移后数据面校准 | agent.db VACUUM 轮换（空闲页 23.5%→0，-24.1%）；codeindex 重扫为 Linux 路径并修复查询字段映射；健康检查新增空闲页告警 |
+| 2026-09-28 | 主干归一收口 + Rust 全退役 | `internal/main` 推进到归一 tip；运行时纯 TS（Go 负责 runtime-go 高并发）；Laya 决策链接入开发流程（后续提交仍在工作分支，main 未跟进） |
 | 2026-07-11 | PostgreSQL 移除, SQLite 为唯一数据库 | 简化数据层 |
 | 2026-07-11 | `opencode-tool-agent.ts` 按需加载重构 | 1021→64 行 (-94%) |
 | 2026-07-11 | `cli.ts` 拆分为 `cli/commands/` | 1411→1207 行 |
@@ -300,11 +319,12 @@ export function registerVaultTools(registry: ToolRegistry, vault: VaultManager):
 
 | 节点 | 地址（部署参数，不入库） | 角色 | 硬件 |
 |------|-----|------|------|
-| 编排器 | `${LAN_ORCHESTRATOR}` | Bun/Node 运行时 | Windows, 无 GPU |
+| 编排器 | `${LAN_ORCHESTRATOR}` | Bun/TS 运行时（Rust sidecar 已退役；Go 仅 runtime-go 高并发面） | Linux（2026-09-28 迁移后） |
 | PDF Worker | `${LAN_PDF_WORKER}` | MinerU + FastAPI (CPU) | E5-2450, Intel X520 万兆 |
 | LLM Worker | `${LAN_LLM_WORKER}` | 推理服务 (预留) | RTX 3050, Python 3.14 |
 
 > 三机地址与登录账号属部署拓扑，按规则 11 不入库（占位符只表达"哪个角色在哪台机"，不表达可寻址信息）。
+> 编排器行已按 2026-09-28 Linux 迁移更新；**Worker 两行为迁移前登记值，本轮未复核其在线状态与硬件**，以部署时 `${LAN_*}` 实际配置为准（2026-09-29 校准注）。
 > 脚本/代码侧的字面量默认值（`scripts/deploy-pdf-worker.sh`、`src/cli.ts` 的 `--pdf-worker` 示例）本轮只登记未改，
 > 换环境时以参数或环境变量覆盖。
 

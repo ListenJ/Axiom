@@ -86,6 +86,15 @@ describe("layaDecide —— 单条与错误分级", () => {
     expect((fetchCalls[0].body as { model: string }).model).toBe("multilingual");
   });
 
+  test("4xx 响应体含重试候选字样仍不重试（结构化分类不被响应体毒化）", async () => {
+    // 修复前实现靠错误消息前缀嗅探分支：服务端 body 回显"（重试候选）"会把 4xx 误判成可重试。
+    // 本用例锁住 LayaHttpError{retryable:false} 的结构化判定。
+    fetchImpl = async () =>
+      new Response(JSON.stringify({ error: "请勿重试（重试候选）" }), { status: 422 });
+    await expect(layaDecide("s", { a: { type: "noul", instructions: "x" } })).rejects.toThrow(/422/);
+    expect(fetchCalls.length).toBe(1);
+  });
+
   test("4xx 不重试：422 只调一次并抛错", async () => {
     fetchImpl = async () => new Response("Request validation failed", { status: 422 });
     await expect(layaDecide("s", { a: { type: "noul", instructions: "x" } })).rejects.toThrow(/422/);
