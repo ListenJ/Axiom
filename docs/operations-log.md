@@ -145,4 +145,4 @@
 - **P1-4 分支清单（先列后裁，本轮不动）**：13 本地分支 → **10 个 0 未并入提交**（`archive-2026-08-09-pre-external-component`、`archive-2026-09-25`、`external-component-runtime`、`frontend-aesthetic-repair`、`laya-audit-chain-2026-09-25`、`node22-decommission-n2-swap`、`retirement-consolidation-on-s3`、`runtime-safefs-outbound-design`、`self-evolving-agent`、`master`）；**2 个含未并入提交**（`archive-experiments-2026-08-08` 2 条、`retirement-consolidation-2026-09-23` 5 条，内容均为 docs/ops-log 记账 + AGENTS v1.6 规则归并）**且均已推送远端**（本地删除无数据风险）；当前工作分支 `codex/main-unify-2026-09-26` 保有全部工作。
 - **P1-2 / P1-3 未能执行的原因（如实登记）**：systemd 安装启停需 root（`sudo -n` 不可用）；runtime-go 拓扑取值属部署侧 `${LAN_*}`（规则 11 不入库）。
 - **验证**：脚本 `bash -n` 通过；六道门 host 模式实跑 PASS（退出码 0）；复跑后端口 0 残留；短 token 守卫 exit 2；doc-contract 35/0。
-- **Commit**：本条同批（hash 见 git log 回填）
+- **Commit**：`f30bce9e`（已推送，按规则 9 以本记录维护提交回填）
