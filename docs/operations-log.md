@@ -27,7 +27,7 @@
 - **验证**：`bunx tsc --noEmit` rc=0；doc-contract **35/0**；audit:runtime **16/16**；新增用例 3/3 与 5/5；串行全量 `bun test --timeout 15000 ./tests` = **4,675 用例 / 470 文件 / 4,608 pass / 67 skip / 0 fail / 114.05s**（较改动前 +4 用例、+1 文件，数量守恒）。
 - **口径偏差留痕（不做项）**：路线图 P0-2 原验收「meta 记录 = 本机路径」不可执行 —— `code_index_meta` 只有 `project/last_indexed_at/files/symbols` 四列、无路径列；本批改以 `code_symbols.file_path` 抽样判据执行，路线图文字待 P0-1 轮校准。`plugins/kb-dsh/backend/server.js` 内嵌 codegraph 的 Windows 二进制探测路径未动，记入后续项。
 - **备份处置（规则 2.5）**：验证全绿后删除 `.tmp/backups/` 下三份源码备份与轮换前的 `data/agent.db.pre-vacuum-20260929`；数据面回滚锚点仍为迁移 u2 单元（09-22 快照）与本节行数证据表。
-- **Commit**：`<待回填>`
+- **Commit**：`ac51e334`（已推送，按规则 9 以本记录维护提交回填）
 
 ## 2026-09-28 — fix(tests): 归一收口清红——adaptive-proxy-exit 适配 bun 1.4 done 回调 + resource-sync 去环境耦合
 
