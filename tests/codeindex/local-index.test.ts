@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
@@ -108,5 +108,25 @@ describe('专有代码索引（AST→SQLite）', () => {
     indexProject(fixture, PROJ)
     const second = searchSymbolsLocal('', PROJ).length
     expect(second).toBe(first)
+  })
+
+  // 回归锁（P0-2，2026-09-29）：查询结果此前直接透出 SQLite 行（snake_case 列），
+  // 而接口/下游（memory/codegraph-index.ts:toCodeGraphResult）读 camelCase ⇒
+  // filePath/qualifiedName/startLine/endLine 全为 undefined（getFileSymbols 永不匹配）。
+  test('查询结果字段为 camelCase 且 filePath 指向真实文件', () => {
+    indexProject(fixture, PROJ)
+    const hits = searchSymbolsLocal('Calculator', PROJ, { kind: 'class' })
+    expect(hits.length).toBeGreaterThan(0)
+    const node = hits[0].node
+    expect(node.qualifiedName).toBe('Calculator')
+    expect(node.filePath).toBe(path.join(fixture, 'src', 'calc.ts'))
+    expect(existsSync(node.filePath)).toBe(true)
+    expect(node.startLine).toBeGreaterThan(0)
+    expect(node.endLine).toBeGreaterThanOrEqual(node.startLine)
+
+    // callers/callees 路径同样经过映射（不只 search 一处）
+    const callers = getCallersLocal('add', PROJ)
+    expect(callers.length).toBeGreaterThan(0)
+    expect(callers.every((c) => c.node.filePath === path.join(fixture, 'src', 'math.ts') || c.node.filePath === path.join(fixture, 'src', 'calc.ts'))).toBe(true)
   })
 })

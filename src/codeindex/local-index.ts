@@ -345,6 +345,27 @@ export function tryLocal<T>(projectPath: string | undefined, projectName: string
   }
 }
 
+/**
+ * SQLite 行 → CodeSymbol：列名是 snake_case（file_path/start_line…），
+ * 而接口与下游消费面（`memory/codegraph-index.ts` 的 toCodeGraphResult）读 camelCase。
+ * 不做这层映射时 filePath/qualifiedName/startLine/endLine 全是 undefined
+ * （实测：getFileSymbols 永不匹配、KG 上下文静默丢文件位置）。
+ */
+function rowToSymbol(r: Record<string, unknown>): CodeSymbol {
+  return {
+    id: Number(r.id),
+    project: String(r.project),
+    qualifiedName: String(r.qualified_name),
+    name: String(r.name),
+    kind: String(r.kind),
+    filePath: String(r.file_path),
+    startLine: Number(r.start_line),
+    endLine: Number(r.end_line),
+    signature: r.signature == null ? undefined : String(r.signature),
+    language: String(r.language),
+  };
+}
+
 export function searchSymbolsLocal(
   query: string,
   projectName: string,
@@ -356,7 +377,7 @@ export function searchSymbolsLocal(
   const rows = opts?.kind
     ? q(db, `SELECT * FROM code_symbols WHERE project = ? AND kind = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, opts.kind, like, like, limit)
     : q(db, `SELECT * FROM code_symbols WHERE project = ? AND (name LIKE ? OR qualified_name LIKE ?) ORDER BY name LIMIT ?`).all(projectName, like, like, limit);
-  return (rows as CodeSymbol[]).map((s) => ({ node: s, score: 1 }));
+  return (rows as Array<Record<string, unknown>>).map((r) => ({ node: rowToSymbol(r), score: 1 }));
 }
 
 export function getCallersLocal(
@@ -380,8 +401,8 @@ export function getCallersLocal(
   if (callerRows.length === 0) return [];
   const callerIds = callerRows.map((r) => r.caller_id);
   const ph2 = callerIds.map(() => "?").join(",");
-  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...callerIds) as CodeSymbol[];
-  return rows.map((s) => ({ node: s, score: 1 }));
+  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...callerIds) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({ node: rowToSymbol(r), score: 1 }));
 }
 
 export function getCalleesLocal(
@@ -403,6 +424,6 @@ export function getCalleesLocal(
   if (calleeRows.length === 0) return [];
   const calleeIds = calleeRows.map((r) => r.callee_id);
   const ph2 = calleeIds.map(() => "?").join(",");
-  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...calleeIds) as CodeSymbol[];
-  return rows.map((s) => ({ node: s, score: 1 }));
+  const rows = q(db, `SELECT * FROM code_symbols WHERE id IN (${ph2})`).all(...calleeIds) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({ node: rowToSymbol(r), score: 1 }));
 }

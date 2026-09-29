@@ -155,6 +155,10 @@ export class HealthChecker {
       db.query("SELECT 1").get();
       db.close();
       this.results.push({ component: "SQLite 数据库", status: "ok", message: "数据库连接正常" });
+
+      // 空闲页占比（P0-3 例行化）：VACUUM 长期不跑会让库体积远超活数据
+      const freelist = await checkSqliteFreelist(dbPath);
+      if (freelist) this.results.push(freelist);
     } catch (e) {
       this.results.push({
         component: "SQLite 数据库", status: "error", message: `数据库连接失败: ${(e as Error).message}`,
@@ -363,6 +367,46 @@ export class HealthChecker {
 export async function runHealthCheck(): Promise<SystemReport> {
   const checker = new HealthChecker();
   return checker.runFullCheck();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SQLite 空闲页例行检查（P0-3：VACUUM 例行化，2026-09-29）
+// ═══════════════════════════════════════════════════════════════
+
+/** 空闲页占比告警阈值：超过即提示 VACUUM（VACUUM 只回收空闲页，不改数据内容）。 */
+export const DB_FREELIST_WARN_RATIO = 0.2;
+
+/**
+ * 读 SQLite 空闲页占比并给出检查结论（只读 PRAGMA，不读业务表）。
+ * 文件不存在或不可读时返回 null —— 由 checkDatabase 的既有分支兜底，本函数不抛。
+ * 导出供测试直接对合成库断言（tests/unit/db-freelist-warning.test.ts）。
+ */
+export async function checkSqliteFreelist(dbPath: string): Promise<HealthCheckResult | null> {
+  if (!fs.existsSync(dbPath)) return null;
+  try {
+    const { Database } = await import("bun:sqlite");
+    const db = new Database(dbPath);
+    const pageCount = Number((db.query("PRAGMA page_count").get() as { page_count: number }).page_count);
+    const freelistCount = Number((db.query("PRAGMA freelist_count").get() as { freelist_count: number }).freelist_count);
+    const pageSize = Number((db.query("PRAGMA page_size").get() as { page_size: number }).page_size);
+    db.close();
+
+    const ratio = pageCount > 0 ? freelistCount / pageCount : 0;
+    const freeMB = (freelistCount * pageSize) / 1024 / 1024;
+    const pct = (ratio * 100).toFixed(1);
+    if (ratio > DB_FREELIST_WARN_RATIO) {
+      return {
+        component: "SQLite 空闲页",
+        status: "warning",
+        message: `空闲页占比 ${pct}%（${freeMB.toFixed(1)}MB），建议 VACUUM 回收`,
+        fix: "停机窗口执行 VACUUM（或 VACUUM INTO 轮换）",
+      };
+    }
+    return { component: "SQLite 空闲页", status: "ok", message: `空闲页占比 ${pct}%（${freeMB.toFixed(1)}MB）` };
+  } catch (e) {
+    logger.warn("[HealthChecker] SQLite 空闲页检查失败", { error: (e as Error).message });
+    return null;
+  }
 }
 
 /** 打印友好的健康报告 */

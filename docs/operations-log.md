@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-09-29 — chore(data): P0-3 agent.db VACUUM 轮换 + P0-2 codeindex Linux 重扫 + 空闲页例行告警
+
+- **任务**：架构路线图 P0 批次（用户裁定「批 2 数据面」）。分级 **T2**（运维数据面 + 两文件代码 + 两个测试；紧缩用 `VACUUM INTO` 轮换，先备份后替换）。
+- **P0-3 库紧缩**：`data/agent.db` 139,694,080B → 106,123,264B（-24.1%）；freelist 8,007/34,105 页（**23.48% → 0**）；`integrity_check=ok`；**68 张表 89,159 行逐表全等**（含 FTS 影子表）。执行序：只读基线 → `VACUUM INTO` 新文件 → 校验 → 原子轮换 → 复验；换库前 WAL 实测 0 字节、无进程占用。轮换前原件 sha256 = `120443c739c5d3579412babcb5b688141e70e6553cd2eeaef28d61d256d3c167`（139,694,080B）。
+- **P0-2 索引重扫**：旧 9 个项目 14,996 条符号**全部**为退役 Windows 检出期产物（逐项目抽样 60 条路径，本机可解析 **0**、反斜杠 100%），按规则 4 例外（派生数据、可从源码确定性重建）整项目删除并登记；对本仓重扫 `project=openclaw-fusion`：1,244 文件 / 23,948 符号 / 94,323 调用（5.96s），落库 **16,615 符号**（`UNIQUE(project, qualified_name)` 去重）+ **75,479 调用**；抽样 40 条路径全部为绝对 Linux 路径且存在于磁盘。
+- **P0-3 告警例行化**：`src/core/health-checker.ts` 新增 `DB_FREELIST_WARN_RATIO=0.2` + `checkSqliteFreelist()`（只读 PRAGMA）；`bun run src/cli.ts diag` 实测新增行 `SQLite 空闲页 OK 空闲页占比 0.0%`，总评 🟢；测试 `tests/unit/db-freelist-warning.test.ts` 3 用例（占比由用例独立复算，防"消息对但库不脏"的假绿）。
+- **P0-2 连带缺陷修复（回 Plan 增补，理由：不修则重扫后的索引在消费面仍不可用）**：`local-index.ts` 三条查询直接透出 SQLite 行（snake_case 列），而接口与下游 `memory/codegraph-index.ts:toCodeGraphResult` 读 camelCase ⇒ `filePath/qualifiedName/startLine/endLine` 恒 `undefined`（`getFileSymbols` 永不匹配、KG 上下文静默丢文件位置）。新增 `rowToSymbol` 映射（search/callers/callees 三处）+ 回归用例锁定；修复后实测 `indexProject` 查询返回真实路径 `/media/listen/base/openclaw-fusion/src/codeindex/local-index.ts:260`。
+- **验证**：`bunx tsc --noEmit` rc=0；doc-contract **35/0**；audit:runtime **16/16**；新增用例 3/3 与 5/5；串行全量 `bun test --timeout 15000 ./tests` = **4,675 用例 / 470 文件 / 4,608 pass / 67 skip / 0 fail / 114.05s**（较改动前 +4 用例、+1 文件，数量守恒）。
+- **口径偏差留痕（不做项）**：路线图 P0-2 原验收「meta 记录 = 本机路径」不可执行 —— `code_index_meta` 只有 `project/last_indexed_at/files/symbols` 四列、无路径列；本批改以 `code_symbols.file_path` 抽样判据执行，路线图文字待 P0-1 轮校准。`plugins/kb-dsh/backend/server.js` 内嵌 codegraph 的 Windows 二进制探测路径未动，记入后续项。
+- **备份处置（规则 2.5）**：验证全绿后删除 `.tmp/backups/` 下三份源码备份与轮换前的 `data/agent.db.pre-vacuum-20260929`；数据面回滚锚点仍为迁移 u2 单元（09-22 快照）与本节行数证据表。
+- **Commit**：`<待回填>`
+
 ## 2026-09-28 — fix(tests): 归一收口清红——adaptive-proxy-exit 适配 bun 1.4 done 回调 + resource-sync 去环境耦合
 
 - **任务**：主干归一计划第 5 步收尾（用户指令 2026-09-28「完成统一」）。分级 **T2**（tests/unit 两文件，产品代码零改动）。
