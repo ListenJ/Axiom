@@ -2,8 +2,30 @@ import { describe, test, expect, beforeEach, afterEach, spyOn } from "bun:test";
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
 import * as fsp from "node:fs/promises";
 import { writeFile, moveFile } from "../../src/mcp/tools/filesystem";
+
+/**
+ * 本次用例创建的「沙箱外」目录，afterEach 统一清理。
+ * 2026-09-29 修复（路线图 P0「C:/ 异物」活体复现）：原夹具用 path.join("C:", ...) 造
+ * Windows 绝对路径，在 POSIX 上退化为**工作树内相对路径**，mkdir 会在仓库根建出
+ * C:/Windows/Temp 目录树且从不清理。现按平台分支 + 断言确在 cwd 之外（退化即红）。
+ */
+const createdOutside: string[] = [];
+function outsideDir(tag: string): string {
+  const p =
+    process.platform === "win32"
+      ? path.join("C:", "Windows", "Temp", `${tag}-${Date.now()}`)
+      : path.join(os.tmpdir(), `axiom-fs-${tag}-${Date.now()}`);
+  const abs = path.resolve(p);
+  const cwdAbs = path.resolve(".");
+  if (abs === cwdAbs || abs.startsWith(cwdAbs + path.sep)) {
+    throw new Error(`outsideDir 夹具退化：${abs} 落在工作树内（会污染仓库）——检查平台分支`);
+  }
+  createdOutside.push(p);
+  return p;
+}
 
 describe("filesystem H-03 TOCTOU 原子化 mkdir -p + 捕获", () => {
   const base = "tmp-fs-toctou-test";
@@ -18,8 +40,9 @@ describe("filesystem H-03 TOCTOU 原子化 mkdir -p + 捕获", () => {
     try { await fs.rm(baseAbs, { recursive: true, force: true }); } catch {}
     try { fsSync.rmSync(path.resolve("tmp-toctou-link"), { force: true }); } catch {}
     try { fsSync.rmSync(path.resolve("tmp-toctou-link2"), { force: true }); } catch {}
-    try { fsSync.rmSync(path.resolve("tmp-toctou-outside"), { recursive: true, force: true }); } catch {}
-    try { fsSync.rmSync(path.resolve("tmp-toctou-outside2"), { recursive: true, force: true }); } catch {}
+    for (const p of createdOutside.splice(0)) {
+      try { fsSync.rmSync(path.resolve(p), { recursive: true, force: true }); } catch {}
+    }
   });
 
   test("并发 mkdir 竞态不抛且文件均成功（原子 mkdir -p + 捕获）", async () => {
@@ -50,7 +73,7 @@ describe("filesystem H-03 TOCTOU 原子化 mkdir -p + 捕获", () => {
   });
 
   test("TOCTOU：mkdir 前后校验，父目录被并发替换为外链应拦截（原子化后重校验）", async () => {
-    const outside = path.join("C:", "Windows", "Temp", "toctou-outside-" + Date.now());
+    const outside = outsideDir("toctou-outside");
     try { await fs.rm(outside, { recursive: true, force: true }); } catch {}
     await fs.mkdir(outside, { recursive: true });
 
@@ -89,7 +112,7 @@ describe("filesystem H-03 TOCTOU 原子化 mkdir -p + 捕获", () => {
     await fs.mkdir(path.dirname(path.resolve(src)), { recursive: true });
     await fs.writeFile(path.resolve(src), "src-content");
 
-    const outside = path.join("C:", "Windows", "Temp", "toctou-outside2-" + Date.now());
+    const outside = outsideDir("toctou-outside2");
     try { await fs.rm(outside, { recursive: true, force: true }); } catch {}
     await fs.mkdir(outside, { recursive: true });
 

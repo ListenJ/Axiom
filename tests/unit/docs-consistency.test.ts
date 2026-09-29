@@ -105,6 +105,21 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     }
   });
 
+  test("ARCHITECTURE.md §1 基线统计 == 生成器实测（棘轮：改 src 必须重跑 arch:stats）", () => {
+    // 单一事实源：src/testing/arch-stats.ts（生成器 scripts/count-arch-stats.mjs 共用）。
+    // 历史漂移：§1 曾手抄 260+ 文件 / ~70,000 行，2026-09-29 校准当天又漂 137 行。
+    const { archStats } = require("../../src/testing/arch-stats.js") as typeof import("../../src/testing/arch-stats.js");
+    const s = archStats();
+    const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");
+    const re = /\*\*(\d+) 模块 \/ (\d+) 文件 \/ ([\d,]+) 行\*\*/;
+    const m = arch.match(re);
+    // 自检：格式被改写（正则不再命中）时必须红，不能靠"匹配不到就跳过"变绿
+    expect(m, "ARCHITECTURE.md §1 应含 `N 模块 / N 文件 / N 行` 声明").not.toBeNull();
+    expect(Number(m![1]), "声明模块数应等于实测").toBe(s.srcModules);
+    expect(Number(m![2]), "声明文件数应等于实测").toBe(s.srcFiles);
+    expect(Number(m![3].replace(/,/g, "")), "声明行数应等于实测").toBe(s.srcLines);
+  });
+
   test("Limitations 章节应披露确定性检索口径（FTS5+关键词，余弦仅可选语义层与可选 LLM）", () => {
     const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");
     const limitations = existsSync("docs/LIMITATIONS.md") ? readFileSync("docs/LIMITATIONS.md", "utf8") : "";

@@ -121,3 +121,15 @@
 - **留痕真实性修正**：2026-09-28 条声称"毒化探针入 tests/decision"实际只在 /tmp 跑过——本次补入 `tests/decision/laya-http.test.ts` 并做**红绿验证**（`retryable:false→true` 突变 ⇒ 2 用例红；恢复 ⇒ 17/0），声明与实物就此对齐。
 - **验证**：tsc 双端 rc=0；串行全量 **4,684 用例 / 0 fail**（137s）；audit:runtime 16/16；门禁组（decision+隔离+integrity+棘轮+doc+docs-consistency+env 模板）123/0。
 - **Commit**：`33bc944e`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-29 — chore(P0): 路线图 P0 逐项收官（P0-1 棘轮 / P0-4 根因 / P0-5 根治）+ 三次全量验收
+
+- **任务**：用户"继续"——执行 `docs/superpowers/plans/2026-09-28-architecture-refresh-and-optimization.md` 的 P0 项。分级 **T2/T3**（测试夹具 3 文件、src 1 新模块、文档 3 文件、package.json）。
+- **P0-5「C:/ 异物」根因修复（重要更正）**：原登记为"Windows 路径解包残留"——实测是**测试夹具活体生成**：`tests/unit/filesystem.test.ts` 两处用 `path.join("C:", "Windows", "Temp", ...)` 造"沙箱外"目录，POSIX 下 `path.join` 产出**仓内相对路径** `C:/Windows/Temp/...`，`mkdir` 每跑必建（mtime 与测试同步、0 文件、afterEach 只清旧名故从不清理）。修复：平台分支（POSIX 用 `os.tmpdir()`）+ **仓外断言**（落在工作树内即抛，且在 mkdir 前拦下）+ 创建目录清理队列（替代两条指向不存在路径的死清理）。**突变验证**：强制走 Windows 分支 ⇒ 报"夹具退化"且零落盘。
+- **P0-1 架构文档统计棘轮**：`docs/ARCHITECTURE.md §1` 的手抄数字在 09-29 校准当天又漂 137 行（121,938 → 实测 122,075）。止损：统计逻辑抽为单一事实源 `src/testing/arch-stats.ts`（生成器 `scripts/count-arch-stats.mjs` 与新守卫共用）+ 新脚本 `bun run arch:stats` + `docs-consistency` 新增**精确相等断言**（含"格式被改写必须红"的自检）。**双向突变验证**：改数字 ⇒ 红（声明行数应等于实测）；改格式 ⇒ 红（应含 `N 模块 / N 文件 / N 行`）；恢复 ⇒ 45/0。文档值同步为生成值（38 模块 / 452 文件 / 122,141 行）。
+- **P0-2/P0-3 独立复核为已解决**（另一会话 09-29 完成，本轮出证据）：`code_index_meta` 无路径列（无 Windows 前缀问题）；索引 2026-09-29T16:47 重建且与当前树一致（native 0 行 / local-llm 11 符号 / laya-http 21 符号；16,615 符号中反斜杠与盘符路径 0 条）；`freelist_count = 0`（29,870 页 × 4096 = 122.3MB = 文件大小）。
+- **P0-4 群聚族：根因修复 + 验收通过**。三次全量首轮即暴露真凶——RUN1/RUN2 同一用例红：`C.2 内存泄漏检测 > Cache 100 轮 create/destroy — heap 增量 < 20MB`。根因：`tryGC()` 查 `globalThis.gc`（Bun 下**恒为 undefined**）⇒ 空操作 ⇒ 堆增量实际由 GC 时机决定（单跑实测 −3.68 ~ +8.45MB 漂移，全量套件堆基线更大 ⇒ 2/3 轮假红）。**修测量法不放宽阈值**：改用 Bun 原生 `Bun.gc(true)`（实测 16.6MB→0.1MB），delta **连续 5 次恒定 7.79MB**。另把 `extreme-stress.test.ts` 5 处硬编码墙钟断言改 `perfBudget(strict, relaxed)`（strict 保留原值 5000/3000/2000/100/500ms，relaxed 为防挂起上界），C.1 衰减比改双口径（默认 50x 防挂起，`AXIOM_PERF_ASSERT=1` 仍 5x）；双口径复验各 29/0。
+- **验收（连续 3 次串行全量，带失败名捕获）**：**RUN1/RUN2/RUN3 全 0 fail**，4,686 用例 / 471 文件 / 114.0–116.7s，无漂移。修复前同法 3 次为 2 红。
+- **余项（诚实登记）**：全仓约 95 处硬编码 `toBeLessThan(N)`、其中约 20 文件涉墙钟——本轮按证据驱动只改实测红过的两处，建议后续逐批转换（需先区分墙钟与计数/尺寸语义）。另 P1-1..P1-4（LINUX-SMOKE 六道、systemd 常驻、runtime-go 拓扑、退役分支归档）未动。
+- **验证**：tsc 双端 0；`arch:stats` 生成值与文档精确一致；docs-consistency 10/0、doc-contract 35/0；三次全量 0 红。
+- **Commit**：本条同批（hash 见 git log 回填）

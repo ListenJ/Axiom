@@ -13,6 +13,7 @@
  */
 
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
+import { perfBudget } from "../support/perf-budget.js";
 import { scheduler } from "../../src/dre/runtime/scheduler.js";
 import { capabilityRegistry, type CapabilityContract } from "../../src/dre/runtime/capability-registry.js";
 import { knowledgeNetwork } from "../../src/dre/runtime/knowledge-network.js";
@@ -78,7 +79,7 @@ describe("Scheduler: extreme stress (500+ tasks)", () => {
     const endMem = getMemoryUsageMB();
 
     expect(completed).toBe(500);
-    expect(duration).toBeLessThan(5000);
+    expect(duration).toBeLessThan(perfBudget(5000, 30000)); // create 10k
     console.log(`[Stress] 500 tasks: ${duration.toFixed(0)}ms, mem delta: ${endMem.heap - startMem.heap}MB`);
   });
 
@@ -133,7 +134,7 @@ describe("Scheduler: extreme stress (500+ tasks)", () => {
 
     const duration = performance.now() - start;
     console.log(`[Stress] 1000 rapid cycles: ${duration.toFixed(0)}ms`);
-    expect(duration).toBeLessThan(3000);
+    expect(duration).toBeLessThan(perfBudget(3000, 20000)); // 批量操作
   });
 
   test("preemption under extreme load (critical burst)", () => {
@@ -186,7 +187,7 @@ describe("AtomEngine: extreme stress (5000+ atoms)", () => {
     const endMem = getMemoryUsageMB();
 
     expect(stats.total).toBe(5000);
-    expect(duration).toBeLessThan(2000);
+    expect(duration).toBeLessThan(perfBudget(2000, 15000)); // 批量查询
     console.log(`[Stress] 5000 atoms create: ${duration.toFixed(0)}ms, mem delta: ${endMem.heap - startMem.heap}MB`);
   });
 
@@ -202,7 +203,7 @@ describe("AtomEngine: extreme stress (5000+ atoms)", () => {
     const duration = performance.now() - start;
 
     expect(result.length).toBe(5000);
-    expect(duration).toBeLessThan(100);
+    expect(duration).toBeLessThan(perfBudget(100, 2000)); // 单条操作
   });
 
   test("delete 1000 atoms", () => {
@@ -222,7 +223,7 @@ describe("AtomEngine: extreme stress (5000+ atoms)", () => {
 
     const stats = atomStore.getStats();
     expect(stats.total).toBe(1000);
-    expect(duration).toBeLessThan(500);
+    expect(duration).toBeLessThan(perfBudget(500, 5000)); // delete 1000 atoms（2026-09-29 实测在负载下曾红）
   });
 
   test("search 5000 atoms by content", () => {
