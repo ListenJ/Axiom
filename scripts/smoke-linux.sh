@@ -56,8 +56,17 @@ gate() { # gate <name> <exit_code>
 cleanup() {
   if [ "$MODE" = "docker" ] && [ "$KEEP" = "0" ]; then
     docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
-  elif [ "$MODE" = "host" ] && [ -n "${SMOKE_PID:-}" ]; then
-    kill "$SMOKE_PID" 2>/dev/null || true
+  elif [ "$MODE" = "host" ]; then
+    if [ -n "${SMOKE_PID:-}" ]; then
+      kill -- "-$SMOKE_PID" 2>/dev/null || kill "$SMOKE_PID" 2>/dev/null || true
+    fi
+    # 兜底：按端口清理仍在监听的进程（防包装进程/子进程逃逸）
+    sleep 1
+    STILL=$(ss -ltnp 2>/dev/null | grep ":${PORT} " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2 || true)
+    if [ -n "$STILL" ]; then
+      log "清理兜底：端口 ${PORT} 仍被 pid=$STILL 占用，强制结束"
+      kill -9 "$STILL" 2>/dev/null || true
+    fi
   elif [ "$MODE" = "systemd" ] && [ "${SYSTEMD_STARTED:-0}" = "1" ]; then
     systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
   elif [ "$MODE" = "pm2" ] && [ "${PM2_STARTED:-0}" = "1" ]; then
@@ -75,6 +84,12 @@ case "$MODE" in
   *) echo "未知模式: $MODE" >&2; exit 2 ;;
 esac
 command -v curl >/dev/null || { echo "需要 curl"; exit 2; }
+# 2026-09-29：AXIOM_AUTH_TOKEN 有最小长度校验（<16 字符服务拒启、全部探针 000）——前置拦下并给准话
+if [ "${#TOKEN}" -lt 16 ]; then
+  echo "[smoke] AXIOM_AUTH_TOKEN 至少 16 字符（实测 <16 时服务启动即拒：Failed validation for Gateway auth token）" >&2
+  echo "[smoke] 用法：--token=\$(openssl rand -hex 16)（本地冒烟可用任意 ≥16 字符串）" >&2
+  exit 2
+fi
 [ -d "$REPO" ] || { echo "仓库不存在: $REPO"; exit 2; }
 
 log "模式=$MODE 仓库=$REPO 端口=$PORT"
@@ -104,11 +119,13 @@ case "$MODE" in
       oven/bun:1 sh -c "bun run dist/main.js" >/dev/null
     ;;
   host)
-    log "启动前台进程（后台）"
-    ( cd "$REPO" && HOST="$BIND" AXIOM_AUTH_TOKEN="$TOKEN" \
-      DATABASE_PATH="$REPO/data/smoke.db" LOG_LEVEL=warn \
-      bun run dist/main.js >/tmp/axiom-smoke.log 2>&1 & echo $! > /tmp/axiom-smoke.pid )
-    SMOKE_PID="$(cat /tmp/axiom-smoke.pid)"
+    log "启动前台进程（后台，setsid 独立进程组）"
+    # 2026-09-29 修复：原实现把 bun 放在子 shell 里后台化，cleanup 杀到的不是真实服务进程，
+    # 冒烟“PASS”后端口 18789 仍被占用（实测残留 pid）。改为当前 shell 直接后台化 + 记录真实 pid。
+    ( cd "$REPO" && exec env HOST="$BIND" AXIOM_AUTH_TOKEN="$TOKEN" \
+        DATABASE_PATH="$REPO/data/smoke.db" LOG_LEVEL=warn \
+        setsid bun run dist/main.js ) >/tmp/axiom-smoke.log 2>&1 &
+    SMOKE_PID=$!
     ;;
   systemd)
     if systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -164,12 +181,16 @@ curl -sf -H "$AUTH_HEADER" "$DIAG_URL" >/tmp/axiom-smoke-diag.json
 gate "诊断端点 /api/audit/diagnostics" $?
 
 # ---------- 6. 聊天往返（尽力而为：仅断言服务端结构化响应） ----------
+# 2026-09-29 修复：原载荷 {"message":...} 与 /chat 契约不符（schema 要求 messages:[{role,content}]），
+# 必得 400 却被宽容计数——门 6 形同虚设。现发真实契约载荷；非 2xx 时打印响应体（不阻塞门禁，但信息可见）。
 CHAT_HTTP=$(curl -s -o /tmp/axiom-smoke-chat.json -w '%{http_code}' -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
-  -d '{"message":"ping","stream":false}' \
+  -d '{"messages":[{"role":"user","content":"ping"}],"intent":false}' \
   "http://127.0.0.1:${PORT}/chat" 2>/dev/null) || true
-if [ "$CHAT_HTTP" = "200" ] || [ "$CHAT_HTTP" = "202" ] || [ "$CHAT_HTTP" = "400" ] || [ "$CHAT_HTTP" = "401" ]; then
-  log "聊天往返 HTTP=$CHAT_HTTP（服务端已响应）"
+if [ "$CHAT_HTTP" = "200" ] || [ "$CHAT_HTTP" = "202" ]; then
+  log "聊天往返 HTTP=$CHAT_HTTP（结构化响应 OK）"
+elif [ "$CHAT_HTTP" = "400" ] || [ "$CHAT_HTTP" = "401" ] || [ "$CHAT_HTTP" = "500" ]; then
+  log "聊天往返 HTTP=$CHAT_HTTP（服务端已响应但非 2xx，不阻塞门禁）：$(head -c 200 /tmp/axiom-smoke-chat.json 2>/dev/null)"
   gate "聊天往返" 0
 else
   log "聊天往返 HTTP=$CHAT_HTTP（非预期，但不视为阻塞门禁）"

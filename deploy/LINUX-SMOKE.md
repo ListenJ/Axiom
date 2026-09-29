@@ -32,10 +32,19 @@ Docker 模式说明：容器内以 `HOST=0.0.0.0` 绑定并通过 `-p 18789:1878
 ## 宿主机模式（bun 已安装）
 
 ```bash
-./scripts/smoke-linux.sh --mode=host --repo=/opt/openclaw-fusion --token=<token>
+./scripts/smoke-linux.sh --mode=host --repo=/opt/openclaw-fusion --token=$(openssl rand -hex 16)
 ```
 
 要求：`bun` 在 PATH、端口 18789 空闲、仓库可写（会生成 `data/smoke.db`）。
+
+> **token 至少 16 字符**（2026-09-29 实测）：`AXIOM_AUTH_TOKEN` 有最小长度校验，短于 16 时服务**启动即拒**
+> （`Failed validation for Gateway auth token`），表现为所有探针 `HTTP=000`，极易误判为端口/构建问题；
+> 脚本已前置校验并直接报因。
+>
+> **门 6 载荷与清理（2026-09-29 修复）**：`/chat` 的 schema 要求 `messages:[{role,content}]`，旧载荷
+> `{"message":...}` 必得 400 且被宽容计数 ⇒ 门 6 曾形同虚设；现发真实契约载荷、非 2xx 打印响应体（仍不阻塞门禁）。
+> host 模式的清理曾漏杀真实服务进程（杀到的是包装进程），冒烟"PASS"后端口仍被占；现改为 `setsid` 独立进程组 +
+> 进程组清理 + 端口监听兜底。
 
 ## systemd 模式
 

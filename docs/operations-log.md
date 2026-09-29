@@ -133,3 +133,16 @@
 - **余项（诚实登记）**：全仓约 95 处硬编码 `toBeLessThan(N)`、其中约 20 文件涉墙钟——本轮按证据驱动只改实测红过的两处，建议后续逐批转换（需先区分墙钟与计数/尺寸语义）。另 P1-1..P1-4（LINUX-SMOKE 六道、systemd 常驻、runtime-go 拓扑、退役分支归档）未动。
 - **验证**：tsc 双端 0；`arch:stats` 生成值与文档精确一致；docs-consistency 10/0、doc-contract 35/0；三次全量 0 红。
 - **Commit**：`53ebe606`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-09-29 — test(smoke): P1-1 LINUX-SMOKE 六道门通过 + 修脚本三处潜伏缺陷；P1-4 分支清单
+
+- **任务**：用户"继续"——推进路线图 P1。分级 **T2**（脚本 1 文件、文档 2 文件）。
+- **P1-1 六道门（host 模式，实测全过）**：①构建 `dist/` ✓ ②启动 ✓ ③`GET /health` = `ok` ✓ ④`audit:runtime` 16/16 ✓ ⑤`GET /api/audit/diagnostics` 200 ✓ ⑥`POST /chat` **200** ✓ → `SMOKE PASS`，退出码 0。
+- **执行中修掉的三个潜伏缺陷（都是"门看起来过了、其实没测到"）**：
+  1. **门 6 形同虚设**：脚本原载荷 `{"message":"ping","stream":false}` 与 `/chat` 的 zod schema（必填 `messages:[{role,content}]`）不符 ⇒ **恒 400**，而 400 被宽容分支计数为"服务端已响应"⇒ 门 6 从未真正验证聊天往返。修：改发真实契约载荷 `{"messages":[{"role":"user","content":"ping"}],"intent":false}`（`intent:false` 避免冒烟依赖外部模型），2xx 记 OK、非 2xx 打印响应体（仍不阻塞门禁）。修复后实测 **HTTP=200**。
+  2. **host 清理漏杀真实进程**：原实现把服务在**子 shell 内**后台化，`cleanup` 杀到的是包装进程 ⇒ 冒烟打印 PASS 后端口 18789 仍被占（实测残留 pid，需手工 kill）。修：`setsid` 独立进程组 + `kill -- -PGID` + **端口监听兜底清理**（先记录再强杀）。修复后复验：退出即释放端口 ✓。
+  3. **短 token 无提示**：`AXIOM_AUTH_TOKEN` 有最小长度校验（<16 字符服务**启动即拒**：`Failed validation for Gateway auth token`），表现为探针全 `HTTP=000`，极易误判为构建/端口问题。修：脚本前置校验并直接报因（实测 `--token=short` → exit 2 + 准话）。
+- **P1-4 分支清单（先列后裁，本轮不动）**：13 本地分支 → **10 个 0 未并入提交**（`archive-2026-08-09-pre-external-component`、`archive-2026-09-25`、`external-component-runtime`、`frontend-aesthetic-repair`、`laya-audit-chain-2026-09-25`、`node22-decommission-n2-swap`、`retirement-consolidation-on-s3`、`runtime-safefs-outbound-design`、`self-evolving-agent`、`master`）；**2 个含未并入提交**（`archive-experiments-2026-08-08` 2 条、`retirement-consolidation-2026-09-23` 5 条，内容均为 docs/ops-log 记账 + AGENTS v1.6 规则归并）**且均已推送远端**（本地删除无数据风险）；当前工作分支 `codex/main-unify-2026-09-26` 保有全部工作。
+- **P1-2 / P1-3 未能执行的原因（如实登记）**：systemd 安装启停需 root（`sudo -n` 不可用）；runtime-go 拓扑取值属部署侧 `${LAN_*}`（规则 11 不入库）。
+- **验证**：脚本 `bash -n` 通过；六道门 host 模式实跑 PASS（退出码 0）；复跑后端口 0 残留；短 token 守卫 exit 2；doc-contract 35/0。
+- **Commit**：本条同批（hash 见 git log 回填）

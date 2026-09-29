@@ -88,6 +88,13 @@ capability 判定内核（`permission-middleware.checkToolPermission` 空能力�
 | P1-3 | runtime-go 节点更新 | 部署脚本原指向 Windows 编排器/旧节点；按 `${LAN_*}` 新拓扑重配 | modelclient 连通冒烟 |
 | P1-4 | **计划第 8 步：退役分支归档** | 13 本地分支中已并入 main 的按规则 4 移入 `codex/archive-*` 归档分支（ku/doc-caliber 等），清单先列后裁 | `git branch` 收敛；归档分支可追溯 |
 
+> **P1 执行状态（2026-09-29）**
+>
+> - **P1-1 ✅ LINUX-SMOKE 六道门全过**（host 模式，`--token=$(openssl rand -hex 16)`）：构建 dist/ ✓ / 启动 ✓ / `/health` ok ✓ / runtime-audit 16-16 ✓ / `/api/audit/diagnostics` 200 ✓ / **聊天往返 HTTP=200** ✓。执行中揪出并修掉脚本三个潜伏缺陷（见 ops-log 2026-09-29 P1-1 条目）：门 6 载荷与 `/chat` schema（`messages:[{role,content}]`）不符恒得 400 却被宽容计数（门形同虚设）；host 清理杀到包装进程、冒烟"PASS"后端口 18789 仍被占；`AXIOM_AUTH_TOKEN` <16 字符时服务拒启而探针全 000 无提示（现前置校验）。
+> - **P1-4 清单已列，待裁**：13 本地分支中 **10 个已完全并入 HEAD**（0 未并入提交）；**2 个含未并入提交但均已推送到远端**（`codex/archive-experiments-2026-08-08` 2 提交、`codex/retirement-consolidation-2026-09-23` 5 提交，内容均为 docs/ops-log 记账与 AGENTS v1.6 规则归并）——本地删除无数据风险，但按"清单先列后裁"留裁决。
+> - **P1-2 systemd 常驻**：`deploy/systemd/axiom.service` 模板已在库；安装/启停需 root（`sudo`）——本轮 `sudo -n` 不可用，未执行，待环境授权。
+> - **P1-3 runtime-go 拓扑**：部署脚本仍为迁移前 `${LAN_*}` 占位语义，实际取值属部署拓扑（规则 11 不入库）——需按目标环境填值后冒烟。
+
 ### P2 —— 能力/性能（按需启动，单项另立契约）
 
 | # | 项 | 依据 | 说明 |
