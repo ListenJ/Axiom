@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-02 — docs(plan): 主干归一后修复与运维收口计划（blueprint skill，12 步）
+
+- **任务**：用户指令「根据读取结果使用对应 skill 编写下一步计划」。采用 `blueprint` skill（多会话/多 PR 施工计划：研究 → 设计 → 草拟 → 对抗性评审 → 登记），把 2026-10-02 代码读取 + open-code-review 发现拆成 12 个可独立验证、可回滚的 Step。分级 **T3**（书面计划）。
+- **产物**：新增 `docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md`（612 行）。结构：路线图级任务契约 → 事实基线（进度/架构/门禁/OCR 覆盖/未闭合项）→ 目标与不做项 → 依赖图与批次 → 12 个 Step 明细（级别/优先级/模型档/依赖/并行性/任务契约/验证/回滚/退出判据）→ 全局施工约束 → 验收总表 → 对抗性评审记录 → 计划变更与回滚协议 → 需用户裁定问题 → OCR 索引与复现命令。
+- **Step 清单**：1 Router 工具缓存正确性（high）；2 Router 原生流/永久失败/去重（high）；3 main.ts 请求体/指标/错误头（medium）；4 ConfigCenter 敏感审计与单一事实源（high）；5 RuntimeHost 生命周期（medium）；6 Knowledge/Chat-Preflight 输入健壮性（medium）；7 CI Workflow 安全与可靠性；8 git-lfs 安装与 LFS 复验；9 P1-2 systemd 常驻；10 P1-3 runtime-go 拓扑；11 P1-4 分支归档；12 全仓 OCR 覆盖 + 测试阈值棘轮。
+- **对抗性自检**：blueprint 要求委派最强模型只读评审；子代理 3 分钟未返回，已关闭并在上下文内执行同等自检，发现并修正 4 类问题：Step 1/2 同文件必须串行；Step 2/3/4/5 原“二者择一”AC 改为单一确定行为；Step 4 async 化、Step 7 新增 Action、Step 12 一次性改 95 处阈值属过度施工；`deploy/systemd/axiom.service` 的品牌/`User=%I`/路径/`ReadWritePaths` 全部过期，原 Step 9“模板已在库”不足以安装，已重写。自检记录见计划 §八。
+- **验证**：`bun test tests/doc-contract.test.ts` 与 `bun test tests/unit/docs-consistency.test.ts` 在提交前复跑；`git diff --check` 通过；计划内未写入真实凭据/LAN 地址（规则 11）。
+- **不做项**：本轮只写计划，不执行 Step 1–12；不推到 `main`（先分支验收）。
+- **Commit**：`<PLAN_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(sandbox): 修复 /run/media 等工作区路径被宿主系统目录黑名单误伤
 
 - **任务**：修复 `docker-sandbox` 挂载白名单在当前 Linux 工作树路径下的误拒（T2，单源文件 + 生成统计同步）。根因：工作树位于 `/run/media/...`，`assertMountDirAllowed()` 以绝对路径首段判定宿主系统目录，`/run` 命中 `POSIX_SYSTEM_DIRS` ⇒ 所有仓库内合法挂载目录被拒；同源问题在 Windows 的 `C:\\Users\\...` 工作树也会发生。
