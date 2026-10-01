@@ -25,7 +25,7 @@
   2. `docs/ARCHITECTURE.md`：`arch:stats` 生成值随源代码行数变更同步为 **38 模块 / 452 文件 / 122,149 行**（棘轮守卫要求）。
 - **验证（2026-10-02，Linux 侧实测）**：`bun test tests/docker-sandbox-mount.test.ts` = **27 pass / 2 skip / 0 fail**（修复前 8 fail）；`bunx tsc --noEmit` rc=0；`bun test tests/doc-contract.test.ts` 35/0；`bun test tests/unit/docs-consistency.test.ts` 10/0；`bun test tests/architecture-integrity.test.ts` 25/0；`bun run audit:runtime` 16/16；`bun test --timeout 15000 ./tests` = **4,619 pass / 67 skip / 0 fail（4,686 用例 / 471 文件）**。
 - **风险/回滚**：改动只放宽“沙箱根内部路径”的宿主目录名启发式，不放宽越界；回滚为 revert 本提交。备份与验证记录在本轮 `.tmp/backups/`（验证通过后按规则 2.5 删除）。
-- **Commit**：`<COMMIT_HASH_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`889789c9`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
