@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-02 — fix(sandbox): 修复 /run/media 等工作区路径被宿主系统目录黑名单误伤
+
+- **任务**：修复 `docker-sandbox` 挂载白名单在当前 Linux 工作树路径下的误拒（T2，单源文件 + 生成统计同步）。根因：工作树位于 `/run/media/...`，`assertMountDirAllowed()` 以绝对路径首段判定宿主系统目录，`/run` 命中 `POSIX_SYSTEM_DIRS` ⇒ 所有仓库内合法挂载目录被拒；同源问题在 Windows 的 `C:\\Users\\...` 工作树也会发生。
+- **改动（文件级）**：
+  1. `src/sandbox/docker-sandbox.ts`：新增 `isWithinSandbox()`；仅当目标不在 `process.cwd()` 授权的进程沙箱根内时应用宿主系统目录首段黑名单。显式 `opts.cwd` 仍走 `authorizePath` 的逐跳/realpath/能力判定，`.git`、`.env`、`data/*.db`、`.ssh`、凭据目录等既有拒绝项不变；默认 `/tmp` 工作区仍受根/系统目录规则约束。
+  2. `docs/ARCHITECTURE.md`：`arch:stats` 生成值随源代码行数变更同步为 **38 模块 / 452 文件 / 122,149 行**（棘轮守卫要求）。
+- **验证（2026-10-02，Linux 侧实测）**：`bun test tests/docker-sandbox-mount.test.ts` = **27 pass / 2 skip / 0 fail**（修复前 8 fail）；`bunx tsc --noEmit` rc=0；`bun test tests/doc-contract.test.ts` 35/0；`bun test tests/unit/docs-consistency.test.ts` 10/0；`bun test tests/architecture-integrity.test.ts` 25/0；`bun run audit:runtime` 16/16；`bun test --timeout 15000 ./tests` = **4,619 pass / 67 skip / 0 fail（4,686 用例 / 471 文件）**。
+- **风险/回滚**：改动只放宽“沙箱根内部路径”的宿主目录名启发式，不放宽越界；回滚为 revert 本提交。备份与验证记录在本轮 `.tmp/backups/`（验证通过后按规则 2.5 删除）。
+- **Commit**：`<COMMIT_HASH_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-09-29 — chore(data): P0-3 agent.db VACUUM 轮换 + P0-2 codeindex Linux 重扫 + 空闲页例行告警
 
 - **任务**：架构路线图 P0 批次（用户裁定「批 2 数据面」）。分级 **T2**（运维数据面 + 两文件代码 + 两个测试；紧缩用 `VACUUM INTO` 轮换，先备份后替换）。

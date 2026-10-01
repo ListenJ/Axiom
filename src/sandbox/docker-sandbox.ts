@@ -23,6 +23,11 @@ const WIN_SYSTEM_DIRS = new Set([
  * 默认回退 "/tmp" 为内置只读工作区（常量、非用户输入），仅过根/系统目录规则；
  * 显式 opts.cwd（客户端可控）全量校验。
  */
+function isWithinSandbox(abs: string, root: string): boolean {
+  const rel = path.relative(root, abs)
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))
+}
+
 function assertMountDirAllowed(raw: string, checkCwdFence: boolean): void {
   const resolved = path.resolve(raw)
   if (resolved === path.parse(resolved).root) {
@@ -31,7 +36,10 @@ function assertMountDirAllowed(raw: string, checkCwdFence: boolean): void {
   const segments = resolved.slice(path.parse(resolved).root.length).split(/[\\/]/).filter(Boolean)
   const first = (segments[0] ?? "").toLowerCase()
   const systemDirs = process.platform === "win32" ? WIN_SYSTEM_DIRS : POSIX_SYSTEM_DIRS
-  if (systemDirs.has(first)) {
+  // 仓库本身可能挂载在通用系统目录之下（例如 Linux 的 /run/media、Windows 的
+  // C:\\Users）。此时路径首段虽是系统目录名，但它在已授权的进程沙箱根内，不能
+  // 被宿主系统目录黑名单误伤；显式 cwd 仍会走下面的 authorizePath 全量围栏。
+  if (!isWithinSandbox(resolved, path.resolve(process.cwd())) && systemDirs.has(first)) {
     throw new Error(`mount dir rejected (host system directory): ${raw}`)
   }
   if (checkCwdFence) {

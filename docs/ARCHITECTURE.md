@@ -13,7 +13,7 @@ Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 
 | 属性 | 值（生成命令：`bun run scripts/count-arch-stats.mjs`；本节数字禁止手抄） |
 |------|-----|
 | 语言 / 运行时 | TypeScript 5.x / Bun 1.4+ |
-| src/ | **38 模块 / 452 文件 / 122,141 行**（`bun run arch:stats` 生成值，2026-09-29；数值由 docs-consistency 断言与实测精确相等） |
+| src/ | **38 模块 / 452 文件 / 122,149 行**（`bun run arch:stats` 生成值，2026-10-02；数值由 docs-consistency 断言与实测精确相等） |
 | 测试 | **470 个 `*.test.ts`**；串行全套 **4,675 用例（4,608 pass / 67 skip / 0 fail）**，命令与入口见 §4 |
 | MCP 工具 | **189** 个去重工具（零重复）；单一事实源 `src/testing/tool-count.ts`，生成器 `scripts/count-tools.mjs` |
 | 代码质量门 | `as any` ≤ 25（2026-09-29 实测 8）、每文件 ≤ 5、`: any` ≤ 90、`@ts-expect-error` ≤ 1 |
