@@ -17,6 +17,21 @@
 
 ---
 
+## 2026-10-02 — fix(config): Step 4 ConfigCenter 敏感审计/单一事实源/原子写/fail-closed
+
+- **任务**：计划 Step 4（T2，P0-High）。修复 `src/core/config-center.ts`：① `set()` 审计日志存原始 `oldValue/newValue`，敏感键（API key/auth token）明文落 auditLog；② `getConfig()` 对 Obsidian API port/token、Crawler searchApi/requestDelay 仍直调 `readString/readInt`，绕过 ConfigCenter 单一事实源；③ `saveYaml()` 直接 `writeFileSync`，非原子；④ `checkType()` 未知类型返回 `{valid:true}`，fail-open。
+- **TDD 红→绿**：新增 `tests/unit/config-center-hardening.test.ts` 6 例（AC-1~AC-5）。修复前 **5 fail**（AC-1 审计含明文、AC-2 runtime override 不生效、AC-3 静态接线无 renameSync、AC-4 受 .env 覆盖干扰、AC-5 未知类型不报错）；修复后 **6 pass / 0 fail / 17 expect**。
+- **OCR 发现复核（如实）**：OCR 称 `resolveEnvVars` 遇未闭合 `${VAR` 会抛异常 —— 本轮实测**未复现**：现有正则对未闭合 `${` 不匹配，字符串按字面保留、不抛异常。故 AC-4 **不改代码**，只加守卫用例锁定行为，并在用例注释中说明 OCR 发现未复现。
+- **改动（文件级）**：
+  1. `src/core/config-center.ts`：新增 `maskValue(value, schema)` 按 schema.sensitive 脱敏任意值（不复用 getMasked，避免旧值掩盖新值）；`set()` 审计日志改为写脱敏后的 old/new；新增 `memory.obsidian_api_port` / `memory.obsidian_api_token` / `crawler.search_api` / `crawler.request_delay` 四个 schema 项（默认值与原 readInt/readString 一致）；`getConfig()` 四处改为 `cc.getNumber/getString`，删除 `readString/readInt` 导入；`saveYaml()` 改为 `tmp + renameSync` 并在失败时清理 tmp；`checkType()` 未知类型改为 `{valid:false}`。
+  2. `tests/unit/config-center-hardening.test.ts`：新增 6 条回归。
+  3. `docs/ARCHITECTURE.md`：Step 3/4 新增源码后 `arch:stats` 棘轮同步为 **38 模块 / 453 文件 / 122,297 行**（testFiles 475）。
+- **Batch A 边界门禁（Step 1–4 全部）**：`bunx tsc --noEmit` rc=0；doc-contract **35/0**；docs-consistency **10/0**；architecture-integrity **25/0**；audit:runtime **16/16**；串行全量 `bun test --timeout 15000 ./tests` = **4,640 pass / 67 skip / 0 fail**（4,707 用例 / 475 文件，121.12s）。
+- **不做项**：不把 `resolveEnvVars` 改为 try/catch（未复现）；不做 async saveYaml（计划裁决原子同步）；不改 ConfigCenter 其他 schema/validator。
+- **Commit**：`<STEP4_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(gateway): Step 3 请求体限制/指标基数/500 错误头加固
 
 - **任务**：计划 Step 3（T2，P1-Medium）。修复 `src/main.ts` 三处：① `MAX_BODY_SIZE` 用 `parseInt(content-length || "0")`，缺头/chunked 被当 0 放行；② metrics label 直接用 `url.pathname`，`/api/resource/<uuid>` 产生无界 series；③ 500 响应合并 `securityHeaders` 而非 `baseHeaders`，跨域场景丢 `Access-Control-Allow-Origin`。

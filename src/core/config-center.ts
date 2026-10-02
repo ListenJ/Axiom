@@ -15,7 +15,6 @@ import fs from "fs";
 import path from "path";
 import YAML from "yaml";
 import { logger } from "../utils/logger.js";
-import { readString, readInt } from "../utils/env.js";
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义
@@ -80,10 +79,14 @@ export const CONFIG_SCHEMA: ConfigSchema[] = [
   { key: "memory.vault_path", envVar: "OBSIDIAN_VAULT_PATH", yamlPath: "memory.vaultPath", type: "path", required: true, default: "./axiom-memory", description: "Obsidian Vault 路径", category: "memory" },
   { key: "memory.database_path", envVar: "DATABASE_PATH", yamlPath: "memory.databasePath", type: "path", required: true, default: "./data/agent.db", description: "SQLite 数据库路径", category: "memory" },
   { key: "memory.redis_url", envVar: "REDIS_URL", yamlPath: "memory.redisUrl", type: "url", required: false, description: "Redis URL (可选)", category: "memory" },
+  { key: "memory.obsidian_api_port", envVar: "OBSIDIAN_API_PORT", yamlPath: "memory.obsidianApiPort", type: "number", required: false, default: 27124, description: "Obsidian 本地 REST API 端口", category: "memory" },
+  { key: "memory.obsidian_api_token", envVar: "OBSIDIAN_API_TOKEN", yamlPath: "memory.obsidianApiToken", type: "api_key", required: false, description: "Obsidian 本地 REST API Token", category: "memory", sensitive: true },
 
   // Crawler
   { key: "crawler.serpapi_key", envVar: "SERPAPI_KEY", yamlPath: "crawler.serpapiKey", type: "api_key", required: false, description: "SerpAPI Key (搜索)", category: "crawler", sensitive: true },
   { key: "crawler.max_concurrent", envVar: "CRAWLER_MAX_CONCURRENT", yamlPath: "crawler.maxConcurrent", type: "number", required: true, default: 3, description: "最大并发抓取数", category: "crawler" },
+  { key: "crawler.search_api", envVar: "CRAWLER_SEARCH_API", yamlPath: "crawler.searchApi", type: "string", required: false, default: "multi-engine", description: "搜索 API 策略", category: "crawler" },
+  { key: "crawler.request_delay", envVar: "CRAWLER_REQUEST_DELAY", yamlPath: "crawler.requestDelay", type: "number", required: false, default: 1000, description: "抓取请求间隔 (ms)", category: "crawler" },
 
   // Security
   { key: "security.cors_origins", envVar: "CORS_ORIGINS", yamlPath: "security.corsOrigins", type: "string", required: false, default: "", description: "CORS 允许域名（逗号分隔）", category: "security" },
@@ -200,6 +203,14 @@ export class ConfigCenter {
     return this.yamlData;
   }
 
+  /** 对任意值按 schema.sensitive 脱敏（供审计日志使用，不读取当前存储，避免新旧值混淆） */
+  private maskValue(value: unknown, schema?: ConfigSchema): unknown {
+    if (!schema?.sensitive) return value;
+    const raw = String(value ?? "");
+    if (raw.length > 8) return raw.slice(0, 4) + "****" + raw.slice(-4);
+    return raw ? "****" : "";
+  }
+
   /** 获取脱敏后的值（用于日志和前端展示） */
   getMasked(key: string): string {
     const schema = CONFIG_SCHEMA.find((s) => s.key === key);
@@ -260,8 +271,9 @@ export class ConfigCenter {
     // 审计日志
     this.auditLog.push({
       key,
-      oldValue,
-      newValue: value,
+      // Step 4 AC-1：敏感键的审计日志只存脱敏值，禁止明文进入 auditLog。
+      oldValue: this.maskValue(oldValue, schema),
+      newValue: this.maskValue(value, schema),
       source: "runtime",
       timestamp: Date.now(),
       actor,
@@ -442,11 +454,19 @@ export class ConfigCenter {
   }
 
   private saveYaml(): void {
+    // Step 4 AC-3：临时文件 + rename 原子替换；写失败清理 tmp，不留半截 YAML。
+    let tmpPath: string | undefined;
     try {
       const dir = path.dirname(this.yamlPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(this.yamlPath, YAML.stringify(this.yamlData), "utf-8");
+      tmpPath = `${this.yamlPath}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tmpPath, YAML.stringify(this.yamlData), "utf-8");
+      fs.renameSync(tmpPath, this.yamlPath);
+      tmpPath = undefined;
     } catch (e) {
+      if (tmpPath) {
+        try { fs.unlinkSync(tmpPath); } catch {}
+      }
       logger.error("[ConfigCenter] Failed to save YAML", e as Error);
     }
   }
@@ -471,7 +491,7 @@ export class ConfigCenter {
       case "api_key":
       case "path":
       case "url": return typeof value === "string" ? { valid: true } : { valid: false, message: `Expected string, got ${typeof value}` };
-      default: return { valid: true };
+      default: return { valid: false, message: `Unknown config type: ${String(type)}` };
     }
   }
 }
@@ -615,15 +635,15 @@ export function getConfig(): AppConfig {
     models: (cc.getYamlData()?.models ?? []) as ModelConfig[],
     memory: {
       vaultPath: cc.getString("memory.vault_path"),
-      obsidianApiPort: readInt("OBSIDIAN_API_PORT", 27124),
-      obsidianApiToken: readString("OBSIDIAN_API_TOKEN", ""),
+      obsidianApiPort: cc.getNumber("memory.obsidian_api_port"),
+      obsidianApiToken: cc.getString("memory.obsidian_api_token"),
       databasePath: cc.getString("memory.database_path"),
     },
     crawler: {
-      searchApi: readString("CRAWLER_SEARCH_API", "multi-engine"),
+      searchApi: cc.getString("crawler.search_api"),
       serpapiKey: cc.getString("crawler.serpapi_key"),
       maxConcurrent: cc.getNumber("crawler.max_concurrent") || 3,
-      requestDelay: readInt("CRAWLER_REQUEST_DELAY", 1000),
+      requestDelay: cc.getNumber("crawler.request_delay"),
     },
   };
 }
