@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-02 — docs(ops): Step 9/10 实测踩坑修正（systemd 就绪轮询 + runtime-go 占位符/反斜杠/redis 容器名）
+
+- **任务**：用户按 Step 9/10 手册实际执行后回报日志；把实测踩坑写回 `docs/reviews/2026-10-02-step9-10-operator-runbook.md`（新增 §七）。分级 **T1**。
+- **Step 9 实测诊断**：`systemctl enable --now axiom@listen.service` 后 79ms 就 curl `/health` → 连接拒绝；journal 显示服务在 6.7s 时仍在 `VaultManager initialized`，随后被 `systemctl disable --now` 的 SIGTERM 停掉。**服务本身启动路径正常，问题是健康检查太早**（应用需等外部 MCP free-search/freeweb/obsidian 各 10s 超时，再 `Server started`，约 10–30s）。修正：新增 60×1s 就绪轮询；health=200 前不得 disable；journal CST 与应用 UTC 的 8 小时时差说明。
+- **Step 10 实测诊断**：① `<REDIS_BRIDGE_IP>` 的 `<` `>` 被 shell 当重定向 → `bash: REDIS_BRIDGE_IP: No such file or directory`；② 行尾 `\ `（反斜杠+空格）破坏续行；③ `docker exec openclaw-redis` → `No such container`；本机 `docker ps` 实际为 `redis-server`，且 redis exec 必须在 n1 上执行；④ 二进制必须在运行 searchd 容器的 n1 上（本机构建后需 scp 或走 deploy.sh）。修正：给出 shell 变量替换、双引号包裹 `SEARCHD_NODES` 并转义内部 JSON、`docker ps | grep -i redis` 发现容器名、scp/deploy.sh 路径、w1 交叉编译命令。
+- **未跟踪构建物**：本轮 `go build` 生成 `runtime-go/bin/{searchd,agentd,pcdad,loadgen}`，`git status` 显示 `??`；已注明为本地执行产物、**不提交**，Step 10 完成后可按规则 4 例外删除（可确定性重建）。
+- **不改项**：不执行 systemd enable（用户已 disable 回滚）；不填 LAN 值；不触碰远端/凭据。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **Commit**：`<RUNBOOK_FIX_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — docs(review): Step 12a OCR 全仓 src 扫描覆盖率报告 + 13 条 high triage
 
 - **任务**：计划 Step 12a（T2/T3，P2）。用 SenseNova `deepseek-v4-flash` 跑 `src/**` 全仓 OCR（排除 `src/**/__tests__/**`、sourcemap），产出覆盖率与高优 triage；不修 OCR 候选缺陷（按规则 6/7 需先红→绿复现）。

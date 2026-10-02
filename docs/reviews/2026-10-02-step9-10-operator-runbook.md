@@ -234,3 +234,76 @@ Step 10:
 - modelclient chat = content/reasoning_content 正常
 - 仓库内 LAN 明文 = 0（git grep 核验）
 ```
+
+---
+
+## 七、2026-10-02 用户实测踩坑修正（必读）
+
+### 7.1 Step 9：服务确实启动成功，但健康检查太早
+
+实测现象：`systemctl enable --now` 后 79ms 就 `curl /health` → 连接拒绝；`journalctl` 显示服务在 6.7s 时仍在 `VaultManager initialized`，随后被 `systemctl disable --now` 发的 SIGTERM 停掉。
+
+**原因**：应用启动要等外部 MCP 客户端（free-search/freeweb/obsidian）各自 10s 超时，再到 `Server started`，总耗时约 10–30s；`systemctl enable --now` 本身只代表进程已拉起，不代表端口已监听。
+
+**修正后的验收顺序（带就绪轮询）**：
+
+```bash
+sudo systemctl enable --now axiom@listen.service
+code=000
+for i in $(seq 1 60); do
+  code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18789/health || true)
+  [ "$code" = "200" ] && break
+  sleep 1
+done
+echo "health_http=$code"
+systemctl is-active axiom@listen.service
+systemctl is-enabled axiom@listen.service
+journalctl -u axiom@listen.service -n 40 --no-pager
+```
+
+- **不要在 health=200 之前 `disable --now`**；否则服务会在初始化中途被 SIGTERM。
+- `journalctl` 用本地 CST，应用日志用 UTC；看到时间差 8 小时属正常。
+- `Unknown environment variable: AXIOM_ENCRYPTION_KEY` 是环境校验告警，不阻断启动；如不需要可忽略。
+
+### 7.2 Step 10：占位符、反斜杠、redis 容器名三个坑
+
+实测现象：
+- `bash: REDIS_BRIDGE_IP: 没有那个文件或目录` —— 因为 `<REDIS_BRIDGE_IP>` 的 `<` `>` 被 shell 当成重定向；占位符必须替换成真实值。
+- 行尾 `\ `（反斜杠后带空格）会破坏续行，导致下一行被当成独立命令。
+- `docker exec openclaw-redis ...` → `No such container: openclaw-redis`；本机 `docker ps` 实际容器名是 `redis-server`（不同机器可能不同）。
+
+**修正后的执行方式**：
+
+```bash
+# 1) 先在本地拓扑笔记里取值，设置 shell 变量（不要写进仓库）
+N1_IP=<n1 实际地址>
+W1_IP=<w1 实际地址>
+REDIS_BRIDGE_IP=<n1 上 redis 容器的 bridge IP>
+MODEL_HOST=<模型服务地址>
+
+# 2) 二进制必须在“运行 searchd 容器的那台主机”上；本机构建后 scp 到 n1
+cd /run/media/listen/base/openclaw-fusion
+ls -l runtime-go/bin/{searchd,agentd,pcdad,loadgen}
+scp runtime-go/bin/{searchd,agentd,pcdad,loadgen} <user>@$N1_IP:/home/listen/runtime-go/bin/
+# 或改用：N1=<user@$N1_IP> N2=<user@$W1_IP> bash scripts/runtime-go/deploy.sh build all
+
+# 3) 在 n1 上执行；先发现 redis 真实容器名（不同机器可能是 redis-server / openclaw-redis）
+ssh <user>@$N1_IP
+docker ps --format '{{.Names}}' | grep -i redis      # 记下 <REDIS_CONTAINER>
+docker exec <REDIS_CONTAINER> redis-cli CONFIG SET protected-mode no
+
+# 4) 注意：整个 SEARCHD_NODES 用双引号包裹、内部 JSON 双引号转义，变量才会展开；
+#    每行行尾的 \ 后不得有空格。
+docker rm -f searchd-n1 2>/dev/null || true
+docker run -d --name searchd-n1 --restart unless-stopped \
+  -v /home/listen/runtime-go/bin:/opt:ro -p 9103:9103 \
+  -e SEARCHD_ADDR=:9103 -e SEARCHD_NODE_ID=n1 -e SEARCHD_NUM_SHARDS=32 \
+  -e "SEARCHD_NODES=[{\"id\":\"n1\",\"addr\":\"http://$N1_IP:9103\",\"role\":\"primary\"},{\"id\":\"w1\",\"addr\":\"http://$W1_IP:9103\",\"role\":\"standby\"}]" \
+  -e SEARCHD_REDIS_ADDR=$REDIS_BRIDGE_IP:6379 -e GOMAXPROCS=12 -e GOGC=800 \
+  redis:7 /opt/searchd
+
+# 5) w1：交叉编译后拷到 Windows 运行
+GOOS=windows GOARCH=amd64 go build -o runtime-go/bin/searchd-w1.exe ./runtime-go/cmd/searchd
+```
+
+**本机 untracked 构建物提示**：本轮 `go build` 生成了 `runtime-go/bin/{searchd,agentd,pcdad,loadgen}`，`git status` 显示为 `??`。它们是 Step 10 的本地执行产物，**不要提交**；如不需要长期保留，可在 Step 10 完成后按规则 4 例外删除（可确定性重建）。
