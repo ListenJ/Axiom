@@ -30,7 +30,7 @@
 - **本地收敛**：`git branch` = `codex/archive-2026-10-02`、`codex/post-unify-remediation-2026-10-02`；工作树干净。
 - **HTTP 端口澄清（用户 2026-10-02）**：Gitea HTTP 端口为 **3000**；Step 8 的 `lfs.url` 已按该端口设置，`git lfs env` internal 端点随之指向 3000；LFS batch 端点返回 401（需鉴权），对象传输 token 仍未配置（Step 8 余项）。
 - **不做项**：不删远端任何分支；不改写历史；不向 origin 推送。
-- **Commit**：`<STEP11_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`b748648c`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
