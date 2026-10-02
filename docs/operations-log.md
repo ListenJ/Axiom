@@ -26,7 +26,7 @@
   2. `tests/router/llm-cache-tools.test.ts`：新增 2 个回归用例（unique messages 避免跨用例缓存碰撞；spy `findModelsForRole`/`callProvider`/`routerBreaker.allow`）。
 - **验证**：定向 `bun test tests/router tests/llm-cache.test.ts tests/model-router.test.ts tests/prefix-cache-discipline.test.ts` = **73 pass / 0 fail / 259 expect**；`bunx tsc --noEmit` rc=0。无工具确定性请求的 llmCache 行为保持不变（既有 cache 测试全绿）。
 - **不做项**：不改语义缓存（已正确按 `!tools?.length` 门控）；不实现“工具调用可缓存”的新能力；不改 provider caller。
-- **Commit**：`<STEP1_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`68fb284a`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
