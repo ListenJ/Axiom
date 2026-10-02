@@ -27,7 +27,7 @@
   3. `tests/unit/runtime-host-lifecycle.test.ts`：新增 5 条回归。
 - **验证**：定向 `bun test tests/unit/runtime-host-lifecycle.test.ts tests/e2e-runtime.test.ts tests/architecture-runtime-isolation.test.ts tests/dre-host-integration.test.ts tests/unit/resolved-host-guard.test.ts tests/runtime-audit.test.ts` = **56 pass / 0 fail / 217 expect**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` 16/16。
 - **不做项**：不改 dispatchTask/healthCheck；不改 unregisterAgent 的 force-remove 语义（本轮只修注册侧）；不引入锁库依赖。
-- **Commit**：`<STEP5_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`df8d6b6a`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
