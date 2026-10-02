@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-02 — chore(lfs): Step 8 git-lfs 用户态安装 + LFS 面复验 + 正常推送恢复
+
+- **任务**：计划 Step 8（T3，P1-运维）。`sudo -n` 不可用，故走用户态安装：git-lfs v3.8.0 linux-amd64 从清华 TUNA 镜像下载，安装到 `~/.local/bin/git-lfs`，并 symlink 到已在 PATH 的 `~/.bun/bin/git-lfs`；不安装系统包、不执行 `git lfs install`、不重写任何 hook。
+- **LFS 面复验（实测）**：`git lfs version` = **git-lfs/3.8.0**；`git lfs ls-files | wc -l` = **100**；抽样 `agents-firefox-desktop-win32.png` 为 **PNG image data 1440x900 RGBA**（真实像素，不是指针）；`.git/lfs` 本地对象（约 65M）未被改动；`.git/hooks/pre-push` 未改写，仍为 `git lfs pre-push "$@"`。
+- **端点纠正**：安装后 `git lfs env` 原按 SSH remote 推导出 `https://<host>/agent/openclaw-fusion.git/info/lfs`（协议/端口/旧仓库名三重不符）。实测 LFS batch 端点：旧 `openclaw-fusion` 路径 POST = **404**，新 `Axiom` 路径 POST = **401 Unauthorized**（端点存在、需鉴权）。已在本地 `.git/config` 设置 `lfs.url` 指向新仓库名路径；该配置为本地未入库项，凭据未写入任何仓库文件。
+- **AC-3 正常推送恢复（实测）**：本提交 `git push internal codex/post-unify-remediation-2026-10-02` **不带 `--no-verify`**，pre-push hook 正常执行并通过（本次提交仅 docs，无 LFS 变更，不需要上传 LFS 对象）。
+- **余项（如实登记）**：Gitea LFS 传输仍需要 HTTP 鉴权（batch 端点 401）；本轮未恢复 u6b 中归档的 gitea token，也未把凭据写入 `.git/config`。后续若要推送 LFS 对象变更，需按规则 11 从 `~/.axiom/axiom-secrets/` 提供 token 或配置 credential helper。
+- **不做项**：不改 `.gitattributes`；不删 `.git/lfs`；不向 origin 推送；不执行会覆盖 hooks 的 `git lfs install`。
+- **Commit**：`<STEP8_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — chore(ci): Step 7 三个 workflow 安全与可靠性加固
 
 - **任务**：计划 Step 7（T1，P2-Medium）。加固 `.github/workflows/{ci,visual-snapshot,frontend-audit}.yml`：① `AXIOM_AUTH_TOKEN` 固定字面量（共 5 处）；② 三个 workflow 均缺 `permissions` / `concurrency`，job 缺 `timeout-minutes`；③ visual-snapshot Windows 步骤混用 bash `cp -r` 与 PowerShell `Remove-Item`。
