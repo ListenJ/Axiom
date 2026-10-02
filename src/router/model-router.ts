@@ -498,7 +498,7 @@ export class MultiPlatformRouter {
             model: model.model,
             prompt: messages[messages.length - 1]?.content ?? "",
             messages,
-            temperature,
+            temperature: effectiveTemperature,
             latencyMs,
             success: true,
             response: {
@@ -584,7 +584,7 @@ export class MultiPlatformRouter {
       model: "degraded",
       prompt: messages[messages.length - 1]?.content ?? "",
       messages,
-      temperature,
+      temperature: effectiveTemperature,
       latencyMs: Date.now() - startTime,
       success: false,
       error: lastError ?? new Error(`All models exhausted for role: ${role}`),
@@ -706,6 +706,10 @@ export class MultiPlatformRouter {
     toolLoop: while (toolRounds < maxToolIterations) {
     for (const model of sortedModels) {
       const breakerKey = `${model.provider}/${model.model}`;
+      if (isModelBlacklisted(model.provider, model.model)) {
+        logger.warn(`[Router/chatStream] Model blacklisted, skip ${breakerKey}`);
+        continue;
+      }
       if (!routerBreaker.allow(breakerKey)) {
         logger.warn(`[Router/chatStream] Circuit open, skip ${breakerKey}`);
         continue;
@@ -736,6 +740,9 @@ export class MultiPlatformRouter {
           //   preferNative=true  → 先尝试原生 fetch 流式；失败时回退到缓冲
           //   preferNative=false → 直接走缓冲路径
           let nativeOk = false;
+          // Step 2：已产出 delta 后失败不得回落重发；nativeFailed 用于 fallbackUsed 准确上报。
+          let nativeFailed = false;
+          let nativeEmitted = false;
 
           if (preferNative) {
             // 异步队列：在 onChunk 回调里把每个 delta 推入队列，
@@ -807,6 +814,7 @@ export class MultiPlatformRouter {
                 const item = queue.shift();
                 if (!item) continue;
                 if (item.kind === "chunk") {
+                  nativeEmitted = true;
                   yield { type: "token", content: item.content };
                 } else if (item.kind === "done") {
                   nativeResult = item.result;
@@ -817,13 +825,19 @@ export class MultiPlatformRouter {
                 }
               }
             } catch (nativeErr) {
-              // 原生流式失败（无 fetch / proxy 不支持 / 网络错误）— 静默回退到缓冲
-              logger.debug(`[Router/chatStream] native stream failed for ${model.provider}/${model.model}, falling back to buffered`, {
-                error: nativeErr instanceof Error ? nativeErr.message : String(nativeErr),
-              });
               // 记录本次尝试失败到熔断器：即使随后 buffered 路径成功，breaker 也需要
               // 知道原生流路径在本回合对当前模型是失败的，否则会反复命中原生流再静默回退。
               routerBreaker.recordFailure(breakerKey);
+              if (nativeEmitted) {
+                // 已经向调用方产出过 delta：不能再回退 buffered 重发整段，
+                // 交给外层 catch 走失败/重试/换模型，保证 SSE 不重复内容。
+                throw nativeErr;
+              }
+              // 原生流式失败（无 fetch / proxy 不支持 / 网络错误）— 静默回退到缓冲
+              nativeFailed = true;
+              logger.debug(`[Router/chatStream] native stream failed for ${model.provider}/${model.model}, falling back to buffered`, {
+                error: nativeErr instanceof Error ? nativeErr.message : String(nativeErr),
+              });
             }
 
             if (nativeResult?.toolCalls?.length && executeTool) {
@@ -904,7 +918,7 @@ export class MultiPlatformRouter {
               usage: result.usage,
               latencyMs,
               success: true,
-              fallbackUsed: !preferNative,
+              fallbackUsed: !preferNative || nativeFailed,
             }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
@@ -924,7 +938,7 @@ export class MultiPlatformRouter {
               usage: result.usage,
               model: model.id,
               provider: model.provider,
-              fallbackUsed: !preferNative,
+              fallbackUsed: !preferNative || nativeFailed,
             };
           }
 
@@ -941,6 +955,12 @@ export class MultiPlatformRouter {
             latencyMs: Date.now() - loopStart,
             success: false,
           }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
+          // 永久性失败（缺 key/型号不存在/未授权）不重试，拉黑 5 分钟并切下一模型
+          if (PERMANENT_FAILURE_RE.test(msg)) {
+            recordPermanentFailure(model.provider, model.model);
+            logger.warn(`[Router/chatStream] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
+            break;
+          }
           if (attempt < maxRetries - 1) {
             const delay = calculateBackoffDelay(attempt);
             await new Promise((r) => setTimeout(r, delay));
@@ -1185,16 +1205,40 @@ export class MultiPlatformRouter {
   }
 
   async batchExecute(assignments: RoleAssignment[], opts?: { preventDuplicateModels?: boolean }): Promise<SmartAssignmentResponse[]> {
-    const usedModels: string[] = [];
-    const promises = assignments.map((a) => {
-      const exclude = opts?.preventDuplicateModels ? [...usedModels] : undefined;
-      return this.executeWithRole(a.role, a.messages, {
+    // Step 2 AC-3：preventDuplicateModels 必须串行——前一次成功结果进入下一次
+    // excludeModels。原实现用同步 map 读取 usedModels，得到时它恒为空，去重失效。
+    if (opts?.preventDuplicateModels) {
+      const results: SmartAssignmentResponse[] = [];
+      const usedModels: string[] = [];
+      for (const a of assignments) {
+        try {
+          const res = await this.executeWithRole(a.role, a.messages, {
+            temperature: a.temperature,
+            maxTokens: a.maxTokens,
+            excludeModels: [...usedModels],
+          });
+          usedModels.push(res.model);
+          results.push(res);
+        } catch (err) {
+          results.push({
+            role: a.role,
+            model: "error",
+            provider: "error",
+            endpoint: "",
+            content: `Error: ${err instanceof Error ? err.message : String(err)}`,
+            latency_ms: 0,
+            fallback_used: true,
+          });
+        }
+      }
+      return results;
+    }
+
+    // 不要求去重时保持并行（原行为）。
+    const promises = assignments.map((a) =>
+      this.executeWithRole(a.role, a.messages, {
         temperature: a.temperature,
         maxTokens: a.maxTokens,
-        excludeModels: exclude,
-      }).then((res) => {
-        if (opts?.preventDuplicateModels) usedModels.push(res.model);
-        return res;
       }).catch((err) => ({
         role: a.role,
         model: "error",
@@ -1203,8 +1247,8 @@ export class MultiPlatformRouter {
         content: `Error: ${err.message}`,
         latency_ms: 0,
         fallback_used: true,
-      }));
-    });
+      })),
+    );
     return Promise.all(promises);
   }
 

@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-10-02 — fix(router): Step 2 chatStream 流式回退/永久失败/去重/effectiveTemperature 一致性
+
+- **任务**：计划 Step 2（T2，P0-High）。修复 `src/router/model-router.ts` 四类不一致：① 原生流已产出 delta 后失败仍静默回退 buffered，重复下发整段内容；② 永久失败（缺 key/型号不存在/未授权）在 `chatStream` 未拉黑，烧满 maxRetries；③ `batchExecute({preventDuplicateModels:true})` 同步 map 读取 `usedModels`，得到时恒为空，去重失效；④ `getModelOutputStore().persist` 写入原始 `temperature`（常为 undefined）而非 `effectiveTemperature`；⑤ buffered 回退的 `fallbackUsed` 恒为 `!preferNative`，native 失败后回落也报 false。
+- **TDD 红→绿**：新增 `tests/router/step2-chatstream-consistency.test.ts` 5 例（AC-1~AC-5）。修复前 **5 fail**：AC-1 tokens 出现 partial+FULL-BUFFERED 两次、AC-2 永久失败调用 3 次、AC-3 第二次 exclude 仍为空、AC-4 persist temperature=undefined、AC-5 fallbackUsed=false。修复后 **5 pass / 0 fail**。
+- **改动（文件级）**：
+  1. `src/router/model-router.ts`：native 路径新增 `nativeEmitted/nativeFailed`；已产出 delta 后失败 `throw`（交外层失败/重试/换模型，不再回退重发），只有未产出 delta 才回落 buffered 并置 `nativeFailed=true`；buffered 的 `trackCall` 与 `done` 事件改为 `fallbackUsed: !preferNative || nativeFailed`。
+  2. 同文件：`chatStream` 模型循环顶部加 `isModelBlacklisted` 跳过；catch 中永久失败调用 `recordPermanentFailure` 并 `break` attempt 循环、切下一模型。
+  3. 同文件：`batchExecute` 在 `preventDuplicateModels` 时改为串行 for-await，前一次 `res.model` 进入下一次 `excludeModels`；非去重路径保持并行原行为。
+  4. 同文件：成功与 degraded 两处 `persist` 均写 `effectiveTemperature`。
+  5. `tests/router/step2-chatstream-consistency.test.ts`：新增 5 个回归用例。
+- **验证**：定向 `bun test tests/router tests/model-router.test.ts tests/llm-cache.test.ts tests/prefix-cache-discipline.test.ts tests/thompson-routing-learning.test.ts` = **85 pass / 0 fail / 706 expect**；`bunx tsc --noEmit` rc=0。既有 `chat-stream-native-breaker` 原生失败→buffered 回退用例仍绿（未产出 delta 时仍允许回退）。
+- **不做项**：不改 buffered 路径硬编码 0.7 温度；不改 breaker/backoff 算法；不改 provider caller；不重构 chatStream 队列。
+- **Commit**：`<STEP2_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(router): Step 1 工具请求不再读写 llmCache（工具循环坏缓存修复）
 
 - **任务**：计划 Step 1（T2，P0-High）。修复 `src/router/model-router.ts` 的 `llmCache` 未按工具调用门控：读/写只检查 `temperature===0`，而 `CachedLLMResponse` 不含 `toolCalls/thinking`。后果：① 无工具响应缓存后被同消息的带工具请求命中，返回无 `toolCalls` 的文本；② 工具调用响应（`content` 常为 `null`）写入缓存，污染后续请求，静默破坏工具循环。
