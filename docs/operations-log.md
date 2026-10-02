@@ -25,7 +25,7 @@
 - **doc-contract 同步**：新增 review 类操作件使 D0 豁免面 59→60；按该门既定流程逐件点名 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` 并把上限改为 60（不写宽正则）。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
 - **不做项**：不执行 systemd 安装（无 root）；不填 LAN 值；不把凭据写入任何仓库文件。
-- **Commit**：`<STEP9_10_RUNBOOK_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`2964703b`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
