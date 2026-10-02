@@ -29,7 +29,7 @@
   5. `tests/router/step2-chatstream-consistency.test.ts`：新增 5 个回归用例。
 - **验证**：定向 `bun test tests/router tests/model-router.test.ts tests/llm-cache.test.ts tests/prefix-cache-discipline.test.ts tests/thompson-routing-learning.test.ts` = **85 pass / 0 fail / 706 expect**；`bunx tsc --noEmit` rc=0。既有 `chat-stream-native-breaker` 原生失败→buffered 回退用例仍绿（未产出 delta 时仍允许回退）。
 - **不做项**：不改 buffered 路径硬编码 0.7 温度；不改 breaker/backoff 算法；不改 provider caller；不重构 chatStream 队列。
-- **Commit**：`<STEP2_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`50a403ea`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
