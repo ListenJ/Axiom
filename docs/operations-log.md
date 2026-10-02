@@ -28,7 +28,7 @@
   3. `docs/ARCHITECTURE.md`：Step 3/4 新增源码后 `arch:stats` 棘轮同步为 **38 模块 / 453 文件 / 122,297 行**（testFiles 475）。
 - **Batch A 边界门禁（Step 1–4 全部）**：`bunx tsc --noEmit` rc=0；doc-contract **35/0**；docs-consistency **10/0**；architecture-integrity **25/0**；audit:runtime **16/16**；串行全量 `bun test --timeout 15000 ./tests` = **4,640 pass / 67 skip / 0 fail**（4,707 用例 / 475 文件，121.12s）。
 - **不做项**：不把 `resolveEnvVars` 改为 try/catch（未复现）；不做 async saveYaml（计划裁决原子同步）；不改 ConfigCenter 其他 schema/validator。
-- **Commit**：`<STEP4_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`41b3f7b1`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
