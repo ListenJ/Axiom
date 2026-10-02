@@ -24,8 +24,9 @@
 - **端点纠正**：安装后 `git lfs env` 原按 SSH remote 推导出 `https://<host>/agent/openclaw-fusion.git/info/lfs`（协议/端口/旧仓库名三重不符）。实测 LFS batch 端点：旧 `openclaw-fusion` 路径 POST = **404**，新 `Axiom` 路径 POST = **401 Unauthorized**（端点存在、需鉴权）。已在本地 `.git/config` 设置 `lfs.url` 指向新仓库名路径；该配置为本地未入库项，凭据未写入任何仓库文件。
 - **AC-3 正常推送恢复（实测）**：本提交 `git push internal codex/post-unify-remediation-2026-10-02` **不带 `--no-verify`**，pre-push hook 正常执行并通过（本次提交仅 docs，无 LFS 变更，不需要上传 LFS 对象）。
 - **余项（如实登记）**：Gitea LFS 传输仍需要 HTTP 鉴权（batch 端点 401）；本轮未恢复 u6b 中归档的 gitea token，也未把凭据写入 `.git/config`。后续若要推送 LFS 对象变更，需按规则 11 从 `~/.axiom/axiom-secrets/` 提供 token 或配置 credential helper。
+- **锁定 API 处置**：首次正常推送时 git-lfs 尝试 Gitea locking API，因 LFS HTTP 无凭据打印 `could not read Username`，但未阻断推送（退出码 0）。按 git-lfs 提示设本地 `lfs.<endpoint>.locksverify=false`，消除无鉴权时的探测噪声；实际 LFS 对象传输仍需 token。
 - **不做项**：不改 `.gitattributes`；不删 `.git/lfs`；不向 origin 推送；不执行会覆盖 hooks 的 `git lfs install`。
-- **Commit**：`<STEP8_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`addee43e`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
