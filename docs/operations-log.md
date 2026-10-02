@@ -17,6 +17,23 @@
 
 ---
 
+## 2026-10-02 — chore(ci): Step 7 三个 workflow 安全与可靠性加固
+
+- **任务**：计划 Step 7（T1，P2-Medium）。加固 `.github/workflows/{ci,visual-snapshot,frontend-audit}.yml`：① `AXIOM_AUTH_TOKEN` 固定字面量（共 5 处）；② 三个 workflow 均缺 `permissions` / `concurrency`，job 缺 `timeout-minutes`；③ visual-snapshot Windows 步骤混用 bash `cp -r` 与 PowerShell `Remove-Item`。
+- **TDD 红→绿**：新增 `tests/unit/ci-workflow-hardening.test.ts` 5 例（AC-1~AC-5）。修复前 **4 fail / 1 pass**（固定 token、无 permissions、Remove-Item、无 concurrency/timeout）；修复后 **5 pass / 0 fail / 37 expect**。
+- **改动（文件级）**：
+  1. 三个 workflow 顶层加 `permissions: contents: read` + `concurrency: {group: <workflow>-<ref>, cancel-in-progress: true}`；所有 job 加 `timeout-minutes`（ubuntu 60 / windows 30 / frontend-audit 30 / visual 60）。
+  2. 5 处固定 token 全部替换为 job 内“Generate ephemeral auth token”步骤：`node -e 'crypto.randomBytes(16).toString("hex")' >> "$GITHUB_ENV"`；deploy-smoke 的 curl 改用 `$AXIOM_AUTH_TOKEN`。
+  3. `visual-snapshot.yml`：两个 build 步骤加 `shell: bash`，`Remove-Item -Recurse -Force` 改为 `rm -rf`；pixel-weekly 因 upload-artifact 加 job 级 `actions: write`。
+  4. `frontend-audit.yml`：因 upload-artifact 加 job 级 `actions: write`。
+  5. `ci.yml`：`build` job（ghcr push）加 job 级 `packages: write`；`stress-test`（upload-artifact）加 job 级 `actions: write`。
+  6. `docs/ARCHITECTURE.md`：Batch B（Step 5/6/7）源码增长后 `arch:stats` 棘轮同步为 **38 模块 / 453 文件 / 122,365 行**（tests 478）。
+- **验证**：`bun test tests/unit/ci-workflow-hardening.test.ts` = **5 pass / 0 fail / 37 expect**（YAML 全部可解析）；Batch B 边界门禁：`bunx tsc --noEmit` rc=0、doc-contract 35/0、docs-consistency 10/0、architecture-integrity 25/0、audit:runtime 16/16、串行全量 `bun test --timeout 15000 ./tests` = **4,655 pass / 67 skip / 0 fail**（4,722 用例 / 478 文件，113.43s）。
+- **不改项**：不动 workflow 的触发条件/步骤业务逻辑；不推送 origin（GitHub）；不新增第三方 Action。
+- **Commit**：`<STEP7_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(input): Step 6 Knowledge / Chat-Preflight 输入健壮性
 
 - **任务**：计划 Step 6（T2，P1-Medium）。修复：① `knowledge/pipeline.ts` 结构化 LLM 输出直接 `JSON.parse`，markdown 代码围栏导致静默降级；② `chat-preflight.ts` 用户输入原样插入提示模板，双引号/花括号可破坏模板；③ 快路径 `changed` 恒 true；④ edge label 与关键词 label 冲突时产出“intent A + agentName/role B + confidence 取大”的自相矛盾结果；⑤ `normalizeEdge` 仅凭 `enabled` 方法把带 enabled 的裸 client 误判为 EdgeDep。

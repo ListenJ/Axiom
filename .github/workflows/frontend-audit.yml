@@ -1,5 +1,12 @@
 name: Frontend Visual Audit
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 # ??????????? / ???? / E2E??????????
 on:
   push:
@@ -20,6 +27,10 @@ jobs:
   frontend-audit:
     name: Frontend Visual Audit (SenseNova)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: write
     steps:
       - uses: actions/checkout@v4
 
@@ -34,10 +45,13 @@ jobs:
       - name: Install Playwright chromium
         run: npx playwright install chromium
 
+      - name: Generate ephemeral auth token
+        shell: bash
+        run: echo "AXIOM_AUTH_TOKEN=$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')" >> "$GITHUB_ENV"
+
       - name: Run frontend visual audit gate
         run: ./.ci/frontend-audit.sh
         env:
-          AXIOM_AUTH_TOKEN: "ci-visual-audit-token-at-least-16chars"
           SENSENOVA_API_KEY: ${{ secrets.SENSENOVA_API_KEY }}
 
       - name: Upload audit report

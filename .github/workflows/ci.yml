@@ -1,5 +1,12 @@
 name: CI/CD
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     # D1（2026-09-19）：开发分支也要跑 L1 —— 此前只监听 main/master，
@@ -15,6 +22,7 @@ jobs:
   test:
     name: Test & Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -62,15 +70,19 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install chromium
 
+      - name: Generate ephemeral auth token
+        shell: bash
+        run: echo "AXIOM_AUTH_TOKEN=$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')" >> "$GITHUB_ENV"
+
       - name: Run E2E tests
         run: bun run test:e2e
         env:
           NODE_ENV: test
-          AXIOM_AUTH_TOKEN: your-secure-random-token-at-least-16-chars
 
   dre-plugin:
     name: DRE Plugin (built-in backend sync + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     # 仅当 DRE 引擎/后端或插件代码变化时运行
     if: >-
       ${{ github.event_name == 'push' &&
@@ -122,6 +134,7 @@ jobs:
   kb-plugin:
     name: KB Plugin (built-in backend sync + tests)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     # 仅当知识库引擎/后端或插件代码变化时运行
     if: >-
       ${{ github.event_name == 'push' &&
@@ -173,7 +186,11 @@ jobs:
   build:
     name: Build Docker Image
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: test
+    permissions:
+      contents: read
+      packages: write
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - uses: actions/checkout@v4
@@ -217,7 +234,11 @@ jobs:
   stress-test:
     name: Stress & Performance Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: test
+    permissions:
+      contents: read
+      actions: write
     # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
     # codex/** 的 push 只跑 L1（test + windows-portable）。
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -290,6 +311,7 @@ jobs:
   security-scan:
     name: Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: test
     # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
     # codex/** 的 push 只跑 L1（test + windows-portable）。
@@ -319,6 +341,7 @@ jobs:
   deploy-smoke:
     name: Linux Deploy Smoke (pm2 + runtime audit)
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: test
     # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
     # codex/** 的 push 只跑 L1（test + windows-portable）。
@@ -340,11 +363,14 @@ jobs:
       - name: Build server bundle
         run: bun run build
 
+      - name: Generate ephemeral auth token
+        shell: bash
+        run: echo "AXIOM_AUTH_TOKEN=$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')" >> "$GITHUB_ENV"
+
       - name: Start under pm2 and smoke test
         env:
           AXIOM_GATEWAY_PORT: "18799"
           HOST: "127.0.0.1"
-          AXIOM_AUTH_TOKEN: "ci-smoke-token-16chars"
         run: |
           # 经 ecosystem.config.json 启动（bash 包装 exec bun，绕开 pm2 bun 容器 require()-ESM 缺陷，
           # 见 deploy/pm2/start.sh），CI 持续回归验证真实部署配置
@@ -363,7 +389,7 @@ jobs:
           fi
           curl -fsS http://127.0.0.1:18799/health > /dev/null
           bun run audit:runtime
-          curl -fsS -H "Authorization: Bearer ci-smoke-token-16chars" http://127.0.0.1:18799/api/audit/diagnostics > /dev/null
+          curl -fsS -H "Authorization: Bearer $AXIOM_AUTH_TOKEN" http://127.0.0.1:18799/api/audit/diagnostics > /dev/null
           pm2 restart axiom-agent
           # restart 后需重新完整初始化（实测 ~7s+），sleep 2 不够，改轮询
           for i in $(seq 1 90); do
@@ -386,6 +412,7 @@ jobs:
   windows-portable:
     name: Windows Portable (report-only)
     runs-on: windows-latest
+    timeout-minutes: 30
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
