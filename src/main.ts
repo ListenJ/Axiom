@@ -50,6 +50,7 @@ logger.info(`[Edition] ${edition}（Rust sidecar 已退役，纯 TS 运行时）
 // ════════════════════════════════════════════════════════════════
 import { runHealthCheck, printHealthReport } from "./core/health-checker.js";
 import { getHttpRouter } from "./core/http-router.js";
+import { mergeErrorHeaders, normalizeMetricPath, validateRequestBodySize } from "./core/request-hardening.js";
 import { loadUserModels } from "./router/user-config-loader.js";
 import { getGlobalBlackboard } from "./memory/blackboard.js";
 import { getReadOptimizer } from "./utils/read-optimizer.js";
@@ -786,12 +787,11 @@ const server = Bun.serve({
       });
     }
 
-    // Request body size check
-    if (req.method === "POST" || req.method === "PUT" || req.method === "PATCH") {
-      const contentLength = parseInt(req.headers.get("content-length") || "0", 10);
-      if (contentLength > MAX_BODY_SIZE) {
-        return jsonResponse({ error: `Request body too large (max ${MAX_BODY_SIZE} bytes)` }, 413, baseHeaders);
-      }
+    // Request body size check（Step 3）：缺/非法 Content-Length → 411，超限 → 413。
+    // 不能把缺失当 0 放行 —— chunked 请求无合法 Content-Length，原实现直接绕过上限。
+    const bodySize = validateRequestBodySize(req.method, req.headers.get("content-length"), MAX_BODY_SIZE);
+    if (!bodySize.ok) {
+      return jsonResponse({ error: bodySize.message }, bodySize.status ?? 413, baseHeaders);
     }
 
     try {
@@ -836,18 +836,19 @@ const server = Bun.serve({
         response = defaultResponse(ctx);
       }
 
-      // Metrics
+      // Metrics（Step 3：路径归一，防高基数 label 无界增长）
       const duration = (performance.now() - startTime) / 1000;
-      metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: String(response.status) });
-      metrics.histogram("http_request_duration_seconds", duration, { method: req.method, path: url.pathname });
+      const metricPath = normalizeMetricPath(url.pathname);
+      metrics.increment("http_requests_total", 1, { method: req.method, path: metricPath, status: String(response.status) });
+      metrics.histogram("http_request_duration_seconds", duration, { method: req.method, path: metricPath });
 
       return response;
     } catch (e) {
       const duration = Math.round(performance.now() - startTime);
       const error = toAxiomError(e, `Request failed: ${url.pathname}`);
       logger.error(error.message, error, { method: req.method, duration, path: url.pathname });
-      metrics.increment("http_requests_total", 1, { method: req.method, path: url.pathname, status: "500" });
-      return jsonResponse(createErrorResponse(error), 500, { ...rl.headers, ...securityHeaders });
+      metrics.increment("http_requests_total", 1, { method: req.method, path: normalizeMetricPath(url.pathname), status: "500" });
+      return jsonResponse(createErrorResponse(error), 500, mergeErrorHeaders(rl.headers, baseHeaders));
     }
   },
 

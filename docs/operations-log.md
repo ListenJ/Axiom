@@ -17,6 +17,21 @@
 
 ---
 
+## 2026-10-02 — fix(gateway): Step 3 请求体限制/指标基数/500 错误头加固
+
+- **任务**：计划 Step 3（T2，P1-Medium）。修复 `src/main.ts` 三处：① `MAX_BODY_SIZE` 用 `parseInt(content-length || "0")`，缺头/chunked 被当 0 放行；② metrics label 直接用 `url.pathname`，`/api/resource/<uuid>` 产生无界 series；③ 500 响应合并 `securityHeaders` 而非 `baseHeaders`，跨域场景丢 `Access-Control-Allow-Origin`。
+- **TDD 红→绿**：新增 `tests/unit/request-hardening.test.ts`（7 条纯函数用例 + 1 条 main.ts 接线断言）。第一步 RED 为模块不存在（`Cannot find module src/core/request-hardening.js`）→ 实现后 **8 pass / 0 fail / 26 expect**。
+- **改动（文件级）**：
+  1. 新增 `src/core/request-hardening.ts`：`parseContentLength`（缺/空/非数字/负数/小数→null）、`validateRequestBodySize`（写方法缺/非法→411、超限→413、其余放行）、`normalizeMetricPath`（UUID/纯数字/长 hex→`:id`）、`mergeErrorHeaders`（rate-limit 头 + baseHeaders，base 优先）。抽出纯函数的原因：main.ts import 即启动服务，纯函数单点才能被测试驱动。
+  2. `src/main.ts`：import 三个纯函数；body 检查改为 `validateRequestBodySize(req.method, content-length, MAX_BODY_SIZE)`，缺/非法→411、超限→413；metrics 用 `normalizeMetricPath(url.pathname)`；500 响应改 `mergeErrorHeaders(rl.headers, baseHeaders)`。
+  3. `tests/unit/request-hardening.test.ts`：8 条回归（含静态断言 main.ts 不再回退到旧 500 头写法）。
+- **验证**：`bun test tests/unit/request-hardening.test.ts tests/unit/http-router-response-cache.test.ts tests/e2e-runtime.test.ts` = **43 pass / 0 fail / 112 expect**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` 16/16。
+- **兼容性**：411 语义对依赖 chunked 的客户端是行为收紧；计划已裁决并按 AC-1 执行，若后续发现既有客户端依赖 chunked，按计划回 Plan 重评，不擅自放宽。
+- **不做项**：不改静态资源判定/限流/流量分类；不改 HttpRouter 缓存；不引入反向代理限流。
+- **Commit**：`<STEP3_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(router): Step 2 chatStream 流式回退/永久失败/去重/effectiveTemperature 一致性
 
 - **任务**：计划 Step 2（T2，P0-High）。修复 `src/router/model-router.ts` 四类不一致：① 原生流已产出 delta 后失败仍静默回退 buffered，重复下发整段内容；② 永久失败（缺 key/型号不存在/未授权）在 `chatStream` 未拉黑，烧满 maxRetries；③ `batchExecute({preventDuplicateModels:true})` 同步 map 读取 `usedModels`，得到时恒为空，去重失效；④ `getModelOutputStore().persist` 写入原始 `temperature`（常为 undefined）而非 `effectiveTemperature`；⑤ buffered 回退的 `fallbackUsed` 恒为 `!preferNative`，native 失败后回落也报 false。
