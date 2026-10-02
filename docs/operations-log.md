@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-02 — fix(router): Step 1 工具请求不再读写 llmCache（工具循环坏缓存修复）
+
+- **任务**：计划 Step 1（T2，P0-High）。修复 `src/router/model-router.ts` 的 `llmCache` 未按工具调用门控：读/写只检查 `temperature===0`，而 `CachedLLMResponse` 不含 `toolCalls/thinking`。后果：① 无工具响应缓存后被同消息的带工具请求命中，返回无 `toolCalls` 的文本；② 工具调用响应（`content` 常为 `null`）写入缓存，污染后续请求，静默破坏工具循环。
+- **TDD 红→绿**：新增 `tests/router/llm-cache-tools.test.ts` 2 例。修复前两条均红（`callProvider` 只被调用 1 次，第二次命中坏缓存）→ 修复后 2/2 绿。用例覆盖读路径（无工具缓存 → 带工具请求必须重新调用）与写路径（工具响应不得入缓存）。
+- **改动（文件级）**：
+  1. `src/router/model-router.ts`：`llmCache` 读门控改为 `effectiveTemperature === 0 && attempt === 0 && !tools?.length`；写门控改为 `effectiveTemperature === 0 && !tools?.length`；补注释说明 `CachedLLMResponse` 不保存 `toolCalls/thinking`。
+  2. `tests/router/llm-cache-tools.test.ts`：新增 2 个回归用例（unique messages 避免跨用例缓存碰撞；spy `findModelsForRole`/`callProvider`/`routerBreaker.allow`）。
+- **验证**：定向 `bun test tests/router tests/llm-cache.test.ts tests/model-router.test.ts tests/prefix-cache-discipline.test.ts` = **73 pass / 0 fail / 259 expect**；`bunx tsc --noEmit` rc=0。无工具确定性请求的 llmCache 行为保持不变（既有 cache 测试全绿）。
+- **不做项**：不改语义缓存（已正确按 `!tools?.length` 门控）；不实现“工具调用可缓存”的新能力；不改 provider caller。
+- **Commit**：`<STEP1_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — docs(plan): Q1–Q4 裁决结果回填（用户接受推荐，OCR 用 SenseNova deepseek-v4-flash）
 
 - **任务**：用户指令「你的推荐我接受，OCR 直接使用我们当前使用的模型」。把 Q1–Q4 裁决结果写入计划 §十，解除 Step 8/9/11/12a 的授权/provider 阻塞；Q4 runtime-go `${LAN_*}` 仍待用户提供实际值，Step 10 保持 blocked。分级 **T1**（计划文档状态回填）。

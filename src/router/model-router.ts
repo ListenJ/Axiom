@@ -430,9 +430,10 @@ export class MultiPlatformRouter {
           }
         }
 
-        // LLM cache: only for deterministic calls (temperature === 0).
-        // Cache hit eliminates the API call entirely — max hit-rate savings.
-        if (effectiveTemperature === 0 && attempt === 0) {
+        // LLM cache: only for deterministic calls (temperature === 0) WITHOUT tools.
+        // 工具请求不能走 llmCache：CachedLLMResponse 不保存 toolCalls/thinking，
+        // 命中会把“工具调用响应”替换成空 content 的普通文本，静默破坏工具循环。
+        if (effectiveTemperature === 0 && attempt === 0 && !tools?.length) {
           const cKey = llmCacheKey({
             provider: model.provider,
             model: model.model,
@@ -506,8 +507,8 @@ export class MultiPlatformRouter {
             },
           });
 
-          // Cache successful deterministic response for future hits
-          if (effectiveTemperature === 0) {
+          // Cache successful deterministic response for future hits（同上：带工具不缓存）
+          if (effectiveTemperature === 0 && !tools?.length) {
             const cKey = llmCacheKey({
               provider: model.provider,
               model: model.model,
