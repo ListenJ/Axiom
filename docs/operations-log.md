@@ -25,7 +25,7 @@
 - **未跟踪构建物**：本轮 `go build` 生成 `runtime-go/bin/{searchd,agentd,pcdad,loadgen}`，`git status` 显示 `??`；已注明为本地执行产物、**不提交**，Step 10 完成后可按规则 4 例外删除（可确定性重建）。
 - **不改项**：不执行 systemd enable（用户已 disable 回滚）；不填 LAN 值；不触碰远端/凭据。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
-- **Commit**：`<RUNBOOK_FIX_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`159f0400`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
