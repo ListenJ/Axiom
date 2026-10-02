@@ -80,8 +80,22 @@ export interface EdgeDep {
 /** 兼容归一：传裸客户端（如测试 fake）视为 enabled=true */
 export function normalizeEdge(edge?: EdgeDep | EdgeClientLike | null): EdgeDep | null {
   if (!edge) return null;
-  if (typeof (edge as EdgeDep).enabled === "function") return edge as EdgeDep;
+  const candidate = edge as Partial<EdgeDep>;
+  // Step 6 AC-5：只有同时具备 enabled() 与 client.generate() 才视为 EdgeDep；
+  // 裸 client 即使碰巧带 enabled 方法也不能误判。
+  if (typeof candidate.enabled === "function" && candidate.client && typeof candidate.client.generate === "function") {
+    return candidate as EdgeDep;
+  }
   return { enabled: () => true, client: edge as EdgeClientLike };
+}
+
+/** 转义插入提示模板的用户输入：反斜杠 / 双引号 / 换行 / 控制字符。 */
+function escapePromptInput(input: string): string {
+  return input
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\r?\n/g, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, "");
 }
 
 /** preflight 依赖（全量可注入；生产用 defaultPreflightDeps，edge 由 routes 组合根注入） */
@@ -149,18 +163,25 @@ export async function runPreflight(
           merged.rewritten,
           history,
         );
-        const intent: IntentResult = {
-          intent: merged.intent,
-          agentName: baseIntent.agentName,
-          confidence: Math.max(
-            Math.max(merged.confidence, EDGE_CONFIDENCE_FLOOR),
-            baseIntent.confidence,
-          ),
-          matchedKeywords: baseIntent.matchedKeywords,
-          recommendedRole: baseIntent.recommendedRole,
-        };
+        // Step 6 AC-4：edge label 与关键词 label 一致时才抬置信度；冲突时以确定性
+        // 关键词基线为准，避免产出“intent A + agentName/role B + confidence 取大”。
+        const labelsAgree = merged.intent === baseIntent.intent;
+        const intent: IntentResult = labelsAgree
+          ? {
+              ...baseIntent,
+              intent: merged.intent,
+              confidence: Math.max(
+                Math.max(merged.confidence, EDGE_CONFIDENCE_FLOOR),
+                baseIntent.confidence,
+              ),
+            }
+          : baseIntent;
         return {
-          optimization: { text: merged.rewritten, changed: true },
+          optimization: {
+            text: merged.rewritten,
+            // Step 6 AC-3：changed 按实际改写结果计算（schema 已 trim rewritten）。
+            changed: merged.rewritten !== rawInput.trim(),
+          },
           agentMessages,
           intent,
         };
@@ -204,7 +225,7 @@ export async function mergedEdgePreflight(
     const resp = await client.generate(
       `Rewrite the input into a clearer prompt and classify its intent into one of: code, research, knowledge, write, plan, chat.`
         + ` Keep the original meaning and language; do not answer the question.`
-        + ` Input: "${truncated}".`
+        + ` Input: "${escapePromptInput(truncated)}".`
         + ` Reply JSON {"rewritten":"...","intent":"...","confidence":0.0-1.0}`,
       { maxTokens: 512 },
     );

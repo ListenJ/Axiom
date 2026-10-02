@@ -118,6 +118,22 @@ export function fallbackTFIDF(rawMarkdown: string): StructureResult {
   }
 }
 
+/**
+ * 解析结构化 LLM 输出：剥离 markdown 代码围栏后 JSON.parse；失败返回 null。
+ * GLM/边缘模型常返回 ```json ... ```；直接 JSON.parse 会被外层 catch 静默降级。
+ */
+export function parseStructuredContent(content: string): StructureResult | null {
+  const cleaned = content
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+  try {
+    return JSON.parse(cleaned) as StructureResult;
+  } catch {
+    return null;
+  }
+}
+
 async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | null> {
   // 图/视频自动理解分支：仅当 KNOWLEDGE_USE_LLM=true 时启用（W7 zero LLM 承诺）
   const useLLM = readBool("KNOWLEDGE_USE_LLM", false);
@@ -166,7 +182,7 @@ async function structureWithGLM(rawMarkdown: string): Promise<StructureResult | 
     const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> }
     const content = data?.choices?.[0]?.message?.content
     if (!content) return null
-    return JSON.parse(content) as StructureResult
+    return parseStructuredContent(content)
   } catch (err) {
     logger.warn(`[Pipeline] GLM structuring failed: ${(err as Error).message}`)
     return null

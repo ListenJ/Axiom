@@ -17,6 +17,21 @@
 
 ---
 
+## 2026-10-02 — fix(input): Step 6 Knowledge / Chat-Preflight 输入健壮性
+
+- **任务**：计划 Step 6（T2，P1-Medium）。修复：① `knowledge/pipeline.ts` 结构化 LLM 输出直接 `JSON.parse`，markdown 代码围栏导致静默降级；② `chat-preflight.ts` 用户输入原样插入提示模板，双引号/花括号可破坏模板；③ 快路径 `changed` 恒 true；④ edge label 与关键词 label 冲突时产出“intent A + agentName/role B + confidence 取大”的自相矛盾结果；⑤ `normalizeEdge` 仅凭 `enabled` 方法把带 enabled 的裸 client 误判为 EdgeDep。
+- **TDD 红→绿**：新增 `tests/unit/step6-input-hardening.test.ts` 5 例（AC-1~AC-5）。第一步 RED 为 `parseStructuredContent` 导出不存在 → 实现后 **5 pass / 0 fail / 15 expect**。既有 `tests/chat-preflight-parallel.test.ts` 的两条用例按 **AC-4 的有意语义变更**同步更新（标签冲突时以确定性关键词基线为准），并新增冲突用例；合并后两文件 **18 pass / 0 fail / 59 expect**。
+- **改动（文件级）**：
+  1. `src/knowledge/pipeline.ts`：新增导出 `parseStructuredContent()`（剥离 ```json / ``` 围栏后 JSON.parse，失败返回 null）；`structureWithGLM` 改用它。
+  2. `src/services/chat-preflight.ts`：新增 `escapePromptInput()`（反斜杠/双引号/换行/控制字符）并用于 `mergedEdgePreflight` 提示模板；快路径 `changed` 改为 `merged.rewritten !== rawInput.trim()`；标签一致时才 `confidence = max(...)`，标签冲突时返回关键词基线 `baseIntent`（intent/agentName/recommendedRole 自洽）；`normalizeEdge` 要求同时具备 `enabled()` 与 `client.generate()`。
+  3. `tests/unit/step6-input-hardening.test.ts`：新增 5 条回归；`tests/chat-preflight-parallel.test.ts`：两条旧断言按 AC-4 新语义更新。
+- **验证**：`bun test tests/unit/step6-input-hardening.test.ts tests/chat-preflight-parallel.test.ts` = **18 pass / 0 fail / 59 expect**；`bunx tsc --noEmit` rc=0。
+- **行为变更（有意）**：合并快路径在 edge/keyword 标签冲突时不再采用 edge 标签，改以关键词基线为准；这是为了消除 intent/agentName/role 自相矛盾，属计划 AC-4 明确要求。
+- **不做项**：不改 intent-enhancer/关键词分类表；不改 mergedEdgePreflight 的 schema/枚举；不把 `escapePromptInput` 导出为新公共 API。
+- **Commit**：`<STEP6_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(runtime): Step 5 RuntimeHost 生命周期串行化与状态机修复
 
 - **任务**：计划 Step 5（T2，P1-Medium）。修复 `src/runtime/host.ts` / `types.ts`：① error 状态跳过 initialize 直接 start；② 运行中同 id 重复注册覆盖记录、孤立旧适配器；③ 生命周期 check-then-await 无串行化，并发 start/stop 可双重执行；④ 默认 scheduler `running` Set 只写不读、`complete(id)` 丢 result；⑤ types.ts 文档写“6 个方法”，实际 4 个必需 + 2 个可选；destroy 不接 ctx。

@@ -188,19 +188,22 @@ describe("runPreflight — 边缘合并快路径", () => {
     ]);
   });
 
-  test("意图组合保留关键词基线字段，confidence = max(合并值, 0.6 下限, 基线)", async () => {
+  test("标签一致时保留关键词基线字段，confidence = max(合并值, 0.6 下限, 基线)", async () => {
     const events: string[] = [];
-    const result = await runPreflight("raw input", [], mergedDeps(events));
-    expect(result.intent.intent).toBe("code");
+    const deps = mergedDeps(events, {
+      mergedEdge: async () => ({ rewritten: "clear prompt", intent: "chat", confidence: 0.7 }),
+    });
+    const result = await runPreflight("raw input", [], deps);
+    expect(result.intent.intent).toBe("chat");
     expect(result.intent.agentName).toBe("ChatAgent");
     expect(result.intent.matchedKeywords).toEqual(["hi"]);
     expect(result.intent.recommendedRole).toBe("general-chat");
     expect(result.intent.confidence).toBe(0.7); // max(0.7, 0.6, 0.3)
   });
 
-  test("1B 模型 confidence 无校准：低于 0.6 时抬到下限", async () => {
+  test("1B 模型 confidence 无校准：标签一致且低于 0.6 时抬到下限", async () => {
     const events: string[] = [];
-    const deps = mergedDeps(events, { mergedEdge: async () => ({ rewritten: "r", intent: "code", confidence: 0.2 }) });
+    const deps = mergedDeps(events, { mergedEdge: async () => ({ rewritten: "r", intent: "chat", confidence: 0.2 }) });
     const result = await runPreflight("raw input", [], deps);
     expect(result.intent.confidence).toBe(0.6); // max(0.2, 0.6, 0.3)
   });
