@@ -57,7 +57,6 @@ function createDefaultLogger(): RuntimeContext["logger"] {
 
 function createDefaultScheduler(): RuntimeContext["scheduler"] {
   const pending: Array<{ id: string; name: string }> = [];
-  const running = new Set<string>();
   let counter = 0;
   return {
     submit(task) {
@@ -68,11 +67,10 @@ function createDefaultScheduler(): RuntimeContext["scheduler"] {
     getNext() {
       if (pending.length === 0) return null;
       const t = pending.shift()!;
-      running.add(t.id);
       return { id: t.id, name: t.name };
     },
-    complete(id) {
-      running.delete(id);
+    complete(_id: string, _result: unknown) {
+      // 默认内存队列无 running 状态；签名与 RuntimeContext 对齐，result 由注入实现消费。
     },
   };
 }
@@ -107,6 +105,8 @@ function createDefaultEmit(): (event: string, data: unknown) => void {
 
 export class RuntimeHost {
   private agents = new Map<string, AgentRecord>();
+  /** per-agent 生命周期串行链：同一 Agent 的 start/stop 不并发执行（Step 5 AC-3） */
+  private transitions = new Map<string, Promise<void>>();
   private readonly ctx: RuntimeContext;
 
   constructor(opts: RuntimeHostOptions = {}) {
@@ -126,10 +126,17 @@ export class RuntimeHost {
 
   /**
    * 注册 Agent。
-   * 重复注册同一 id 会覆盖并告警。
+   * 运行中/已初始化的同 id 重复注册会被拒绝（需先 stopAgent）；
+   * 仅未启动状态允许覆盖并告警。
    */
   registerAgent(adapter: AgentAdapter): void {
-    if (this.agents.has(adapter.id)) {
+    const existing = this.agents.get(adapter.id);
+    if (existing) {
+      if (existing.state === "running" || existing.state === "initialized") {
+        throw new Error(
+          `Agent '${adapter.id}' is already registered and ${existing.state}; stop it before re-registering`,
+        );
+      }
       this.ctx.logger.warn("Agent already registered, overwriting", { id: adapter.id });
     }
     this.agents.set(adapter.id, { adapter, state: "uninitialized" });
@@ -166,42 +173,48 @@ export class RuntimeHost {
    * 错误隔离: initialize / start 抛错时将 Agent 置为 error 状态，不向上抛出。
    */
   async startAgent(id: string): Promise<void> {
-    const rec = this.agents.get(id);
-    if (!rec) {
-      this.ctx.logger.error("startAgent: agent not found", { id });
-      return;
-    }
-    if (rec.state === "running") {
-      this.ctx.logger.warn("startAgent: agent already running", { id });
-      return;
-    }
+    return this.runExclusive(id, async () => {
+      const rec = this.agents.get(id);
+      if (!rec) {
+        this.ctx.logger.error("startAgent: agent not found", { id });
+        return;
+      }
+      if (rec.state === "running") {
+        this.ctx.logger.warn("startAgent: agent already running", { id });
+        return;
+      }
+      if (rec.state === "error") {
+        // Step 5 AC-1：error 状态必须重新注册或显式复位，禁止跳过 initialize 直接 start。
+        throw new Error(`Agent '${id}' is in error state; re-register or reset before start`);
+      }
 
-    // initialize (仅在未初始化时执行)
-    if (rec.state === "uninitialized") {
+      // initialize (仅在未初始化时执行)
+      if (rec.state === "uninitialized") {
+        try {
+          await rec.adapter.initialize(this.ctx);
+          rec.state = "initialized";
+        } catch (err) {
+          rec.state = "error";
+          const msg = this.errMsg(err);
+          this.ctx.logger.error("Agent initialize failed", { id, error: msg });
+          this.ctx.emit("agent.error", { id, phase: "initialize", error: msg });
+          return; // 不抛出，隔离错误
+        }
+      }
+
+      // start
       try {
-        await rec.adapter.initialize(this.ctx);
-        rec.state = "initialized";
+        await rec.adapter.start(this.ctx);
+        rec.state = "running";
+        this.ctx.emit("agent.started", { id });
+        this.ctx.logger.info("Agent started", { id });
       } catch (err) {
         rec.state = "error";
         const msg = this.errMsg(err);
-        this.ctx.logger.error("Agent initialize failed", { id, error: msg });
-        this.ctx.emit("agent.error", { id, phase: "initialize", error: msg });
-        return; // 不抛出，隔离错误
+        this.ctx.logger.error("Agent start failed", { id, error: msg });
+        this.ctx.emit("agent.error", { id, phase: "start", error: msg });
       }
-    }
-
-    // start
-    try {
-      await rec.adapter.start(this.ctx);
-      rec.state = "running";
-      this.ctx.emit("agent.started", { id });
-      this.ctx.logger.info("Agent started", { id });
-    } catch (err) {
-      rec.state = "error";
-      const msg = this.errMsg(err);
-      this.ctx.logger.error("Agent start failed", { id, error: msg });
-      this.ctx.emit("agent.error", { id, phase: "start", error: msg });
-    }
+    });
   }
 
   /**
@@ -210,41 +223,43 @@ export class RuntimeHost {
    * 已停止 / 未初始化的 Agent 调用此方法为空操作。
    */
   async stopAgent(id: string): Promise<void> {
-    const rec = this.agents.get(id);
-    if (!rec) {
-      this.ctx.logger.error("stopAgent: agent not found", { id });
-      return;
-    }
-    if (rec.state === "stopped" || rec.state === "uninitialized") {
-      this.ctx.logger.warn("stopAgent: agent not running", { id, state: rec.state });
-      return;
-    }
-
-    // stop
-    try {
-      await rec.adapter.stop(this.ctx);
-    } catch (err) {
-      rec.state = "error";
-      const msg = this.errMsg(err);
-      this.ctx.logger.error("Agent stop failed", { id, error: msg });
-      this.ctx.emit("agent.error", { id, phase: "stop", error: msg });
-      // 即使 stop 失败也尝试 destroy，确保资源释放
-    }
-
-    // destroy (可选)
-    if (rec.adapter.destroy) {
-      try {
-        await rec.adapter.destroy();
-      } catch (err) {
-        this.ctx.logger.error("Agent destroy failed", { id, error: this.errMsg(err) });
+    return this.runExclusive(id, async () => {
+      const rec = this.agents.get(id);
+      if (!rec) {
+        this.ctx.logger.error("stopAgent: agent not found", { id });
+        return;
       }
-    }
+      if (rec.state === "stopped" || rec.state === "uninitialized") {
+        this.ctx.logger.warn("stopAgent: agent not running", { id, state: rec.state });
+        return;
+      }
 
-    if (rec.state !== "error") {
-      rec.state = "stopped";
-    }
-    this.ctx.emit("agent.stopped", { id, finalState: rec.state });
-    this.ctx.logger.info("Agent stopped", { id, state: rec.state });
+      // stop
+      try {
+        await rec.adapter.stop(this.ctx);
+      } catch (err) {
+        rec.state = "error";
+        const msg = this.errMsg(err);
+        this.ctx.logger.error("Agent stop failed", { id, error: msg });
+        this.ctx.emit("agent.error", { id, phase: "stop", error: msg });
+        // 即使 stop 失败也尝试 destroy，确保资源释放
+      }
+
+      // destroy (可选；Step 5 AC-4：传入 RuntimeContext，便于释放 ctx 绑定资源)
+      if (rec.adapter.destroy) {
+        try {
+          await rec.adapter.destroy(this.ctx);
+        } catch (err) {
+          this.ctx.logger.error("Agent destroy failed", { id, error: this.errMsg(err) });
+        }
+      }
+
+      if (rec.state !== "error") {
+        rec.state = "stopped";
+      }
+      this.ctx.emit("agent.stopped", { id, finalState: rec.state });
+      this.ctx.logger.info("Agent stopped", { id, state: rec.state });
+    });
   }
 
   /**
@@ -344,6 +359,22 @@ export class RuntimeHost {
   }
 
   // ─── 内部工具 ──────────────────────────────────────────────
+
+  /**
+   * 同一 Agent 的生命周期转换串行化（Step 5 AC-3）。
+   * 前一个转换失败不阻塞后续转换；调用方仍能收到本次转换的真实拒绝。
+   */
+  private runExclusive(id: string, task: () => Promise<void>): Promise<void> {
+    const prev = this.transitions.get(id) ?? Promise.resolve();
+    const next = prev.catch(() => {}).then(task);
+    this.transitions.set(id, next);
+    void next
+      .finally(() => {
+        if (this.transitions.get(id) === next) this.transitions.delete(id);
+      })
+      .catch(() => {});
+    return next;
+  }
 
   /** 为 Promise 增加超时保护。超时后 reject (原 Promise 仍在后台运行，无法取消) */
   private async withTimeout<T>(p: Promise<T>, ms: number, taskId: string): Promise<T> {

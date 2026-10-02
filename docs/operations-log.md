@@ -17,6 +17,20 @@
 
 ---
 
+## 2026-10-02 — fix(runtime): Step 5 RuntimeHost 生命周期串行化与状态机修复
+
+- **任务**：计划 Step 5（T2，P1-Medium）。修复 `src/runtime/host.ts` / `types.ts`：① error 状态跳过 initialize 直接 start；② 运行中同 id 重复注册覆盖记录、孤立旧适配器；③ 生命周期 check-then-await 无串行化，并发 start/stop 可双重执行；④ 默认 scheduler `running` Set 只写不读、`complete(id)` 丢 result；⑤ types.ts 文档写“6 个方法”，实际 4 个必需 + 2 个可选；destroy 不接 ctx。
+- **TDD 红→绿**：新增 `tests/unit/runtime-host-lifecycle.test.ts` 5 例（AC-1~AC-5）。修复前 **5 fail**（error 状态可 start、running 重注册不拒、并发 initialize 2 次、文档 6 方法、scheduler 有未读 Set）；修复后 **5 pass / 0 fail / 19 expect**。
+- **改动（文件级）**：
+  1. `src/runtime/host.ts`：新增 per-agent `transitions` Map + `runExclusive()`，startAgent/stopAgent 全部串行化；`startAgent` 对 `state === "error"` 抛错拒绝；`registerAgent` 对 running/initialized 同 id 抛错拒绝；默认 scheduler 删除只写不读的 `running` Set，`complete(_id, _result)` 与 RuntimeContext 签名对齐；`stopAgent` 调 `destroy(this.ctx)`。
+  2. `src/runtime/types.ts`： `AgentAdapter` 文档改为“最少需实现 4 个方法”，`destroy?(ctx: RuntimeContext)`；顶部“6 个方法”口径删除。
+  3. `tests/unit/runtime-host-lifecycle.test.ts`：新增 5 条回归。
+- **验证**：定向 `bun test tests/unit/runtime-host-lifecycle.test.ts tests/e2e-runtime.test.ts tests/architecture-runtime-isolation.test.ts tests/dre-host-integration.test.ts tests/unit/resolved-host-guard.test.ts tests/runtime-audit.test.ts` = **56 pass / 0 fail / 217 expect**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` 16/16。
+- **不做项**：不改 dispatchTask/healthCheck；不改 unregisterAgent 的 force-remove 语义（本轮只修注册侧）；不引入锁库依赖。
+- **Commit**：`<STEP5_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — fix(config): Step 4 ConfigCenter 敏感审计/单一事实源/原子写/fail-closed
 
 - **任务**：计划 Step 4（T2，P0-High）。修复 `src/core/config-center.ts`：① `set()` 审计日志存原始 `oldValue/newValue`，敏感键（API key/auth token）明文落 auditLog；② `getConfig()` 对 Obsidian API port/token、Crawler searchApi/requestDelay 仍直调 `readString/readInt`，绕过 ConfigCenter 单一事实源；③ `saveYaml()` 直接 `writeFileSync`，非原子；④ `checkType()` 未知类型返回 `{valid:true}`，fail-open。

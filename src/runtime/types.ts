@@ -5,7 +5,7 @@
  * RuntimeContext 由 Host 构造并注入，提供日志 / 调度 / 能力 / 知识 / 事件能力。
  *
  * 设计原则:
- * - 接口最小化: 第三方只需实现 6 个方法即可接入
+ * - 接口最小化: 第三方只需实现 4 个必需方法即可接入（healthCheck/destroy 可选）
  * - 能力契约化: Agent 声明 capabilities，Host 按 task.type 路由
  * - 错误隔离: Host 包装所有 Agent 调用，单 Agent 异常不波及其他 Agent
  */
@@ -84,7 +84,7 @@ export interface RuntimeContext {
 /**
  * Agent 接入接口 — 第三方 Agent 实现此接口即可运行于 Runtime。
  *
- * 最少需实现 6 个方法: initialize / start / stop / handleTask
+ * 最少需实现 4 个方法: initialize / start / stop / handleTask
  * (healthCheck 与 destroy 为可选)。
  *
  * capabilities 含义: Agent 声明可处理的任务类型 (能力契约)；
@@ -105,7 +105,7 @@ export interface AgentAdapter {
   /** 停止 (停止接收任务，释放活跃资源) */
   stop(ctx: RuntimeContext): Promise<void>;
   /** 销毁 (可选，最终资源清理) */
-  destroy?(): Promise<void>;
+  destroy?(ctx: RuntimeContext): Promise<void>;
 
   // ─── 执行 ──────────────────────────────────────────────────
   /** 处理任务 — 必须返回 RuntimeResult，不应抛出异常 */
