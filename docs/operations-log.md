@@ -27,7 +27,7 @@
 - **doc-contract 同步**：新增 review 类证据件使 D0 豁免面 60→61；逐件点名 `docs/reviews/2026-10-02-ocr-full-coverage.md` 并把上限改为 61。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
 - **不做项**：不修 13 条 high；不改 OCR 工具；不把 `/tmp` 输出文件入库；不把 OCR 候选当已确认缺陷。
-- **Commit**：`<OCR_REPORT_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`75a99ad0`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
