@@ -28,7 +28,7 @@
 - **验证**：`bun test tests/unit/request-hardening.test.ts tests/unit/http-router-response-cache.test.ts tests/e2e-runtime.test.ts` = **43 pass / 0 fail / 112 expect**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` 16/16。
 - **兼容性**：411 语义对依赖 chunked 的客户端是行为收紧；计划已裁决并按 AC-1 执行，若后续发现既有客户端依赖 chunked，按计划回 Plan 重评，不擅自放宽。
 - **不做项**：不改静态资源判定/限流/流量分类；不改 HttpRouter 缓存；不引入反向代理限流。
-- **Commit**：`<STEP3_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`b1210846`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
