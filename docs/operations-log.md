@@ -17,6 +17,23 @@
 
 ---
 
+## 2026-10-02 — chore(branch): Step 11 分支归档（13 本地分支收敛，远端全保留）
+
+- **任务**：计划 Step 11（T3，P1-运维；Q1 用户裁决：并入 `codex/archive-2026-10-02` 后删本地，远端保留）。目标：本地分支从 15 收敛到 2（工作分支 + 归档分支），远端 13 个同名分支全部不动。
+- **归档方法（规则 4/9：不用 `-D`/不 force）**：
+  1. 从工作分支 `948dfb62` 建 `codex/archive-2026-10-02`；
+  2. 对 2 个含未并入提交的分支用 `git merge --no-ff -s ours` 只做可达性记录（不取其 tree）：`342c2628`（archive-experiments-2026-08-08 tip `16412b90`，2 提交）、`3f360f47`（retirement-consolidation-2026-09-23 tip `41372ecf`，5 提交）；两条均 `git merge-base --is-ancestor <branch> HEAD` 判定 merged；
+  3. 归档清单 `docs/reviews/2026-10-02-branch-archival.md`（13 行：分支/tip/未并入数/远端 SHA/处置），提交 `0b6fc521`；
+  4. 推送 `codex/archive-2026-10-02` 到 `internal`。
+- **本地删除（13/13 成功，全部 `git branch -d`）**：11 个 0 未并入分支（含 `master` 历史锚点、`codex/main-unify-2026-09-26`）直接 `-d`；2 个分支 `-d` 首跑因配置 upstream 指向别的远端分支（`main` / `codex/s3-on-main-2026-09-22`）触发安全告警，按规则不绕过：`git branch --unset-upstream` 解除本地上游配置后再 `-d`，均成功。全程未使用 `-D`、未 force。
+- **远端保留证据**：`git ls-remote --heads internal` 中 13 个归档分支 SHA 逐一核对仍存在（7ad30ce4、c916de27、16412b90、00be333a、52da0785、86773eec、d128843f、81cb54b5、41372ecf、18eb60ba、de068129、e09a8bf9、7ad30ce4），archive 分支 `0b6fc521` 已推送；远端 heads 32（含本工作分支与归档分支）。
+- **本地收敛**：`git branch` = `codex/archive-2026-10-02`、`codex/post-unify-remediation-2026-10-02`；工作树干净。
+- **HTTP 端口澄清（用户 2026-10-02）**：Gitea HTTP 端口为 **3000**；Step 8 的 `lfs.url` 已按该端口设置，`git lfs env` internal 端点随之指向 3000；LFS batch 端点返回 401（需鉴权），对象传输 token 仍未配置（Step 8 余项）。
+- **不做项**：不删远端任何分支；不改写历史；不向 origin 推送。
+- **Commit**：`<STEP11_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — chore(lfs): Step 8 git-lfs 用户态安装 + LFS 面复验 + 正常推送恢复
 
 - **任务**：计划 Step 8（T3，P1-运维）。`sudo -n` 不可用，故走用户态安装：git-lfs v3.8.0 linux-amd64 从清华 TUNA 镜像下载，安装到 `~/.local/bin/git-lfs`，并 symlink 到已在 PATH 的 `~/.bun/bin/git-lfs`；不安装系统包、不执行 `git lfs install`、不重写任何 hook。
