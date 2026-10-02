@@ -17,6 +17,20 @@
 
 ---
 
+## 2026-10-02 — docs(review): Step 12a OCR 全仓 src 扫描覆盖率报告 + 13 条 high triage
+
+- **任务**：计划 Step 12a（T2/T3，P2）。用 SenseNova `deepseek-v4-flash` 跑 `src/**` 全仓 OCR（排除 `src/**/__tests__/**`、sourcemap），产出覆盖率与高优 triage；不修 OCR 候选缺陷（按规则 6/7 需先红→绿复现）。
+- **扫描实测**：OCR 摘要 **453 file(s) reviewed / 163 comment(s)**；严重度 **high 13 / medium 74 / low 76 / critical 0**；类别 bug 81 / maintainability 54 / security 11 / performance 10 / style 2 / other 4 / documentation 1；有评论文件 **33 个**；耗时 **40m58s**；token 约 **2,017,378**；`--max-tokens-budget 2000000` 在 `src/decision/laya-triage.ts` batch #3 触顶；session `1368fa22-bfac-4771-a650-a4a26fee0221`；原始输出 `/tmp/ocr-step12-src.txt`（99,246 B）。
+- **产物**：新增 `docs/reviews/2026-10-02-ocr-full-coverage.md`（98 行）：扫描元数据、Top 15 热点文件、13 条 high triage 表（文件:行/类别/问题/初步判断/建议批次）、覆盖率口径 caveat、建议 Batch E 分组（E1 安全快修 / E2 审批与内存边界 / E3 Agent 状态正确性 / E4 工具输出正确性 / E5 medium 安全 triage）、复现方式。
+- **13 条 high 摘要**：agent-evals registry shape、runtime-runner 审批 fail-closed、approver-model 截断、goal-tracker 漂移边界、codegen 双流死锁、prompt-pool replace/metrics、tool-classifications 认知闭环分类、cli/setup .env 权限、recoverable-output 字节上限、context-manager system 保留、session-lineage FTS5、laya-calibrate absent。**均为 OCR 候选，未确认、未修复**。
+- **覆盖率 caveat（如实登记）**：摘要 453 reviewed 与 session 元数据 22 done / 101 fail 口径不一致；token 预算触顶；日志含 `file_read failed`/`code_comment failed`/`code_search failed` 等工具调用失败；本报告不声明 100% 覆盖。
+- **doc-contract 同步**：新增 review 类证据件使 D0 豁免面 60→61；逐件点名 `docs/reviews/2026-10-02-ocr-full-coverage.md` 并把上限改为 61。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **不做项**：不修 13 条 high；不改 OCR 工具；不把 `/tmp` 输出文件入库；不把 OCR 候选当已确认缺陷。
+- **Commit**：`<OCR_REPORT_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — docs(ops): Step 9/10 阻塞项运维操作手册（systemd + runtime-go 拓扑）
 
 - **任务**：用户指令「第九步和第十步的操作记得告诉我」。Step 9（systemd）与 Step 10（runtime-go 拓扑）分别被 `sudo -n` 不可用与 `${LAN_*}` 实际值未提供阻塞，故不改系统、不填拓扑，改为交付可复制执行的 T1 操作手册。分级 **T1**（文档）。

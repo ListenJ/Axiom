@@ -185,8 +185,10 @@ describe("D0 口径扫描范围自证", () => {
     // （Laya 开发流程接入与退役任务的冒烟/门禁证据，证据性质同上）。
     // 59→60（2026-10-02）：docs/reviews/2026-10-02-step9-10-operator-runbook.md
     // （Step 9 systemd / Step 10 runtime-go 的逐命令运维手册；保留系统命令原文，属操作证据性质）。
+    // 60→61（2026-10-02）：docs/reviews/2026-10-02-ocr-full-coverage.md
+    // （OCR 全仓 src 扫描覆盖率 + 13 条 high triage，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(60);
+    expect(exempted.length).toBeLessThanOrEqual(61);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 
