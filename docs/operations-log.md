@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-02 — docs(plan): Q1–Q4 裁决结果回填（用户接受推荐，OCR 用 SenseNova deepseek-v4-flash）
+
+- **任务**：用户指令「你的推荐我接受，OCR 直接使用我们当前使用的模型」。把 Q1–Q4 裁决结果写入计划 §十，解除 Step 8/9/11/12a 的授权/provider 阻塞；Q4 runtime-go `${LAN_*}` 仍待用户提供实际值，Step 10 保持 blocked。分级 **T1**（计划文档状态回填）。
+- **裁决**：Q1 接受 —— 2 个未并入分支并入 `codex/archive-2026-10-02` 后删本地、远端保留；Q2 接受 —— 授权在安全窗口安装 git-lfs 与 systemd 单元；Q3 接受 —— OCR 使用 SenseNova `deepseek-v4-flash`（已验证可用；智谱 `glm-4.7-flash` 扫描时工具调用不稳定）；Q4 待提供 —— runtime-go 拓扑值。
+- **改动（文件级）**：`docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md` §十；本条 ops log。
+- **验证**：`bun test tests/doc-contract.test.ts` 35/0；`git diff --check` 通过；文档内无内网地址/凭据明文。
+- **Commit**：`<DECISION_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — docs(plan): 主干归一后修复与运维收口计划（blueprint skill，12 步）
 
 - **任务**：用户指令「根据读取结果使用对应 skill 编写下一步计划」。采用 `blueprint` skill（多会话/多 PR 施工计划：研究 → 设计 → 草拟 → 对抗性评审 → 登记），把 2026-10-02 代码读取 + open-code-review 发现拆成 12 个可独立验证、可回滚的 Step。分级 **T3**（书面计划）。

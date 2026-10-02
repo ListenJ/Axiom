@@ -602,14 +602,16 @@ bun run arch:stats
 
 ## 十、需用户裁定的问题
 
-**已在计划内裁决（不再询问）**：工具请求不缓存（Step 1）、`saveYaml` 原子同步（Step 4）、RuntimeHost 拒绝 error 启动/重复注册（Step 5）、原生流失败按 AC-1 终止（Step 2）、body 限制用 411/413（Step 3）。
+**用户已裁决（2026-10-02）**：
 
-| # | 问题 | 推荐选项 | 影响 |
+| # | 问题 | 裁决 | 对计划的影响 |
 |---|---|---|---|
-| Q1 | 2 个含未并入提交的本地分支：归档还是保留？ | 并入 `codex/archive-2026-10-02` 后删本地，远端保留 | 无数据风险，符合规则 4 |
-| Q2 | git-lfs / systemd 需 sudo，是否授权安装？ | 授权后在安全窗口执行 | 不授权则 Step 8/9 blocked |
-| Q3 | 全仓 OCR 用哪个 coding 模型？ | DeepSeek 或等效 coding 模型 | 影响额度与覆盖率 |
-| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | 用户提供部署侧值，不入库 | 不提供则 Step 10 blocked |
+| Q1 | 2 个含未并入提交的本地分支：归档还是保留？ | **接受推荐**：并入 `codex/archive-2026-10-02` 后删本地，远端保留 | Step 11 解除阻塞，可按规则 4 执行 |
+| Q2 | git-lfs / systemd 需 sudo，是否授权安装？ | **接受推荐**：授权在安全窗口安装 git-lfs 与 systemd 单元 | Step 8/9 解除授权阻塞，仍需实际执行窗口 |
+| Q3 | 全仓 OCR 用哪个 coding 模型？ | **接受推荐**：使用已验证可用的 SenseNova `deepseek-v4-flash`（智谱 `glm-4.7-flash` 在扫描中工具调用不稳定，改用 SenseNova） | Step 12a 解除 provider 阻塞 |
+| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | **待提供**：用户提供部署侧值，不入库 | Step 10 保持 blocked，未提供前不执行 |
+
+**计划内已裁决（不再询问）**：工具请求不缓存（Step 1）、`saveYaml` 原子同步（Step 4）、RuntimeHost 拒绝 error 启动/重复注册（Step 5）、原生流失败按 AC-1 终止（Step 2）、body 限制用 411/413（Step 3）。
 
 ---
 
