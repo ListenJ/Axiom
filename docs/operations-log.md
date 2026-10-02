@@ -26,7 +26,7 @@
 - **Windows w1 退役（用户 2026-10-03 裁定）**：本地拓扑笔记追加“w1 退役，Step 10 只用 Linux n1/n2”状态说明（原 n1/n2/w1 内容保留不删）；runbook §10.4（w1 交叉编译/启动）标作废，§10.3/§10.5/§10.6 改为 Linux-only（`SEARCHD_NODES` 只含 n1/n2，deploy.sh 的 N2 改为 `<user@N2_IP>`）；计划 Step 10 契约改为 Linux-only：三守护 `/healthz` + `/cluster` n1/n2 healthy + loadgen seed 10 万 + modelclient smoke，w1 不再验收。
 - **不做项**：未改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；未改 `scripts/runtime-go/deploy.sh` 默认值（Step 10 执行时按拓扑修）；未部署 w1；未提交 `runtime-go/bin/*` 本地构建物。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
-- **Commit**：`<SYS_TOPOLOGY_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`9cba0ea7`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
