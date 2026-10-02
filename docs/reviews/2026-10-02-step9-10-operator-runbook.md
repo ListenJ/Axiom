@@ -27,6 +27,11 @@ cd "$REPO" && set -a && . ./.env && set +a && timeout 30 "$BUN" dist/main.js
 ### 9.2 写入修正后的 unit（模板实例：`axiom@listen.service`）
 
 > 旧模板的 `Description=OpenClaw`、`User=%I`、`/opt/openclaw-fusion`、`/usr/local/bin/bun`、`ReadWritePaths=/opt/...` 全部过期；直接用下面内容替换。
+> **2026-10-03 EROFS 修复**：`ProtectHome=read-only` 下 Bun 默认临时/安装目录在 `/home` 内不可写，子进程会报 `EROFS accessing temporary directory. Please set $BUN_TMPDIR or $BUN_INSTALL`。先把 temp/install 指到仓库 `.tmp`，并放行 `~/.cache`、`~/.npm` 的写入。
+
+```bash
+mkdir -p /run/media/listen/base/openclaw-fusion/.tmp/bun /run/media/listen/base/openclaw-fusion/.tmp/bun-install
+```
 
 ```bash
 sudo tee /etc/systemd/system/axiom@.service >/dev/null <<'UNIT'
@@ -40,6 +45,8 @@ User=%i
 WorkingDirectory=/run/media/listen/base/openclaw-fusion
 Environment="PATH=/home/listen/.bun/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="NODE_ENV=production"
+Environment="BUN_TMPDIR=/run/media/listen/base/openclaw-fusion/.tmp/bun"
+Environment="BUN_INSTALL=/run/media/listen/base/openclaw-fusion/.tmp/bun-install"
 EnvironmentFile=-/run/media/listen/base/openclaw-fusion/.env
 ExecStart=/home/listen/.bun/bin/bun dist/main.js
 Restart=always
@@ -60,6 +67,8 @@ ReadWritePaths=/run/media/listen/base/openclaw-fusion/.tmp
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db-wal
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db-shm
+ReadWritePaths=/home/listen/.cache
+ReadWritePaths=/home/listen/.npm
 
 [Install]
 WantedBy=multi-user.target
@@ -110,11 +119,32 @@ sudo systemctl daemon-reload
 | Vault 写入失败 EROFS | `ProtectSystem=full` 下 repo 内 Vault 不在 `ReadWritePaths` | 按 `.env` 的 `OBSIDIAN_VAULT_PATH` 增加 `ReadWritePaths` |
 | 端口冲突 | 已有 PM2/手工实例占 18789 | `sudo systemctl stop axiom@listen` 前先 `pm2 delete axiom-agent` 或改 `AXIOM_GATEWAY_PORT` |
 
+### 9.6 EROFS 修复（2026-10-03 实测日志）
+
+日志证据：`axiom[212457]: error: EROFS accessing temporary directory. Please set $BUN_TMPDIR or $BUN_INSTALL`。
+
+- 根因：`ProtectHome=read-only` 让 `/home/listen/.bun`、`~/.cache`、`~/.npm` 不可写；Bun 子进程默认把临时/安装目录放在 `/home` 下。
+- 修复：§9.2 的 unit 已加 `BUN_TMPDIR` / `BUN_INSTALL` 指向仓库 `.tmp`，并放行 `~/.cache`、`~/.npm` 的写入；`ReadWritePaths` 已有 `.tmp`。
+- 应用修复：
+
+```bash
+sudo mkdir -p /run/media/listen/base/openclaw-fusion/.tmp/bun /run/media/listen/base/openclaw-fusion/.tmp/bun-install
+# 用 §9.2 的完整 unit 覆盖 /etc/systemd/system/axiom@.service 后：
+sudo systemctl daemon-reload
+sudo systemctl restart axiom@listen.service
+# 就绪轮询见 §9.3；随后确认 EROFS 不再出现：
+journalctl -u axiom@listen.service --since "5 min ago" | grep -i EROFS && echo 'STILL PRESENT' || echo 'EROFS cleared'
+```
+
+- 若仍有 MCP 子进程写 `~/.cache`/`~/.npm` 的 EROFS，优先保留 `ProtectHome=read-only` + 精确 `ReadWritePaths`，不要直接改 `ProtectHome=false`。
+
 ---
 
 ## Step 10 — runtime-go 拓扑与冒烟
 
-> 真实地址/账号在 `~/.axiom/axiom-secrets/runtime-go-topology.md`（规则 11，不入库）。下文占位：`<N1_IP>`（n1 Linux）、`<W1_IP>`（Windows w1）、`<MODEL_HOST>`（llama.cpp OpenAI 兼容端点）、`<REDIS_BRIDGE_IP>`（n1 上 redis 容器 bridge IP）。
+> **2026-10-03 用户裁定：Windows w1 已退役**，不再作为 runtime-go 节点；Step 10 只用本地拓扑笔记中的 Linux 节点（n1/n2）。§10.4（w1）作废；§10.3/§10.6 的 `SEARCHD_NODES` 只含 Linux 节点。
+> 本地拓扑笔记已从 `units/u6b-axiom-secrets-2026-09-26.tar.gz` 复制式解到 `~/.axiom/axiom-secrets/runtime-go-topology.md`（规则 11，不入库）；2026-10-03 已追加“w1 退役，只用 n1/n2”状态说明（原内容保留）。
+> 下文占位：`<N1_IP>`（n1 Linux）、`<N2_IP>`（n2 Linux）、`<MODEL_HOST>`（llama.cpp OpenAI 兼容端点）、`<REDIS_BRIDGE_IP>`（n1 上 redis 容器 bridge IP）。
 
 ### 10.1 前置检查（只读，不泄露地址）
 
@@ -135,7 +165,7 @@ go build -o bin/loadgen  ./cmd/loadgen
 ls -l bin/
 ```
 
-### 10.3 n1：searchd（docker，复用 redis:7；节点列表用实际 `<N1_IP>`/`<W1_IP>`）
+### 10.3 n1：searchd（docker，复用 redis:7；节点列表只含 Linux n1/n2）
 
 ```bash
 # n1 上执行
@@ -144,34 +174,22 @@ docker rm -f searchd-n1 2>/dev/null || true
 docker run -d --name searchd-n1 --restart unless-stopped \
   -v /home/listen/runtime-go/bin:/opt:ro -p 9103:9103 \
   -e SEARCHD_ADDR=:9103 -e SEARCHD_NODE_ID=n1 -e SEARCHD_NUM_SHARDS=32 \
-  -e 'SEARCHD_NODES=[{"id":"n1","addr":"http://<N1_IP>:9103","role":"primary"},{"id":"w1","addr":"http://<W1_IP>:9103","role":"standby"}]' \
+  -e "SEARCHD_NODES=[{\"id\":\"n1\",\"addr\":\"http://<N1_IP>:9103\",\"role\":\"primary\"},{\"id\":\"n2\",\"addr\":\"http://<N2_IP>:9103\",\"role\":\"standby\"}]" \
   -e SEARCHD_REDIS_ADDR=<REDIS_BRIDGE_IP>:6379 -e GOMAXPROCS=12 -e GOGC=800 \
   redis:7 /opt/searchd
 docker logs --tail 50 searchd-n1
 ```
 
-### 10.4 w1：searchd（Windows，交叉编译）
+### 10.4 w1：searchd（Windows，已退役，作废）
 
-```bash
-# 在 Linux 侧交叉编译
-cd /run/media/listen/base/openclaw-fusion/runtime-go
-GOOS=windows GOARCH=amd64 go build -o bin/searchd-w1.exe ./cmd/searchd
-# 把 bin/searchd-w1.exe 拷到 w1，然后在 w1 上：
-#   set SEARCHD_ADDR=:9103
-#   set SEARCHD_NODE_ID=w1
-#   set SEARCHD_NUM_SHARDS=32
-#   set SEARCHD_NODES=[{"id":"n1","addr":"http://<N1_IP>:9103","role":"primary"},{"id":"w1","addr":"http://<W1_IP>:9103","role":"standby"}]
-#   set GOMAXPROCS=12
-#   set GOGC=800
-#   searchd-w1.exe
-```
+> **2026-10-03 用户裁定：Windows w1 退役**。本节不再执行；Linux 节点按 §10.3 部署。原 Windows 交叉编译/启动说明仅作历史记录，不再纳入 Step 10 验收。
 
 ### 10.5 部署脚本方式（可选，先核对默认值）
 
 ```bash
 cd /run/media/listen/base/openclaw-fusion
 # deploy.sh 的 N1/N2 默认值来自迁移前拓扑；先用环境变量覆盖，再执行
-N1=<user@N1_IP> N2=<user@W1_IP> bash scripts/runtime-go/deploy.sh build all
+N1=<user@N1_IP> N2=<user@N2_IP> bash scripts/runtime-go/deploy.sh build all
 # 脚本自动：ship 四件套 → 重启三守护 → 各端口 /healthz 打点（应 3×200）
 ```
 
@@ -182,9 +200,9 @@ N1=<user@N1_IP> N2=<user@W1_IP> bash scripts/runtime-go/deploy.sh build all
 curl -fsS http://<N1_IP>:9101/healthz && echo pcdad_ok
 curl -fsS http://<N1_IP>:9102/healthz && echo agentd_ok
 curl -fsS http://<N1_IP>:9103/healthz && echo searchd_ok
-curl -fsS http://<W1_IP>:9103/healthz && echo w1_searchd_ok
 
-# 2) 集群视图：两节点均 healthy，分片各 16
+
+# 2) 集群视图：Linux 节点（n1/n2）均 healthy，分片各 16
 curl -fsS http://<N1_IP>:9103/cluster
 
 # 3) 写鉴权矩阵（无 token 应 403 write disabled / 错 token 403 / 对 token 200）
@@ -204,14 +222,14 @@ curl -fsS http://<MODEL_HOST>:9001/health
 ```bash
 # n1
 docker stop searchd-n1 && docker rm searchd-n1
-# w1：结束 searchd 进程（任务管理器或 taskkill /IM searchd-w1.exe /F）
+# w1 已退役（2026-10-03），不再有 w1 回滚项
 # 保留 runtime-go/bin 与拓扑笔记，不做删除
 ```
 
 ### 10.8 已知边界（来自 runtime-go/README.md 实测）
 
 - n1 入站白名单只开 22/3000/6379/9001，Windows 无法直连 n1:9103；不要用 SSH 隧道做热路径转发（实测 60–150ms 抖动），正解是 docker 发布端口 + DNAT。
-- Windows 服务端 accept 上限约 13.7k QPS；该拓扑 simple ~35k / mixed ~18k，100K QPS 不可达。
+- Windows 服务端 accept 上限约 13.7k QPS（**w1 已退役，仅历史参考**）；该拓扑 simple ~35k / mixed ~18k，100K QPS 不可达。
 - 跨节点链路质量是 QPS 第一决定因素；WiFi 链路会使 simple QPS 减半，必须用有线 IP。
 - `MODEL_SERVICE_URL` 未设置时默认 `${LAN_MODEL_SERVICE}`；真实值只放本地拓扑笔记。
 

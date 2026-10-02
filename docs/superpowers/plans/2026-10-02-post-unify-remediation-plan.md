@@ -442,16 +442,19 @@ Batch D（覆盖率与棘轮，依赖 A+B 完成）
 
 **背景与证据**：部署脚本仍为迁移前 `${LAN_*}` 占位语义；真实取值属部署拓扑，不入库。
 
+> **2026-10-03 用户裁定：Windows w1 已退役**。Step 10 范围改为 **Linux-only（n1/n2）**；w1 交叉编译/启动/验收全部作废。拓扑值从 `~/.axiom/axiom-secrets/runtime-go-topology.md` 读取（本轮已从 `units/u6b-axiom-secrets-2026-09-26.tar.gz` 复制式解出，并追加“w1 退役，只用 n1/n2”状态；原始内容保留）。操作细节见 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` §10（§10.4 已标作废）。
+
 **任务契约**
-- 任务：按新拓扑重配 runtime-go 节点并做连通冒烟。
+- 任务：按 Linux-only 拓扑重配 runtime-go 节点（n1/n2）并做连通冒烟；不再部署 w1/Windows。
 - 验收标准：
-  - AC-1：modelclient 连通冒烟通过（health + 一次真实推理或最小请求）；
-  - AC-2：拓扑取值只存在部署侧 env/本地凭据目录，仓库内零明文；
-  - AC-3：失败回退路径有日志证据。
-- 改动清单（文件级）：部署脚本（按需）、`docs/operations-log.md`。
-- 不做项：不把 LAN 地址写入仓库；不改 Go 业务代码。
-- 验证命令：部署侧 modelclient 冒烟命令 + `git grep` 确认仓库无 LAN 明文。
-- 风险/回滚：保留旧拓扑配置备份，失败可回退。
+  - AC-1：Linux 节点三守护 `/healthz` 200（pcdad :9101 / agentd :9102 / searchd :9103），`/cluster` 显示 n1/n2 均 healthy、分片各 16；
+  - AC-2：`loadgen -mode seed -docs 100000` 返回 `seed done`；modelclient 连通冒烟（health + 一次 Chat）通过；
+  - AC-3：拓扑取值只存在部署侧 env/本地凭据目录，仓库内零 LAN 明文；w1 退役在 runbook/README 有明确记录；
+  - AC-4：失败回退路径有日志证据。
+- 改动清单（文件级）：`scripts/runtime-go/deploy.sh` 默认值（按需）、`runtime-go/README.md`（标注 w1 退役）、`docs/reviews/2026-10-02-step9-10-operator-runbook.md`、`docs/operations-log.md`。
+- 不做项：不再部署 w1/Windows；不把 LAN 地址写入仓库；不改 Go 业务代码。
+- 验证命令：Linux 节点 `/healthz` + `/cluster` + loadgen 冒烟 + modelclient health/Chat + `git grep` 确认仓库无 LAN 明文。
+- 风险/回滚：保留旧拓扑配置备份；n1/n2 任一下线时查询降级 `partial:true` 属设计行为。
 
 **退出判据**：AC-1~3 全绿。
 
@@ -609,7 +612,7 @@ bun run arch:stats
 | Q1 | 2 个含未并入提交的本地分支：归档还是保留？ | **接受推荐**：并入 `codex/archive-2026-10-02` 后删本地，远端保留 | Step 11 解除阻塞，可按规则 4 执行 |
 | Q2 | git-lfs / systemd 需 sudo，是否授权安装？ | **接受推荐**：授权在安全窗口安装 git-lfs 与 systemd 单元 | Step 8/9 解除授权阻塞，仍需实际执行窗口 |
 | Q3 | 全仓 OCR 用哪个 coding 模型？ | **接受推荐**：使用已验证可用的 SenseNova `deepseek-v4-flash`（智谱 `glm-4.7-flash` 在扫描中工具调用不稳定，改用 SenseNova） | Step 12a 解除 provider 阻塞 |
-| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | **待提供**：用户提供部署侧值，不入库 | Step 10 保持 blocked，未提供前不执行 |
+| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | **待提供**：用户提供部署侧值，不入库；**2026-10-03 起只用于 Linux n1/n2（Windows w1 已退役）** | Step 10 保持 blocked，未提供前不执行 |
 
 **计划内已裁决（不再询问）**：工具请求不缓存（Step 1）、`saveYaml` 原子同步（Step 4）、RuntimeHost 拒绝 error 启动/重复注册（Step 5）、原生流失败按 AC-1 终止（Step 2）、body 限制用 411/413（Step 3）。
 

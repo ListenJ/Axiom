@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-03 — ops(systemd+topology): Step 9 闭环 + EROFS 修复 + Step 10 改 Linux-only（w1 退役）
+
+- **任务**：用户回报 Step 9 已达标（`health_http=200`、`active`、`enabled`），同时日志出现 `EROFS accessing temporary directory. Please set $BUN_TMPDIR or $BUN_INSTALL`；并告知 Windows w1 已退役。本轮完成 Step 9 文档闭环、EROFS 修复说明、拓扑笔记解出与 Step 10 Linux-only 计划修订。分级 **T3（运维/拓扑）**。
+- **Step 9 达标回执**：`health_http=200`；`systemctl is-active` = active；`systemctl is-enabled` = enabled。journal 显示 22:12:38 完成 `Server started`，166 路由、216 外部工具、4 连接 / 2 降级。
+- **EROFS 修复（日志实测 `axiom[212457]: error: EROFS ...`）**：根因 `ProtectHome=read-only` 使 Bun 默认 temp/install 目录（`/home/listen/.bun`、`~/.cache`、`~/.npm`）不可写。修正：unit 增加 `BUN_TMPDIR=/run/media/listen/base/openclaw-fusion/.tmp/bun`、`BUN_INSTALL=/run/media/listen/base/openclaw-fusion/.tmp/bun-install`；`ReadWritePaths` 增加 `/home/listen/.cache`、`/home/listen/.npm`；预先 `mkdir -p .tmp/bun .tmp/bun-install`。写入 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` §9.2/§9.6；修复后判据 `journalctl ... | grep -i EROFS` 无命中。
+- **拓扑笔记解出（规则 11/14）**：`~/.axiom/axiom-secrets/runtime-go-topology.md` 本机缺失；本轮从 `units/u6b-axiom-secrets-2026-09-26.tar.gz` 复制式解出（`tar --skip-old-files`，1261 B / 18 行），落到规则 11 指定目录并 `chmod 600`；原文件保留备份 `runtime-go-topology.md.pre-20261003.bak`（0600）。**不打印内容、不入库**。
+- **Windows w1 退役（用户 2026-10-03 裁定）**：本地拓扑笔记追加“w1 退役，Step 10 只用 Linux n1/n2”状态说明（原 n1/n2/w1 内容保留不删）；runbook §10.4（w1 交叉编译/启动）标作废，§10.3/§10.5/§10.6 改为 Linux-only（`SEARCHD_NODES` 只含 n1/n2，deploy.sh 的 N2 改为 `<user@N2_IP>`）；计划 Step 10 契约改为 Linux-only：三守护 `/healthz` + `/cluster` n1/n2 healthy + loadgen seed 10 万 + modelclient smoke，w1 不再验收。
+- **不做项**：未改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；未改 `scripts/runtime-go/deploy.sh` 默认值（Step 10 执行时按拓扑修）；未部署 w1；未提交 `runtime-go/bin/*` 本地构建物。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **Commit**：`<SYS_TOPOLOGY_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — docs(ops): Step 9/10 实测踩坑修正（systemd 就绪轮询 + runtime-go 占位符/反斜杠/redis 容器名）
 
 - **任务**：用户按 Step 9/10 手册实际执行后回报日志；把实测踩坑写回 `docs/reviews/2026-10-02-step9-10-operator-runbook.md`（新增 §七）。分级 **T1**。
