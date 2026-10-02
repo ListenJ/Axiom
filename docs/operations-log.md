@@ -23,7 +23,7 @@
 - **裁决**：Q1 接受 —— 2 个未并入分支并入 `codex/archive-2026-10-02` 后删本地、远端保留；Q2 接受 —— 授权在安全窗口安装 git-lfs 与 systemd 单元；Q3 接受 —— OCR 使用 SenseNova `deepseek-v4-flash`（已验证可用；智谱 `glm-4.7-flash` 扫描时工具调用不稳定）；Q4 待提供 —— runtime-go 拓扑值。
 - **改动（文件级）**：`docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md` §十；本条 ops log。
 - **验证**：`bun test tests/doc-contract.test.ts` 35/0；`git diff --check` 通过；文档内无内网地址/凭据明文。
-- **Commit**：`<DECISION_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`b585494d`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
