@@ -30,7 +30,7 @@
   6. `docs/ARCHITECTURE.md`：Batch B（Step 5/6/7）源码增长后 `arch:stats` 棘轮同步为 **38 模块 / 453 文件 / 122,365 行**（tests 478）。
 - **验证**：`bun test tests/unit/ci-workflow-hardening.test.ts` = **5 pass / 0 fail / 37 expect**（YAML 全部可解析）；Batch B 边界门禁：`bunx tsc --noEmit` rc=0、doc-contract 35/0、docs-consistency 10/0、architecture-integrity 25/0、audit:runtime 16/16、串行全量 `bun test --timeout 15000 ./tests` = **4,655 pass / 67 skip / 0 fail**（4,722 用例 / 478 文件，113.43s）。
 - **不改项**：不动 workflow 的触发条件/步骤业务逻辑；不推送 origin（GitHub）；不新增第三方 Action。
-- **Commit**：`<STEP7_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`a89f440c`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
