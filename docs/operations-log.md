@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-02 — docs(ops): Step 9/10 阻塞项运维操作手册（systemd + runtime-go 拓扑）
+
+- **任务**：用户指令「第九步和第十步的操作记得告诉我」。Step 9（systemd）与 Step 10（runtime-go 拓扑）分别被 `sudo -n` 不可用与 `${LAN_*}` 实际值未提供阻塞，故不改系统、不填拓扑，改为交付可复制执行的 T1 操作手册。分级 **T1**（文档）。
+- **产物**：新增 `docs/reviews/2026-10-02-step9-10-operator-runbook.md`（236 行）。Step 9：前置检查（token ≥16、bundle 先手工跑）、修正后的 `axiom@.service` 模板（Axiom 品牌、`User=%i`、实际 repo/bun 路径、`ProtectSystem=full` + `ProtectHome=read-only`、ReadWritePaths 覆盖 data/axiom-memory/openclaw-memory/.tmp/axiom-memory.db*）、安装/启停/验收/回滚命令、5 条常见坑。Step 10：runtime-go 四二进制构建、n1 docker searchd（含 redis protected-mode 与 bridge IP）、w1 交叉编译、deploy.sh 覆盖默认值、/healthz 与 /cluster 验收、loadgen seed 10 万、modelclient 连通冒烟、回滚与已知边界（SSH 隧道 60–150ms 不可用、Windows accept ~13.7k、100K QPS 不可达）。
+- **规则 11**：手册全部使用 `<N1_IP>`/`<W1_IP>`/`<MODEL_HOST>`/`<REDIS_BRIDGE_IP>` 占位，真实拓扑只引用 `~/.axiom/axiom-secrets/runtime-go-topology.md`；`grep` 私网字面量 0 命中。
+- **doc-contract 同步**：新增 review 类操作件使 D0 豁免面 59→60；按该门既定流程逐件点名 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` 并把上限改为 60（不写宽正则）。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **不做项**：不执行 systemd 安装（无 root）；不填 LAN 值；不把凭据写入任何仓库文件。
+- **Commit**：`<STEP9_10_RUNBOOK_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-02 — chore(branch): Step 11 分支归档（13 本地分支收敛，远端全保留）
 
 - **任务**：计划 Step 11（T3，P1-运维；Q1 用户裁决：并入 `codex/archive-2026-10-02` 后删本地，远端保留）。目标：本地分支从 15 收敛到 2（工作分支 + 归档分支），远端 13 个同名分支全部不动。
