@@ -28,7 +28,7 @@
 - **验证**：`bun test tests/unit/step6-input-hardening.test.ts tests/chat-preflight-parallel.test.ts` = **18 pass / 0 fail / 59 expect**；`bunx tsc --noEmit` rc=0。
 - **行为变更（有意）**：合并快路径在 edge/keyword 标签冲突时不再采用 edge 标签，改以关键词基线为准；这是为了消除 intent/agentName/role 自相矛盾，属计划 AC-4 明确要求。
 - **不做项**：不改 intent-enhancer/关键词分类表；不改 mergedEdgePreflight 的 schema/枚举；不把 `escapePromptInput` 导出为新公共 API。
-- **Commit**：`<STEP6_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`6cd8e971`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
