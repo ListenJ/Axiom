@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-03 — fix(systemd): EROFS 复测根因（bunx 子进程不继承 BUN_TMPDIR，回退 ~/.bun）
+
+- **任务**：用户按上一版 unit（含 BUN_TMPDIR/BUN_INSTALL + ~/.cache/.npm ReadWritePaths）重启后，EROFS 仍在（`axiom[368351]`）。分级 **T3（运维）**。
+- **根因（进程环境实测）**：systemd 主进程 368307 有 `BUN_TMPDIR`/`BUN_INSTALL`，但 `bunx -y freeweb-mcp`（368352/368353）及 node 子进程（368358/368360）的 `/proc/<pid>/environ` **只有 `HOME=/home/listen`**，没有继承这两个变量。于是 `bunx` 回退到默认 `~/.bun`（`/home/listen/.bun`）写安装/临时缓存；`ProtectHome=read-only` 下该路径只读 → `EROFS accessing temporary directory`，`free-search` MCP 随之 `Connection closed`。
+- **修复**：unit 在已有 `.tmp`/`~/.cache`/`~/.npm` 之外，新增 `ReadWritePaths=/home/listen/.bun`（保留 `ProtectHome=read-only`，不整体放开 `/home`）。`/tmp/axiom@.service` 已更新；`diff` 仅多这一行；`systemd-analyze verify` 通过。runbook §9.2/§9.6 同步该关键结论。
+- **待用户执行**：`sudo install -m 0644 /tmp/axiom@.service /etc/systemd/system/axiom@.service && sudo systemctl daemon-reload && sudo systemctl restart axiom@listen.service`，随后 `journalctl ... | grep -i EROFS` 应无命中。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **不做项**：未改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；未改 `ProtectHome=false`；未改应用代码。
+- **Commit**：`<EROFS_BUNX_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — docs(plan): Step 10 重定义为单机 Go 并发 + Step 9 EROFS 文件名纠正
 
 - **任务**：用户回报 EROFS 仍存在、n1/n2 多机联动不再需要、希望把 Go 并发特性作为单机能力固化。分级 **T3（计划重定义 + 运维纠正）**。

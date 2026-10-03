@@ -67,6 +67,7 @@ ReadWritePaths=/run/media/listen/base/openclaw-fusion/.tmp
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db-wal
 ReadWritePaths=/run/media/listen/base/openclaw-fusion/axiom-memory.db-shm
+ReadWritePaths=/home/listen/.bun
 ReadWritePaths=/home/listen/.cache
 ReadWritePaths=/home/listen/.npm
 
@@ -124,7 +125,8 @@ sudo systemctl daemon-reload
 日志证据：`axiom[212457]: error: EROFS accessing temporary directory. Please set $BUN_TMPDIR or $BUN_INSTALL`。
 
 - 根因：`ProtectHome=read-only` 让 `/home/listen/.bun`、`~/.cache`、`~/.npm` 不可写；Bun 子进程默认把临时/安装目录放在 `/home` 下。
-- 修复：§9.2 的 unit 已加 `BUN_TMPDIR` / `BUN_INSTALL` 指向仓库 `.tmp`，并放行 `~/.cache`、`~/.npm` 的写入；`ReadWritePaths` 已有 `.tmp`。
+- 修复：§9.2 的 unit 已加 `BUN_TMPDIR` / `BUN_INSTALL` 指向仓库 `.tmp`，并放行 `~/.bun`、`~/.cache`、`~/.npm` 的写入；`ReadWritePaths` 已有 `.tmp`。
+- **2026-10-03 复测补充（关键）**：子进程 `bunx -y free-search-mcp` 等**只继承 `HOME`，不继承 `BUN_TMPDIR/BUN_INSTALL`**，因此回退写 `/home/listen/.bun`；仅设环境变量不够，必须 `ReadWritePaths=/home/listen/.bun`（本手册已加）。
 - 应用修复：
 
 ```bash
