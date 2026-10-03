@@ -113,3 +113,39 @@ SEARCHD_ADDR=127.0.0.1:9103 SEARCHD_NUM_SHARDS=32 SEARCHD_AUTH_TOKEN=<token> ./b
 curl -sS http://127.0.0.1:9103/stats
 curl -sS http://127.0.0.1:9103/cluster
 ```
+
+---
+
+# 五、Step 2：closed-loop 诊断 + worker pool 矩阵（2026-10-04）
+
+## 5.1 closed-loop 诊断（不设 qps 上限）
+
+同一 searchd 实例（32 shards、100k docs、默认 NumCPU pool）跑 4 个场景：
+
+| 场景 | QPS | p50 | p95 | p99 | max |
+|---|---|---|---|---|---|
+| closed-loop 64 workers mixed | **14,207** | 4.18ms | 8.92ms | 12.69ms | 42.89ms |
+| closed-loop 128 workers mixed | 13,232 | 8.72ms | 20.69ms | 32.23ms | 119.29ms |
+| closed-loop 64 workers simple | **53,781** | 1.11ms | 2.22ms | 3.17ms | 27.39ms |
+| qps=20000 paced 64 workers mixed | 8,150 | 0.20ms | 1.00ms | 1.89ms | 8.36ms |
+
+**结论**：paced 模式 8k QPS 是 **loadgen ticker pacer 粒度限制**（`time.NewTicker(time.Second/qps)` 在 Linux 上亚毫秒间隔不稳定），不是 searchd 上限；server 实际 closed-loop 吞吐为 **14.2k mixed / 53.8k simple**。128 workers 反而更差（p99 32ms），说明 64 loadgen worker 已过订阅。
+
+## 5.2 worker pool n 矩阵（`SEARCHD_WORKERS`）
+
+给 searchd 加 `SEARCHD_WORKERS`（默认 NumCPU=16），每档重启 + seed 100k + closed-loop 64 mixed ×30s：
+
+| SEARCHD_WORKERS | QPS | p50 | p95 | p99 | RSS |
+|---|---|---|---|---|---|
+| **16（NumCPU，默认）** | **14,277** | 4.17ms | 8.94ms | **12.56ms** | 656MB |
+| 32 | 12,137 | 4.98ms | 10.05ms | 14.30ms | 695MB |
+| 64 | 11,694 | 5.06ms | 10.88ms | 15.44ms | 758MB |
+
+**结论**：单机 32 shards / 100k docs / 64 loadgen worker 下，**默认 NumCPU=16 最优**；增加 server worker pool 只会加剧 CPU 竞争、降低 QPS 并抬高 RSS。`SEARCHD_WORKERS` 作为可调项保留，但生产默认保持 NumCPU；队列深度 `n*8` 未构成瓶颈，本步不改。
+
+## 5.3 Step 2 决策
+
+- 不改 searchd 默认 worker pool 大小（NumCPU），只新增 `SEARCHD_WORKERS` 供实验/调优。
+- **不使用 paced `-qps` 模式评价 server 吞吐**；Step 4/8 统一用 closed-loop（`-qps 0`）对照。
+- 下一步 Step 4/5 聚焦 mixed/Complex 路径（Complex ≈267µs、488 allocs；bin 路径 5,025 allocs）与 128-worker 过订阅问题。
+

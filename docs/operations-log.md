@@ -17,6 +17,29 @@
 
 ---
 
+## 2026-10-04 — perf(search): Step 2 worker pool 调参与 closed-loop 诊断
+
+- **任务**：计划 Step 2（T2，单机并发）。先做 closed-loop 对照区分 Step 1 的 7,876 QPS 是 loadgen pacing 还是 searchd 上限；再做 worker pool n ∈ {NumCPU, 2×, 4×} 矩阵。
+- **closed-loop 诊断（32 shards / 100k docs / 默认 pool）**：
+  - 64 workers mixed：**14,207 QPS**，p50 4.18ms / p95 8.92ms / p99 12.69ms；
+  - 128 workers mixed：13,232 QPS，p99 32.23ms（过订阅，更差）；
+  - 64 workers simple：**53,781 QPS**，p99 3.17ms；
+  - paced `-qps 20000` 64 mixed：8,150 QPS，p50 0.20ms —— 确认是 **loadgen ticker pacer 粒度限制**（`time.NewTicker(time.Second/qps)`），不是 searchd 上限。
+- **worker pool 矩阵（每档重启 + seed 100k + closed-loop 64 mixed ×30s）**：
+  | SEARCHD_WORKERS | QPS | p50 | p99 | RSS |
+  |---|---|---|---|---|
+  | **16（NumCPU，默认）** | **14,277** | 4.17ms | **12.56ms** | 656MB |
+  | 32 | 12,137 | 4.98ms | 14.30ms | 695MB |
+  | 64 | 11,694 | 5.06ms | 15.44ms | 758MB |
+  **结论**：默认 NumCPU=16 最优；增大 server pool 只加剧 CPU 竞争、降 QPS、抬 RSS。队列深度 `n*8` 未构成瓶颈，本步不改。
+- **代码/文档改动**：`runtime-go/cmd/searchd/main.go` 新增 `SEARCHD_WORKERS`（默认 NumCPU，可调）；`runtime-go/README.md` 环境变量说明；`docs/reviews/2026-10-04-single-machine-concurrency-baseline.md` 增 §五 Step 2 章节；`docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md` Step 2 结果注。
+- **Step 2 决策**：不使用 paced `-qps` 评价 server 吞吐；Step 4/8 统一 closed-loop（`-qps 0`）；Step 4/5 优先 mixed/Complex（Complex ≈267µs、488 allocs；bin 路径 5,025 allocs）。
+- **验证**：`go build ./...` rc=0；`go test ./...` 全绿；`go vet ./...` rc=0；doc-contract **35/0**；docs-consistency **10/0**。
+- **原始读数**：`/tmp/loadgen-closed-64-mixed.txt`、`/tmp/loadgen-closed-128-mixed.txt`、`/tmp/loadgen-closed-64-simple.txt`、`/tmp/loadgen-qps20k-64-mixed.txt`、`/tmp/loadgen-pool-{16,32,64}.txt`、`/tmp/searchd-pool-{16,32,64}.log`。
+- **Commit**：`<STEP2_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — test(bench): Step 1 单机 Go 并发 before 基线（bench + race + loadgen）
 
 - **任务**：计划 `2026-10-03-single-machine-go-concurrency.md` Step 1（T2/T3 验证）。在多机退役、单机化收口后固定 before 数字，作为 Step 2–8 的对照基线。

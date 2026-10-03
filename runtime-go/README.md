@@ -46,7 +46,7 @@ GOOS=linux GOARCH=amd64 go build ./...   # Linux 交叉编译检查
 
 ```bash
 go run ./cmd/pcdad     # PCDAD_ADDR（默认 :9101）、PCDAD_DATA_DIR（快照+WAL 目录）
-go run ./cmd/searchd   # SEARCHD_ADDR（默认 :9103）、SEARCHD_NUM_SHARDS（默认 16）、SEARCHD_LISTENERS（可选，Linux SO_REUSEPORT）
+go run ./cmd/searchd   # SEARCHD_ADDR（默认 :9103）、SEARCHD_NUM_SHARDS（默认 16）、SEARCHD_WORKERS（默认 NumCPU）、SEARCHD_LISTENERS（可选，Linux SO_REUSEPORT）
 go run ./cmd/loadgen   # 单机压测 CLI：-mode seed|search -addr -qps -duration -workers -mix -docs -batch
 ```
 

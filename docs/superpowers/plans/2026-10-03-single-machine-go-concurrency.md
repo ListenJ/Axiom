@@ -60,6 +60,8 @@
 - **验收**：目标路径 p99 改善 ≥20% 或 allocs/op 降低 ≥20%；队列满时无死锁；`-race` 0。
 - **不做**：不引入无界 goroutine；不做“每个请求一个 goroutine”。
 
+> **Step 2 执行结果（2026-10-04）**：closed-loop 64 mixed = **14,207 QPS**（p99 12.69ms），128 workers 退化（13,232 / p99 32.23ms），simple = 53,781 QPS；worker pool 16（NumCPU）最优（14,277 QPS / p99 12.56ms / RSS 656MB），32/64 退化。scaled paced `-qps 20000` 仅 8,150 QPS，确认是 loadgen ticker pacer 限制，不是 server 上限。已暴露 `SEARCHD_WORKERS`；默认保持 NumCPU。
+
 ### Step 3 — shard 构建并发加固
 
 - **目的**：`index.go` 的 shard 构建加固定 GOMAXPROCS 上限、panic 隔离与错误传播；构建期不因单 shard panic 打崩整个进程。
