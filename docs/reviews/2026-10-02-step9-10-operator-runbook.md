@@ -142,9 +142,9 @@ journalctl -u axiom@listen.service --since "5 min ago" | grep -i EROFS && echo '
 
 ## Step 10 — runtime-go 拓扑与冒烟
 
-> **2026-10-03 用户裁定：Windows w1 已退役**，不再作为 runtime-go 节点；Step 10 只用本地拓扑笔记中的 Linux 节点（n1/n2）。§10.4（w1）作废；§10.3/§10.6 的 `SEARCHD_NODES` 只含 Linux 节点。
-> 本地拓扑笔记已从 `units/u6b-axiom-secrets-2026-09-26.tar.gz` 复制式解到 `~/.axiom/axiom-secrets/runtime-go-topology.md`（规则 11，不入库）；2026-10-03 已追加“w1 退役，只用 n1/n2”状态说明（原内容保留）。
-> 下文占位：`<N1_IP>`（n1 Linux）、`<N2_IP>`（n2 Linux）、`<MODEL_HOST>`（llama.cpp OpenAI 兼容端点）、`<REDIS_BRIDGE_IP>`（n1 上 redis 容器 bridge IP）。
+> **2026-10-03 用户裁定：n1/n2/w1 多机联动全部退役**；不再需要分布式 runtime-go 拓扑，也不再需要任何 `${LAN_*}` 值。**本手册 §10 仅作历史参考，不再执行**。
+> Step 10 已重定义为“单机并发能力强化（Go）”，详细计划见 `docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md`；核心是单机 worker pool / shard 并发 / `sync.Pool` / modelclient 并发 / 优雅退出，用 `cmd/loadgen` 做单机 before/after。
+> 本地拓扑笔记仍保留在 `~/.axiom/axiom-secrets/runtime-go-topology.md`（规则 11，不入库；已追加多机退役状态），仅作历史资料，不再作为 Step 10 输入。
 
 ### 10.1 前置检查（只读，不泄露地址）
 

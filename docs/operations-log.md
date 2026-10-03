@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-03 — docs(plan): Step 10 重定义为单机 Go 并发 + Step 9 EROFS 文件名纠正
+
+- **任务**：用户回报 EROFS 仍存在、n1/n2 多机联动不再需要、希望把 Go 并发特性作为单机能力固化。分级 **T3（计划重定义 + 运维纠正）**。
+- **Step 9 EROFS 纠错（关键）**：用户执行的是 `sudo vim /etc/systemd/axio@.service`（**少了一个 `m`，文件不存在**），实际生效的 `/etc/systemd/system/axiom@.service` 未被修改；`systemctl show axiom@listen.service -p Environment` 仍只有 PATH/NODE_ENV，故 EROFS 持续。本轮已生成修正版 `/tmp/axiom@.service`（含 `BUN_TMPDIR`/`BUN_INSTALL` 指向仓库 `.tmp`，`ReadWritePaths` 增加 `/home/listen/.cache`、`/home/listen/.npm`；`systemd-analyze verify` 通过），待用户 `sudo install -m 0644 /tmp/axiom@.service /etc/systemd/system/axiom@.service && daemon-reload && restart`。服务当前 active/enabled、`health_http=200`。
+- **Step 10 重定义（用户裁定：n1/n2/w1 多机联动全部退役）**：新增 `docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md`（T3，155 行，8 个 Step：基线 → worker pool → shard 构建 → fan-out → 内存复用 → modelclient → 优雅退出 → 单机端到端）。基线实证：`runtime-go/internal/search/engine.go` 固定 workerPool + scratch 复用、`index.go` shard 并发、`pcda/pool.go` stagePool+sync.Pool、`modelclient` 多端点健康轮询、`cmd/loadgen` 单机 seed/search。
+- **现有计划同步**：`2026-10-02` 计划 Step 10 从“多机拓扑与冒烟”重定义为“单机并发能力强化（Go）”，指向新计划；§十 Q4 改为“不再需要 LAN 值”；§八对抗性评审表的阻塞条件同步。
+- **Runbook 同步**：`step9-10-operator-runbook.md` §10 顶部标注 n1/n2/w1 多机全部退役、§10 仅历史参考、Step 10 见新计划。
+- **不做项**：不改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；不删 `runtime-go/bin/*` 本地构建物；不执行多机部署。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **Commit**：`<STEP10_GO_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — ops(systemd+topology): Step 9 闭环 + EROFS 修复 + Step 10 改 Linux-only（w1 退役）
 
 - **任务**：用户回报 Step 9 已达标（`health_http=200`、`active`、`enabled`），同时日志出现 `EROFS accessing temporary directory. Please set $BUN_TMPDIR or $BUN_INSTALL`；并告知 Windows w1 已退役。本轮完成 Step 9 文档闭环、EROFS 修复说明、拓扑笔记解出与 Step 10 Linux-only 计划修订。分级 **T3（运维/拓扑）**。

@@ -430,35 +430,19 @@ Batch D（覆盖率与棘轮，依赖 A+B 完成）
 
 ---
 
-### Step 10 — P1-3 runtime-go 拓扑与冒烟
+### Step 10 — 单机并发能力强化（Go）【2026-10-03 重定义】
 
-| 字段 | 值 |
-|---|---|
-| 级别 | T3（部署/网络） |
-| 优先级 | P1-运维 |
-| 模型档 | 人工/ops |
-| 依赖 | 用户提供 `${LAN_*}` 实际拓扑（规则 11 不入库） |
-| 可并行 | 与 Step 8/9/11 并行 |
+> **2026-10-03 用户裁定：n1/n2/w1 多机联动全部退役**；不再需要分布式 runtime-go 拓扑，也不再需要任何 `${LAN_*}` 值。本 Step 从“多机拓扑与冒烟”重定义为“单机并发能力强化（Go 特性）”。
+> **详细计划**：`docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md`（T3 书面计划，8 个 Step：基线 → worker pool → shard 构建 → fan-out → 内存复用 → modelclient → 优雅退出 → 单机端到端）。
+> 原 Step 10 的 systemd/多机手册保留在 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` §10，仅作历史参考；不再执行 n1/n2/w1 部署。
 
-**背景与证据**：部署脚本仍为迁移前 `${LAN_*}` 占位语义；真实取值属部署拓扑，不入库。
-
-> **2026-10-03 用户裁定：Windows w1 已退役**。Step 10 范围改为 **Linux-only（n1/n2）**；w1 交叉编译/启动/验收全部作废。拓扑值从 `~/.axiom/axiom-secrets/runtime-go-topology.md` 读取（本轮已从 `units/u6b-axiom-secrets-2026-09-26.tar.gz` 复制式解出，并追加“w1 退役，只用 n1/n2”状态；原始内容保留）。操作细节见 `docs/reviews/2026-10-02-step9-10-operator-runbook.md` §10（§10.4 已标作废）。
-
-**任务契约**
-- 任务：按 Linux-only 拓扑重配 runtime-go 节点（n1/n2）并做连通冒烟；不再部署 w1/Windows。
-- 验收标准：
-  - AC-1：Linux 节点三守护 `/healthz` 200（pcdad :9101 / agentd :9102 / searchd :9103），`/cluster` 显示 n1/n2 均 healthy、分片各 16；
-  - AC-2：`loadgen -mode seed -docs 100000` 返回 `seed done`；modelclient 连通冒烟（health + 一次 Chat）通过；
-  - AC-3：拓扑取值只存在部署侧 env/本地凭据目录，仓库内零 LAN 明文；w1 退役在 runbook/README 有明确记录；
-  - AC-4：失败回退路径有日志证据。
-- 改动清单（文件级）：`scripts/runtime-go/deploy.sh` 默认值（按需）、`runtime-go/README.md`（标注 w1 退役）、`docs/reviews/2026-10-02-step9-10-operator-runbook.md`、`docs/operations-log.md`。
-- 不做项：不再部署 w1/Windows；不把 LAN 地址写入仓库；不改 Go 业务代码。
-- 验证命令：Linux 节点 `/healthz` + `/cluster` + loadgen 冒烟 + modelclient health/Chat + `git grep` 确认仓库无 LAN 明文。
-- 风险/回滚：保留旧拓扑配置备份；n1/n2 任一下线时查询降级 `partial:true` 属设计行为。
-
-**退出判据**：AC-1~3 全绿。
-
----
+**任务契约（摘要）**
+- 任务：在单机内用 Go goroutine/channel/worker pool/`sync.Pool`/`atomic`/context 强化 CPU 密集与高吞吐路径；不引入多机依赖。
+- 验收标准：before/after benchmark（p50/p99/QPS/alloc/goroutine）；目标路径 p99 改善 ≥20% 或 allocs/op 降低 ≥20%；`go test -race ./...` 0；goroutine 有界；SIGTERM 后回落；单进程 `searchd` + `loadgen` 可达稳定 QPS。
+- 改动清单（文件级）：`runtime-go/internal/search/*`、`runtime-go/internal/pcda/pool.go`、`runtime-go/internal/modelclient/*`、`runtime-go/cmd/loadgen/main.go`、对应测试（按步冻结）。
+- 不做项：不做多机/分布式；不改 `internal/search/cluster.go` peer 语义；不引第三方并发框架；不改搜索相关性语义。
+- 验证命令：`go test -bench=. -benchmem -count=3 ./internal/search ./internal/pcda ./internal/modelclient`；`go test -race ./...`；`cmd/loadgen` seed/search。
+- 风险/回滚：每步先建 `-race` + benchmark 红/绿回路；改动限定单模块；revert 回滚。
 
 ### Step 11 — P1-4 退役分支归档
 
@@ -586,7 +570,7 @@ bun run arch:stats
 | 同文件并行冲突 | Step 1/2 已在计划中显式串行；Step 3/4/5/6/7 文件互斥 | 已修正 |
 | 过度施工 | Step 4 async 化、Step 7 新增 Action、Step 12 一次性改 95 处阈值均属过度 | 已改为原子同步、不新增 Action、按证据逐批转换 |
 | 不可验证 AC | Step 2/3/4/5 原有多处“二者择一” | 已改为单一确定行为（见各 Step） |
-| 阻塞条件 | Step 8 需安装 git-lfs（用户态二进制或 sudo）；Step 9 需 sudo；Step 10 需 LAN 值；Step 11 需用户裁定；Step 12 需 OCR 额度 | §十 Q1–Q4 + 各 Step |
+| 阻塞条件 | Step 8 需安装 git-lfs（用户态二进制或 sudo）；Step 9 需 sudo；Step 10 已重定义为单机 Go 并发（无 LAN 依赖）；Step 11 需用户裁定；Step 12 需 OCR 额度 | §十 Q1–Q4 + 各 Step |
 | AGENTS.md 合规 | 分支/提交/ops log/备份/TDD/禁止 force 均已写入 | §六 |
 | **修正发现（自检新增）** | `deploy/systemd/axiom.service` 品牌/`User=%I`/路径/ReadWritePaths 全部过期，原 Step 9 的“模板已在库”不足以保证可安装 | 已重写 Step 9 背景与 AC |
 | **修正发现（自检新增）** | 原 §九 Q1–Q3 属可自行裁决的实现细节，不应作为用户阻塞 | 已移入各 Step 并保留 Q1–Q4 为真实用户决策 |
@@ -612,7 +596,7 @@ bun run arch:stats
 | Q1 | 2 个含未并入提交的本地分支：归档还是保留？ | **接受推荐**：并入 `codex/archive-2026-10-02` 后删本地，远端保留 | Step 11 解除阻塞，可按规则 4 执行 |
 | Q2 | git-lfs / systemd 需 sudo，是否授权安装？ | **接受推荐**：授权在安全窗口安装 git-lfs 与 systemd 单元 | Step 8/9 解除授权阻塞，仍需实际执行窗口 |
 | Q3 | 全仓 OCR 用哪个 coding 模型？ | **接受推荐**：使用已验证可用的 SenseNova `deepseek-v4-flash`（智谱 `glm-4.7-flash` 在扫描中工具调用不稳定，改用 SenseNova） | Step 12a 解除 provider 阻塞 |
-| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | **待提供**：用户提供部署侧值，不入库；**2026-10-03 起只用于 Linux n1/n2（Windows w1 已退役）** | Step 10 保持 blocked，未提供前不执行 |
+| Q4 | runtime-go `${LAN_*}` 实际拓扑值由谁提供？ | **不再需要**：2026-10-03 用户裁定 n1/n2/w1 多机联动全部退役；Step 10 改为单机 Go 并发能力强化（见新计划），无 LAN 依赖 | Step 10 解除多机阻塞，按单机并发计划执行 |
 
 **计划内已裁决（不再询问）**：工具请求不缓存（Step 1）、`saveYaml` 原子同步（Step 4）、RuntimeHost 拒绝 error 启动/重复注册（Step 5）、原生流失败按 AC-1 终止（Step 2）、body 限制用 411/413（Step 3）。
 
