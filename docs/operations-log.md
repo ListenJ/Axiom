@@ -34,7 +34,7 @@
   结论：panic 隔离 + GOMAXPROCS 上限的开销在噪声内；构建吞吐无回退，alloc 不变。
 - **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 5.347s）；doc-contract **35/0**；docs-consistency **10/0**。
 - **原始读数**：`/tmp/go-bench-step3.txt`、`/tmp/go-race-step3.txt`、`/tmp/go-test-step3.txt`。
-- **Commit**：`<STEP3_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`7b1920b2`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
