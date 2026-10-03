@@ -33,7 +33,7 @@
 - **Step 1 结论/待查**：① 20k QPS 目标未达（实收 7,876），但 p50 0.21ms/p99 2.53ms；Step 2/4 需先做“closed-loop 不设 qps 上限”对照，区分 loadgen pacing 与 searchd 单机吞吐上限。② Complex 比 Simple 慢 ≈9×、allocs 488 vs 72；Step 4/5 优先 Complex 与 bin 路径 alloc。③ RSS 575MB 作为 Step 5/8 内存上界基线。④ modelclient 无 benchmark，Step 6 先补。
 - **产物**：`docs/reviews/2026-10-04-single-machine-concurrency-baseline.md`（115 行）；原始 `/tmp/go-bench-before.txt`、`/tmp/go-race-before.txt`、`/tmp/loadgen-seed-before.txt`、`/tmp/loadgen-search-before.txt`、`/tmp/searchd-stats-before.json`、`/tmp/searchd-cluster-before.json`。
 - **门禁**：doc-contract **35/0**；docs-consistency **10/0**（D0 豁免面 62→63，逐件点名基线报告）；searchd 压测后已 SIGTERM 停止，9103 释放。
-- **Commit**：`<STEP1_BASELINE_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`325ef43d`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
