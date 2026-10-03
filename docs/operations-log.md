@@ -36,7 +36,7 @@
 - **Step 2 决策**：不使用 paced `-qps` 评价 server 吞吐；Step 4/8 统一 closed-loop（`-qps 0`）；Step 4/5 优先 mixed/Complex（Complex ≈267µs、488 allocs；bin 路径 5,025 allocs）。
 - **验证**：`go build ./...` rc=0；`go test ./...` 全绿；`go vet ./...` rc=0；doc-contract **35/0**；docs-consistency **10/0**。
 - **原始读数**：`/tmp/loadgen-closed-64-mixed.txt`、`/tmp/loadgen-closed-128-mixed.txt`、`/tmp/loadgen-closed-64-simple.txt`、`/tmp/loadgen-qps20k-64-mixed.txt`、`/tmp/loadgen-pool-{16,32,64}.txt`、`/tmp/searchd-pool-{16,32,64}.log`。
-- **Commit**：`<STEP2_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`bcf285b4`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
