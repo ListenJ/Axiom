@@ -52,6 +52,6 @@
 
 - **引用面**：`createLayaTriage` 在 `src/` 内只被 `src/decision/laya-cli.ts` 引用，另一处是 `tests/unit/laya-triage.test.ts`。运行时的工具派发路径没有任何调用方。⇒ 链条的真实形状是"**CLI 作闸（决策）+ `REVERSIBLE_ACTIONS` 注册表（执行）**，由人或上层 agent 显式调用"，不是每次派发自动过 Laya。
 - **现成的注入槽位不适合它**：`src/agents/risk-monitor.ts` 里 `screenToolCall` 取默认依赖的那行（ ``deps.screen ?? (isEdgeEnabled("EDGE_RISK_MONITOR") ? screenPayloadWithEdge : null)`）是**逐次工具调用的负载风险初筛**（输出 `EdgeRisk`），粒度与语义都不同于任务分诊。把 Laya 接到这里，正是本 ADR"更正"节用实测否证过的用法（`noul` 不分离 blast radius）—— 不会因为它在同一个进程里就变得更正确。
-- **另一个候选也被排除**：`src/testing/scheduler/pcda-scheduler.ts` 里的 `escalate` 是**负载级别切换**（`act()` 按 severity 确定性路由），不是"要不要把人拉进来"的任务分诊点；`act()` 也没有模型槽位。
+- **另一个候选也被排除**：`src/testing/scheduler/pcda-scheduler.ts`（2026-10-03 随多机测试框架退役）<!-- doc-caliber:absent: src/testing/scheduler/pcda-scheduler.ts --> 里的 `escalate` 是**负载级别切换**（`act()` 按 severity 确定性路由），不是"要不要把人拉进来"的任务分诊点；`act()` 也没有模型槽位。
 
 **若要升级为运行期自动挂钩，属 T3**：要新增跨模块公共接口、把 WSL 子进程放进派发热路径（每次工具调用一次 421M 前向）、并先定"哪一档任务允许交给 Laya 分诊、不可用时如何降级"。本 ADR 不擅自开工，待用户裁决（规则 0.6）。在此之前，交付说明必须写"**显式调用的决策闸**"而不是"运行时自动决策"。

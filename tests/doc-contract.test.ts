@@ -187,8 +187,10 @@ describe("D0 口径扫描范围自证", () => {
     // （Step 9 systemd / Step 10 runtime-go 的逐命令运维手册；保留系统命令原文，属操作证据性质）。
     // 60→61（2026-10-02）：docs/reviews/2026-10-02-ocr-full-coverage.md
     // （OCR 全仓 src 扫描覆盖率 + 13 条 high triage，证据性质）。
+    // 61→62（2026-10-03）：docs/reviews/2026-10-03-remove-multi-machine.md
+    // （多机互联内容退役清理计划/证据；含即将归档的路径清单，豁免 D1/D3）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(61);
+    expect(exempted.length).toBeLessThanOrEqual(62);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 
@@ -451,6 +453,8 @@ describe("D3 文档引用存活", () => {
       "docs/LIMITATIONS.md",
       "docs/PROJECT-GUIDE.md",
       "docs/TEST-STRATEGY-2026-08-21.md",
+      // 2026-10-03 多机测试框架退役：ADR-008 引用的 PCDA 分布式调度器按墓碑口径点名。
+      "docs/decisions/ADR-008-laya-decision-chain.md",
       "docs/functional-check-2026-08-16-sensenova.md",
       "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
     ]);
