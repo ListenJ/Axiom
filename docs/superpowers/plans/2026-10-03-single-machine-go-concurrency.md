@@ -68,6 +68,8 @@
 - **动作**：用 `sync.WaitGroup` + `recover`/错误收集（或 `errgroup` 若已可用）；保持 `Index` 不可变快照语义。
 - **验收**：构建 10 万文档的耗时/alloc 对比；注入单 shard 错误时返回明确错误而非 panic；`-race` 0。
 
+> **Step 3 执行结果（2026-10-04）**：`BuildIndex` 改为返回 `(*Index, error)`；新增可注入 `buildIndex(..., shardBuilder)`、per-shard panic recover + firstErr、worker 上限 `runtime.GOMAXPROCS(0)`；新增 `TestBuildIndexShardPanicIsolated`。10k/20k/40k 构建吞吐与 alloc 在噪声内无回退；`go test/vet/race` 全绿。
+
 ### Step 4 — 单机查询 fan-out 与取消
 
 - **目的**：单机多 shard 查询用带 context 的并发 fan-out；单 shard 超时/取消时及时释放 scratch 与 worker。

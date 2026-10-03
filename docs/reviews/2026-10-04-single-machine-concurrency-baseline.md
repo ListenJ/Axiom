@@ -149,3 +149,35 @@ curl -sS http://127.0.0.1:9103/cluster
 - **不使用 paced `-qps` 模式评价 server 吞吐**；Step 4/8 统一用 closed-loop（`-qps 0`）对照。
 - 下一步 Step 4/5 聚焦 mixed/Complex 路径（Complex ≈267µs、488 allocs；bin 路径 5,025 allocs）与 128-worker 过订阅问题。
 
+---
+
+# 六、Step 3：shard 构建并发加固（2026-10-04）
+
+## 6.1 改动
+
+- `internal/search/index.go`：
+  - `BuildIndex(docs, numShards, workers) (*Index, error)` —— 由 panic 隔离层返回明确错误；
+  - 新增内部 `buildIndex(..., builder shardBuilder)`，把 shard 构建函数做成可注入 seam（生产传 `buildShard`）；
+  - worker 数上限钉在 `runtime.GOMAXPROCS(0)`，防并发构建过订阅；
+  - 每个 shard 构建包 `recover`，首个 panic/`nil` 结果写入 `firstErr`，其余 worker 继续；`Wait` 后返回 `nil, err`。
+- `internal/search/engine.go`：`Build` 传播 `BuildIndex` 错误；空索引构造改用 `idx, _ := BuildIndex(nil, ...)`（nil docs 不可能 panic）。
+- `internal/search/index_test.go`：新增 `TestBuildIndexShardPanicIsolated`（注入 panic builder，断言返回 error 且不逃逸为进程 panic）；既有 serial/parallel 比较改用新的双返回值。
+- `internal/search/bench_test.go`：benchmark 调用适配双返回值。
+
+## 6.2 before/after（BuildIndex，16 shards，NumCPU workers，`-benchmem -count=3`）
+
+| 规模 | before（2026-10-04 Step 1） | after（Step 3） | allocs/op |
+|---|---|---|---|
+| 10k | 24.0–24.5ms（408–417k docs/sec） | 24.5–25.1ms（398–408k docs/sec） | ~972,673（不变） |
+| 20k | 42.3–44.0ms（455–473k docs/sec） | 42.8–44.4ms（450–467k docs/sec） | ~1,816,658（不变） |
+| 40k | 84.7–87.8ms（455–472k docs/sec） | 80.3–82.3ms（486–498k docs/sec） | ~3,367,635（不变） |
+
+**结论**：panic 隔离 + GOMAXPROCS 上限的额外开销在噪声范围内；构建吞吐无回退，alloc 不变。40k 档 after 略快属运行间波动。
+
+## 6.3 验证
+
+- `go test ./internal/search` rc=0（含新 panic 隔离用例）；
+- `go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（`internal/search` 5.347s）。
+- 原始读数：`/tmp/go-bench-step3.txt`、`/tmp/go-race-step3.txt`、`/tmp/go-test-step3.txt`。
+

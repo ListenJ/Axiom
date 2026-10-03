@@ -19,7 +19,9 @@ func BenchmarkBuildIndex(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				BuildIndex(docs, 16, runtime.NumCPU())
+				if _, err := BuildIndex(docs, 16, runtime.NumCPU()); err != nil {
+					b.Fatal(err)
+				}
 			}
 			b.StopTimer()
 			b.ReportMetric(float64(n)*float64(b.N)/b.Elapsed().Seconds(), "docs/sec")

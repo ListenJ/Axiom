@@ -17,6 +17,27 @@
 
 ---
 
+## 2026-10-04 — perf(search): Step 3 shard 构建并发加固（GOMAXPROCS 上限 + panic 隔离）
+
+- **任务**：计划 Step 3（T2，单机并发）。给 `internal/search/index.go` 的 shard 并发构建加固定 GOMAXPROCS 上限、panic 隔离与错误传播；不改 Index 不可变快照语义。
+- **改动（文件级）**：
+  1. `internal/search/index.go`：`BuildIndex(docs, numShards, workers) (*Index, error)`；新增内部 `buildIndex(..., builder shardBuilder)`（可注入 seam，生产传 `buildShard`）；worker 上限 `runtime.GOMAXPROCS(0)`；每个 shard 构建 `defer recover`，首个 panic/`nil` 结果写入 `firstErr`，`Wait` 后返回 `nil, err`。
+  2. `internal/search/engine.go`：`Build` 传播 `BuildIndex` 错误；空索引构造 `idx, _ := BuildIndex(nil, ...)`（nil docs 不可能 panic）。
+  3. `internal/search/index_test.go`：新增 `TestBuildIndexShardPanicIsolated`（注入 panic builder，断言返回 error 且不逃逸为进程 panic）；serial/parallel 比较适配双返回值。
+  4. `internal/search/bench_test.go`：benchmark 适配双返回值。
+- **before/after（BuildIndex，16 shards，NumCPU workers，`-benchmem -count=3`）**：
+  | 规模 | before | after | allocs/op |
+  |---|---|---|---|
+  | 10k | 24.0–24.5ms（408–417k docs/sec） | 24.5–25.1ms（398–408k docs/sec） | ~972,673（不变） |
+  | 20k | 42.3–44.0ms（455–473k docs/sec） | 42.8–44.4ms（450–467k docs/sec） | ~1,816,658（不变） |
+  | 40k | 84.7–87.8ms（455–472k docs/sec） | 80.3–82.3ms（486–498k docs/sec） | ~3,367,635（不变） |
+  结论：panic 隔离 + GOMAXPROCS 上限的开销在噪声内；构建吞吐无回退，alloc 不变。
+- **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 5.347s）；doc-contract **35/0**；docs-consistency **10/0**。
+- **原始读数**：`/tmp/go-bench-step3.txt`、`/tmp/go-race-step3.txt`、`/tmp/go-test-step3.txt`。
+- **Commit**：`<STEP3_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(search): Step 2 worker pool 调参与 closed-loop 诊断
 
 - **任务**：计划 Step 2（T2，单机并发）。先做 closed-loop 对照区分 Step 1 的 7,876 QPS 是 loadgen pacing 还是 searchd 上限；再做 worker pool n ∈ {NumCPU, 2×, 4×} 矩阵。

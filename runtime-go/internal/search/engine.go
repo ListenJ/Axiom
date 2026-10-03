@@ -189,7 +189,8 @@ func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine
 	e.reg = normalizeRegistry(reg)
 	e.m = newMetrics(e.reg.reg, "searchd")
 	e.scratchCh = make(chan *scratch, e.pool.n+8)
-	e.idx.Store(BuildIndex(nil, numShards, 1))
+	idx, _ := BuildIndex(nil, numShards, 1) // nil docs: empty index build cannot fail
+	e.idx.Store(idx)
 	return e
 }
 
@@ -200,7 +201,10 @@ func (e *Engine) Build(ctx context.Context, docs []Document) error {
 		return err
 	}
 	start := time.Now()
-	idx := BuildIndex(docs, len(e.idx.Load().shards), runtime.NumCPU())
+	idx, err := BuildIndex(docs, len(e.idx.Load().shards), runtime.NumCPU())
+	if err != nil {
+		return err
+	}
 	var max uint32
 	for _, n := range idx.ids {
 		if n >= max {

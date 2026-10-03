@@ -1,9 +1,11 @@
 package search
 
 import (
+	"fmt"
 	"hash/fnv"
 	"maps"
 	"slices"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -178,12 +180,26 @@ func buildShard(nds []numberedDoc) *shardIndex {
 // Doc numbers are assigned in input order (duplicate IDs: first occurrence
 // wins) so the result is deterministic and independent of workers. Each
 // shard is built by a single goroutine drawn from a pool of workers.
-func BuildIndex(docs []Document, numShards, workers int) *Index {
+// shardBuilder builds one shard from its numbered documents. It is a seam
+// for the panic-isolation test; production uses buildShard.
+type shardBuilder func([]numberedDoc) *shardIndex
+
+// BuildIndex builds a sharded inverted index over docs in parallel. It
+// returns an error if any shard builder panics (panic isolation, Step 3);
+// the worker count is capped at GOMAXPROCS to avoid oversubscription.
+func BuildIndex(docs []Document, numShards, workers int) (*Index, error) {
+	return buildIndex(docs, numShards, workers, buildShard)
+}
+
+func buildIndex(docs []Document, numShards, workers int, builder shardBuilder) (*Index, error) {
 	if numShards < 1 {
 		numShards = 1
 	}
 	if workers < 1 {
 		workers = 1
+	}
+	if max := runtime.GOMAXPROCS(0); workers > max {
+		workers = max
 	}
 	groups := make([][]numberedDoc, numShards)
 	ids := make(map[string]uint32, len(docs))
@@ -201,12 +217,33 @@ func BuildIndex(docs []Document, numShards, workers int) *Index {
 	idx := &Index{shards: make([]*shardIndex, numShards), ids: ids, docs: len(ids)}
 	tasks := make(chan int, numShards)
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	setErr := func(err error) {
+		mu.Lock()
+		if firstErr == nil {
+			firstErr = err
+		}
+		mu.Unlock()
+	}
 	for w := 0; w < workers; w++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for sh := range tasks {
-				idx.shards[sh] = buildShard(groups[sh])
+				func(sh int) {
+					defer func() {
+						if r := recover(); r != nil {
+							setErr(fmt.Errorf("build shard %d panic: %v", sh, r))
+						}
+					}()
+					built := builder(groups[sh])
+					if built == nil {
+						setErr(fmt.Errorf("build shard %d returned nil", sh))
+						return
+					}
+					idx.shards[sh] = built
+				}(sh)
 			}
 		}()
 	}
@@ -215,7 +252,10 @@ func BuildIndex(docs []Document, numShards, workers int) *Index {
 	}
 	close(tasks)
 	wg.Wait()
-	return idx
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	return idx, nil
 }
 
 // apply returns a new Index with the given upserts and deletes applied,

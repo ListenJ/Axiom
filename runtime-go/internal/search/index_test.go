@@ -38,8 +38,14 @@ func indexEqual(a, b *Index) error {
 // exactly the same index as a single-worker build.
 func TestBuildParallelMatchesSerial(t *testing.T) {
 	docs := genDocs(2000)
-	serial := BuildIndex(docs, 16, 1)
-	parallel := BuildIndex(docs, 16, 8)
+	serial, err := BuildIndex(docs, 16, 1)
+	if err != nil {
+		t.Fatalf("serial build: %v", err)
+	}
+	parallel, err := BuildIndex(docs, 16, 8)
+	if err != nil {
+		t.Fatalf("parallel build: %v", err)
+	}
 	if err := indexEqual(serial, parallel); err != nil {
 		t.Fatalf("parallel build differs from serial: %v", err)
 	}
@@ -140,5 +146,21 @@ func TestOptimizerOrdersSelectiveFirst(t *testing.T) {
 	first, ok := and.Children[0].(Term)
 	if !ok || first.Value != "rareterm" {
 		t.Fatalf("most selective term should execute first, got %+v", and.Children[0])
+	}
+}
+
+// TestBuildIndexShardPanicIsolated verifies Step 3 panic isolation: a
+// panicking shard builder is recovered and returned as an error, never
+// escaping as a process panic.
+func TestBuildIndexShardPanicIsolated(t *testing.T) {
+	docs := genDocs(2000)
+	idx, err := buildIndex(docs, 16, 4, func([]numberedDoc) *shardIndex {
+		panic("injected shard panic")
+	})
+	if err == nil {
+		t.Fatal("expected shard panic to be returned as an error")
+	}
+	if idx != nil {
+		t.Fatalf("expected nil index on error, got %p", idx)
 	}
 }
