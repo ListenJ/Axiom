@@ -27,7 +27,8 @@
   4. `LIMITATIONS.md` 移除对已删除 `scripts/runtime-go/deploy.sh`、`runtime-go/internal/distrib/node_test.go` 的现行引用，改为“多机部署脚本/节点注册测试已退役归档”描述；`docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md` 的 cluster.go 行改为“已退役归档”。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**；完整 TS 套件 `bun test --timeout 15000 ./tests` = **4,615 pass / 67 skip / 0 fail**（4,682 用例 / 476 文件，117.76s）；Go 侧 `go build/test/vet/race ./...` 已在 Batch B 全绿。
 - **不做项**：不改历史 ops log/reviews/ADR 正文（仅加取代/历史标记）；不重写已发布历史；不恢复任何多机文件。
-- **Commit**：`15c89881`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`46c8fc09`（Batch C 实际提交；见下条更正）
+- **Commit 更正（记录维护）**：Batch C 实际提交为 `46c8fc09`。原定 Batch C commit 因 `git add` 遇到 gitignored 的 `docs/reports` 路径返回非零、`&&` 链被跳过；随后 `docs(operations-log): 回填 15c89881` 提交把已暂存的 Batch C 文件一并入库，提交信息沿用了 Batch B 回填标题。Batch B 回填仍为 `15c89881`；Batch C 内容以 `46c8fc09` 为准。
 
 ---
 
