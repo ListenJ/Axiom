@@ -12,7 +12,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"runtime-go/internal/distrib"
 	"runtime-go/internal/observability"
 )
 
@@ -24,12 +23,7 @@ import (
 //	GET    /stats           engine counters snapshot
 //	GET    /healthz         liveness probe
 //	GET    /metrics         Prometheus exposition
-//	GET    /cluster         cluster membership, health and local shard range
-//	POST   /internal/query  peer RPC: query the given local shards only
-//	POST   /internal/docs   peer RPC: apply upserts/deletes locally
-//
-// The /internal/* endpoints never fan out to other nodes; they exist so a
-// cluster peer can serve exactly the shards it owns.
+//	GET    /cluster         single-machine mode and shard count
 func (e *Engine) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /documents", e.handlePostDocuments)
@@ -38,8 +32,6 @@ func (e *Engine) HTTPHandler() http.Handler {
 	mux.HandleFunc("GET /stats", e.handleStats)
 	mux.HandleFunc("GET /healthz", e.handleHealthz)
 	mux.HandleFunc("GET /cluster", e.handleCluster)
-	mux.HandleFunc("POST /internal/query", e.handleInternalQuery)
-	mux.HandleFunc("POST /internal/docs", e.handleInternalDocs)
 	mux.Handle("GET /metrics", promhttp.HandlerFor(e.reg.gat, promhttp.HandlerOpts{}))
 	// pprof for production profiling (CPU/heap/goroutine) — read-only,
 	// mounted only when DEBUG_PPROF=1 so it is off by default.
@@ -55,6 +47,13 @@ func (e *Engine) HTTPHandler() http.Handler {
 
 type postDocumentsResponse struct {
 	Upserted int `json:"upserted"`
+}
+
+// searchResponse mirrors the /search JSON body for tests and clients.
+type searchResponse struct {
+	Hits    []Hit `json:"hits"`
+	TookMs  int64 `json:"took_ms"`
+	Partial bool  `json:"partial,omitempty"`
 }
 
 func (e *Engine) handlePostDocuments(w http.ResponseWriter, r *http.Request) {
@@ -147,126 +146,20 @@ func writeSearchJSON(w http.ResponseWriter, hits []Hit, tookMs int64, partial bo
 	searchJSONBufPool.Put(bp)
 }
 
-// internalQueryRequest is the peer RPC payload of POST /internal/query.
-type internalQueryRequest struct {
-	Shards []int  `json:"shards"`
-	Query  string `json:"query"`
-	Limit  int    `json:"limit"`
-}
-
-// internalQueryResponse decodes the per-node Top-K returned by a peer.
-type internalQueryResponse struct {
-	Hits []Hit `json:"hits"`
-}
-
-// handleInternalQuery answers a peer's shard-scoped query against the local
-// index only. It never fans out, which keeps cluster queries cycle-free.
-func (e *Engine) handleInternalQuery(w http.ResponseWriter, r *http.Request) {
-	// P2-12：二进制热路径——仅在收到二进制请求时回二进制（老客户端 JSON 不变）
-	if r.Header.Get("Content-Type") == queryBinContentType {
-		req, err := decodeQueryBinReq(r.Body)
-		if err != nil {
-			writeError(w, observability.WrapError(ErrCodeBadRequest, "invalid binary body", err), http.StatusBadRequest)
-			return
-		}
-		hits, err := e.searchLocalShards(r.Context(), req.Query, req.Shards, req.Limit)
-		if err != nil {
-			writeError(w, err, statusForError(err))
-			return
-		}
-		w.Header().Set("Content-Type", queryBinContentType)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(appendQueryBinResp(nil, hits))
-		return
-	}
-	var req internalQueryRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, observability.WrapError(ErrCodeBadRequest, "invalid JSON body", err), http.StatusBadRequest)
-		return
-	}
-	hits, err := e.searchLocalShards(r.Context(), req.Query, req.Shards, req.Limit)
-	if err != nil {
-		writeError(w, err, statusForError(err))
-		return
-	}
-	writeHitsJSON(w, hits)
-}
-
-// writeHitsJSON writes the {"hits":[...]} peer-RPC body from a pooled buffer.
-func writeHitsJSON(w http.ResponseWriter, hits []Hit) {
-	bp := searchJSONBufPool.Get().(*[]byte)
-	buf := (*bp)[:0]
-	buf = append(buf, `{"hits":`...)
-	buf = appendHits(buf, hits)
-	buf = append(buf, '}', '\n')
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf)
-	*bp = buf
-	searchJSONBufPool.Put(bp)
-}
-
-// internalDocsRequest is the peer RPC payload of POST /internal/docs.
-type internalDocsRequest struct {
-	Upserts []Document `json:"upserts"`
-	Deletes []string   `json:"deletes"`
-}
-
-// internalDocsResponse reports how many operations were applied locally.
-type internalDocsResponse struct {
-	Upserted int `json:"upserted"`
-	Deleted  int `json:"deleted"`
-}
-
-// handleInternalDocs applies a peer-routed batch to the local index. The
-// coordinating node already holds the DistLock for the whole batch, so this
-// handler only serializes against other local swaps (updateMu inside
-// applyLocal) and never fans out.
-func (e *Engine) handleInternalDocs(w http.ResponseWriter, r *http.Request) {
-	var req internalDocsRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, observability.WrapError(ErrCodeBadRequest, "invalid JSON body", err), http.StatusBadRequest)
-		return
-	}
-	e.applyLocal(req.Upserts, req.Deletes)
-	writeJSON(w, http.StatusOK, internalDocsResponse{Upserted: len(req.Upserts), Deleted: len(req.Deletes)})
-}
-
-// clusterNodeInfo is one member entry of the GET /cluster response.
-type clusterNodeInfo struct {
-	ID      string `json:"id"`
-	Addr    string `json:"addr"`
-	Role    string `json:"role,omitempty"`
-	Self    bool   `json:"self,omitempty"`
-	Healthy bool   `json:"healthy"`
-}
-
-// clusterResponse describes membership, health and the local node's shard
-// ownership. In single-node mode only mode and num_shards are meaningful.
+// clusterResponse describes single-machine mode and local shard ownership.
 type clusterResponse struct {
-	Mode        string            `json:"mode"` // "cluster" or "single"
-	NumShards   int               `json:"num_shards"`
-	OwnedShards []int             `json:"owned_shards,omitempty"`
-	Nodes       []clusterNodeInfo `json:"nodes,omitempty"`
+	Mode        string `json:"mode"` // always "single" after 2026-10-03 multi-machine retirement
+	NumShards   int    `json:"num_shards"`
+	OwnedShards []int  `json:"owned_shards,omitempty"`
 }
 
 func (e *Engine) handleCluster(w http.ResponseWriter, r *http.Request) {
-	resp := clusterResponse{Mode: "single", NumShards: e.numShards()}
-	if c := e.cluster; c != nil {
-		resp.Mode = "cluster"
-		resp.OwnedShards = c.ownedShards(e.numShards())
-		self := c.reg.Self()
-		for _, n := range append([]distrib.Node{self}, c.reg.Others()...) {
-			resp.Nodes = append(resp.Nodes, clusterNodeInfo{
-				ID:      n.ID,
-				Addr:    n.Addr,
-				Role:    n.Role,
-				Self:    n.ID == self.ID,
-				Healthy: c.reg.IsHealthy(n.ID),
-			})
-		}
+	n := e.numShards()
+	owned := make([]int, n)
+	for i := range owned {
+		owned[i] = i
 	}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, clusterResponse{Mode: "single", NumShards: n, OwnedShards: owned})
 }
 
 func (e *Engine) handleStats(w http.ResponseWriter, r *http.Request) {

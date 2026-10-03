@@ -73,10 +73,10 @@ func (e *Engine) putScratch(sc *scratch) {
 	}
 }
 
-// Engine is the concurrent search engine: an immutable index snapshot held
-// in an atomic.Pointer (lock-free reads, copy-on-write updates), an
-// optional distributed lock serializing updates, a worker pool fanning
-// queries out to shards, and metrics.
+// Engine is the single-machine concurrent search engine: an immutable index
+// snapshot held in an atomic.Pointer (lock-free reads, copy-on-write
+// updates), an optional in-process lock serializing updates, a worker pool
+// fanning queries out to shards, and metrics.
 type Engine struct {
 	idx  atomic.Pointer[Index]
 	num  atomic.Uint32
@@ -85,10 +85,8 @@ type Engine struct {
 	m    *Metrics
 	reg  engineRegistry
 
-	// cluster is non-nil in cluster mode (see WithCluster); updateMu
-	// serializes local copy-on-write swaps so HTTP-routed and
-	// cluster-routed updates cannot interleave a read-modify-write.
-	cluster  *clusterState
+	// updateMu serializes local copy-on-write swaps so concurrent Update
+	// calls cannot interleave a read-modify-write.
 	updateMu sync.Mutex
 
 	// scratchCh recycles per-query scratch buffers (see scratch).
@@ -175,9 +173,8 @@ func WithWorkers(n int) Option {
 	}
 }
 
-// NewEngine creates an empty engine with numShards shards. reg may be nil,
-// in which case the Prometheus default registerer/gatherer is used. In
-// cluster mode (WithCluster) the cluster's global shard count wins.
+// NewEngine creates an empty single-machine engine with numShards shards.
+// reg may be nil, in which case the Prometheus default registerer/gatherer is used.
 func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine {
 	if numShards < 1 {
 		numShards = 1
@@ -189,9 +186,6 @@ func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine
 	if e.pool == nil {
 		e.pool = newWorkerPool(runtime.NumCPU())
 	}
-	if e.cluster != nil {
-		numShards = e.cluster.numShards
-	}
 	e.reg = normalizeRegistry(reg)
 	e.m = newMetrics(e.reg.reg, "searchd")
 	e.scratchCh = make(chan *scratch, e.pool.n+8)
@@ -200,14 +194,13 @@ func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine
 }
 
 // Build replaces the index with one built from docs in parallel. It is the
-// bulk-load path; incremental changes go through Update. In cluster mode
-// only documents owned by the local node are indexed.
+// bulk-load path; incremental changes go through Update.
 func (e *Engine) Build(ctx context.Context, docs []Document) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	start := time.Now()
-	idx := BuildIndex(e.filterOwned(docs), len(e.idx.Load().shards), runtime.NumCPU())
+	idx := BuildIndex(docs, len(e.idx.Load().shards), runtime.NumCPU())
 	var max uint32
 	for _, n := range idx.ids {
 		if n >= max {
@@ -226,8 +219,7 @@ func (e *Engine) Build(ctx context.Context, docs []Document) error {
 
 // Update atomically applies upserts and deletes as one copy-on-write swap,
 // so every change is visible to queries as soon as Update returns. When a
-// DistLock is configured, concurrent updates (also across processes) are
-// serialized through it.
+// DistLock is configured, concurrent updates are serialized through it.
 func (e *Engine) Update(ctx context.Context, upserts []Document, deletes []string) error {
 	if e.lock != nil {
 		waitStart := time.Now()
@@ -239,28 +231,8 @@ func (e *Engine) Update(ctx context.Context, upserts []Document, deletes []strin
 		}
 		defer func() { _ = unlock(context.Background()) }()
 	}
-	if e.cluster != nil {
-		return e.clusterUpdate(ctx, upserts, deletes)
-	}
 	e.applyLocal(upserts, deletes)
 	return nil
-}
-
-// filterOwned drops documents whose shard belongs to a remote node. In
-// single-node mode it returns docs unchanged.
-func (e *Engine) filterOwned(docs []Document) []Document {
-	if e.cluster == nil {
-		return docs
-	}
-	n := e.numShards()
-	sorted := e.cluster.sortedNodes()
-	out := make([]Document, 0, len(docs))
-	for _, d := range docs {
-		if e.cluster.ownsNode(sorted, shardOfID(d.ID, n)) {
-			out = append(out, d)
-		}
-	}
-	return out
 }
 
 // Search parses, optimizes and executes query, returning up to limit hits
@@ -270,9 +242,8 @@ func (e *Engine) Search(ctx context.Context, query string, limit int) ([]Hit, er
 	return hits, err
 }
 
-// SearchDetailed is Search plus a partial flag: in cluster mode partial is
-// true when some shards could not be queried (unhealthy peer or failed RPC)
-// and the result is degraded. In single-node mode partial is always false.
+// SearchDetailed is Search plus a partial flag. In single-machine mode the
+// flag is always false; it is retained for API compatibility.
 func (e *Engine) SearchDetailed(ctx context.Context, query string, limit int) ([]Hit, bool, error) {
 	if limit <= 0 {
 		limit = 10
@@ -286,16 +257,12 @@ func (e *Engine) SearchDetailed(ctx context.Context, query string, limit int) ([
 	}()
 
 	var hits []Hit
-	var partial bool
+	partial := false
 	errCode := ""
 	idx := e.idx.Load()
 	node, err := e.compiledNode(query, idx)
 	if err == nil {
-		if e.cluster != nil {
-			hits, partial, err = e.clusterSearch(ctx, idx, node, query, limit)
-		} else {
-			hits, err = e.searchShards(ctx, idx, node, allShardIDs(len(idx.shards)), limit)
-		}
+		hits, err = e.searchShards(ctx, idx, node, allShardIDs(len(idx.shards)), limit)
 	}
 	if err != nil {
 		errCode = "SEARCH_ERROR"

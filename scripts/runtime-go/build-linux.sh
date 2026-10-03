@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 
 cd "$ROOT/runtime-go"
 export CGO_ENABLED=0 GOOS=linux GOARCH=amd64
-for cmd in pcdad agentd searchd loadgen; do
+for cmd in pcdad searchd loadgen; do
   go build -trimpath -ldflags='-s -w' -o "$OUT/$cmd" "./cmd/$cmd"
   echo "built $OUT/$cmd"
 done

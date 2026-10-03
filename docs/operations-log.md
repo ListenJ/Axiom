@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-10-03 — chore(cleanup): 多机互联内容清理 Batch B（Go 多机代码移除 + 单机化）
+
+- **任务**：继续 T3 多机清理。Batch A 已清 TS/脚本/二进制；Batch B 移除 Go 多机包并把 searchd/search/pcdad 单机化。原始文件已在归档分支 `codex/archive-2026-10-03-multimachine`（`c121682e`）保存。
+- **移除（Go 多机）**：`internal/distrib/**`（节点注册/心跳/RPC）、`internal/agent/**` + `cmd/agentd/**`（多机 agent 池/RemoteAgent/failover/autoscaler）、`internal/search/{cluster.go,cluster_test.go,lock_redis.go}`（cluster fan-out + Redis 分布式锁）、`internal/pcda/{remote.go,remote_test.go,txhttp.go}`（跨机 2PC participant）、`scripts/runtime-go/{deploy.sh,soak-72h.sh}`（多机部署/浸泡）。
+- **单机化改造**：
+  1. `internal/search/engine.go`：去 `cluster` 字段/`WithCluster`/`clusterUpdate`/`clusterSearch`/`filterOwned`；保留 worker pool/scratch/`applyLocal` COW 更新；新增 `internal/search/local.go`（从 cluster.go 取回 `numShards`/`applyLocal` 两个单机函数）。
+  2. `internal/search/httpapi.go`：去 `distrib` 与 peer `/internal/query`、`/internal/docs` 端点；`/cluster` 只返回 `mode:"single"` + 本地分片；保留 `/documents`/`/search`/`/stats`/`/healthz`/`/metrics`/pprof。
+  3. `cmd/searchd/main.go`：只保留 `SEARCHD_ADDR`/`SEARCHD_NUM_SHARDS`/`SEARCHD_LISTENERS`（单机多 acceptor）；去 `SEARCHD_NODES`/`SEARCHD_NODE_ID`/`SEARCHD_REDIS_ADDR`/Redis 依赖。
+  4. `cmd/pcdad/main.go`：去 `/tx/prepare|commit|abort` 与 `NewTxHandler`；保留 `/cycles`/`/cycles/{id}`/`/healthz`/`/metrics`；本地 2PC 阶段转换（`twopc.go` 的 Coordinator/MemoryParticipant）**保留**，它是单机 PCDA 内核。
+  5. `tools.go` 去掉 redis pin；`scripts/runtime-go/build-linux.sh` 只构建 `pcdad/searchd/loadgen`；`go mod tidy` 后 `github.com/redis/go-redis/v9` 依赖移除。
+- **验证**：`go build ./...` rc=0；`go test ./...` 全绿；`go vet ./...` rc=0；`go test -race ./...` 全绿（含 `internal/search` 5.17s、`internal/pcda` 1.67s、`internal/modelclient` 2.10s）；`bunx tsc --noEmit` rc=0；doc-contract 35/0；docs-consistency 10/0。
+- **未完成（Batch C）**：`runtime-go/README.md` 单机化、`ADR-011-single-machine-runtime-go.md`、ADR-006/旧 n2 报告标记 superseded/历史、`LIMITATIONS`/README 当前时态多机描述清理。
+- **Commit**：`<CLEANUP_B_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — chore(cleanup): 多机互联内容清理 Batch A（TS 分布式框架 + 多机脚本 + Windows 二进制）
 
 - **任务**：用户裁定 n1/n2/w1 多机联动全部退役，清理仓库与工作区多机互联内容（T3）。Batch A 处理 TS 分布式测试框架、多机脚本、Windows 二进制与工作区产物；Go 多机代码留 Batch B，README/ADR 留 Batch C。

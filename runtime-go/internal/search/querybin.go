@@ -15,6 +15,20 @@ import (
 
 const queryBinContentType = "application/x-search-query-bin"
 
+// internalQueryRequest is the request shape encoded by the binary query codec.
+// The peer-RPC HTTP endpoint was removed on 2026-10-03; the codec is retained
+// for single-machine shard-scoped query experiments.
+type internalQueryRequest struct {
+	Shards []int  `json:"shards"`
+	Query  string `json:"query"`
+	Limit  int    `json:"limit"`
+}
+
+// internalQueryResponse mirrors the shard-scoped query result for tests.
+type internalQueryResponse struct {
+	Hits []Hit `json:"hits"`
+}
+
 // ── 请求：'S''Q'0x01, uvarint(limit), str(query), uvarint(n) + n×uvarint(shard) ──
 
 func appendQueryBinReq(dst []byte, q string, shards []int, limit int) []byte {

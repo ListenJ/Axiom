@@ -123,8 +123,5 @@ func TestMemLockDifferentKeysIndependent(t *testing.T) {
 	_ = unlock(ctx)
 }
 
-// Compile-time guarantee that both implementations satisfy DistLock.
-var (
-	_ DistLock = (*MemLock)(nil)
-	_ DistLock = (*RedisLock)(nil)
-)
+// Compile-time guarantee that the in-process lock satisfies DistLock.
+var _ DistLock = (*MemLock)(nil)
