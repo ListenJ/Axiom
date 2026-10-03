@@ -1,69 +1,13 @@
 /**
- * 分布式测试框架 — 模块入口
+ * 单机测试基础设施入口。
  *
- * 架构：
- *   src/testing/
- *   ├── cluster/       分布式测试集群（节点 + 协调器 + SSH）
- *   ├── scenarios/     测试场景（幻觉检测 + 串词检测 + 并发负载）
- *   ├── scheduler/     PCDA 循环调度器
- *   └── metrics/       指标收集与报告
+ * 2026-10-03：多机分布式测试框架（cluster / scheduler / scenarios / metrics +
+ * tests/distributed + scripts/distributed-test-runner.ts）已退役，归档到归档分支
+ * `codex/archive-2026-10-03-multimachine`；本入口只保留单机测试基础设施的指针。
+ *
+ * 单机工具可直接按路径导入：
+ * - ./arch-stats.js      架构基线统计（docs-consistency 棘轮）
+ * - ./tool-count.js      MCP 工具计数单一事实源
+ * - ./tool-declarations.js 能力声明抽取/渲染
  */
-
-// ── 集群 ──────────────────────────────────────────────────────
-export type {
-  NodeType,
-  NodeStatus,
-  TestNodeConfig,
-  TestNodeStatus,
-  ScenarioType,
-  TaskStatus,
-  TestTask,
-  TestResult,
-  TestMetrics,
-  TestError,
-  ClusterConfig,
-  ExecuteCommand,
-  ResultReport,
-  HeartbeatReport,
-  ClusterMessage,
-} from "./cluster/types.js";
-
-export {
-  DEFAULT_CLUSTER_CONFIG,
-} from "./cluster/types.js";
-
-export { SshExecutor, testSshConnectivity } from "./cluster/ssh-executor.js";
-export { BaseTestNode, LocalTestNode, RemoteTestNode, createTestNode } from "./cluster/node.js";
-export { ClusterCoordinator } from "./cluster/coordinator.js";
-
-// ── 场景 ──────────────────────────────────────────────────────
-export { runConcurrentLoad, calculatePercentiles } from "./scenarios/concurrent-load.js";
-export { runHallucinationTest, DEFAULT_TEST_FACTS } from "./scenarios/hallucination-test.js";
-export { runCrossTalkTest } from "./scenarios/cross-talk-test.js";
-
-// ── 调度器 ────────────────────────────────────────────────────
-export type {
-  PCDAPhase,
-  PhaseStatus,
-  CycleStatus,
-  LoadLevel,
-  TestPlan,
-  CheckResult,
-  AggregatedMetrics,
-  CheckIssue,
-  ActionType,
-  ActDecision,
-  PCDACycle,
-  PCDAConfig,
-} from "./scheduler/types.js";
-
-export {
-  LOAD_LEVELS,
-  DEFAULT_PCDA_CONFIG,
-} from "./scheduler/types.js";
-
-export { PCDAScheduler } from "./scheduler/pcda-scheduler.js";
-
-// ── 指标 ──────────────────────────────────────────────────────
-export { MetricsCollector } from "./metrics/collector.js";
-export { DistributedTestReporter } from "./metrics/reporter.js";
+export {};
