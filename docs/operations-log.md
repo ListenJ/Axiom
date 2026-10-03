@@ -17,6 +17,20 @@
 
 ---
 
+## 2026-10-03 — docs(cleanup): 多机互联内容清理 Batch C（README 单机化 + ADR-011 + 历史标记）
+
+- **任务**：T3 多机清理收尾文档批次。把 runtime-go 现行文档从多机拓扑改写为单机并发运行时，并给旧多机 ADR/报告加历史/取代标记。分级 **T3（文档/架构决策）**。
+- **产物**：
+  1. `runtime-go/README.md` 重写为单机版（103 行）：模块结构去掉 agent/distrib/cluster/Redis；运行只保留 pcdad/searchd/loadgen；searchd 环境收口为 `SEARCHD_ADDR`/`SEARCHD_NUM_SHARDS`/`SEARCHD_LISTENERS`；性能表去掉 agent 多机项；删除分布式部署/多节点 LAN/w1/Redis 分布式锁章节；顶部加 2026-10-03 多机退役说明与归档分支指针。
+  2. 新增 `docs/decisions/ADR-011-single-machine-runtime-go.md`：决策、移除/保留清单、证据、后果、替代方案、回滚（归档分支 `codex/archive-2026-10-03-multimachine`）。
+  3. `ADR-006` 顶部加“2026-10-03 起被 ADR-011 取代”；`docs/reports/2026-09-12-runtime-go-n2-swap-verification.md` 顶部加“历史报告，不代表现行架构”；`ADR-009` 加“agentd 随多机退役，产物仅历史记录”。
+  4. `LIMITATIONS.md` 移除对已删除 `scripts/runtime-go/deploy.sh`、`runtime-go/internal/distrib/node_test.go` 的现行引用，改为“多机部署脚本/节点注册测试已退役归档”描述；`docs/superpowers/plans/2026-10-03-single-machine-go-concurrency.md` 的 cluster.go 行改为“已退役归档”。
+- **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**；完整 TS 套件 `bun test --timeout 15000 ./tests` = **4,615 pass / 67 skip / 0 fail**（4,682 用例 / 476 文件，117.76s）；Go 侧 `go build/test/vet/race ./...` 已在 Batch B 全绿。
+- **不做项**：不改历史 ops log/reviews/ADR 正文（仅加取代/历史标记）；不重写已发布历史；不恢复任何多机文件。
+- **Commit**：`15c89881`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — chore(cleanup): 多机互联内容清理 Batch B（Go 多机代码移除 + 单机化）
 
 - **任务**：继续 T3 多机清理。Batch A 已清 TS/脚本/二进制；Batch B 移除 Go 多机包并把 searchd/search/pcdad 单机化。原始文件已在归档分支 `codex/archive-2026-10-03-multimachine`（`c121682e`）保存。

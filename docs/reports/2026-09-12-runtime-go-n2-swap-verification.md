@@ -1,3 +1,4 @@
+> **历史报告（2026-10-03 标注）**：n1/n2/w1 多机联动已全部退役，本文仅作历史验证证据，不代表现行架构；现行口径见 ADR-011。
 # runtime-go n2 换机验证报告（.22 退役五项改造）
 
 - 日期：2026-09-12 ~ 09-13 ｜ 计划：`docs/superpowers/plans/2026-09-12-node22-decommission-n2-swap.md`（T3，已冻结）｜ 决策：`docs/decisions/ADR-006-node22-decommission-n2-swap.md`

@@ -60,5 +60,6 @@
 
 ## 不在本轮整改范围（明确排除）
 
-- `AGENTS.md` 的 git remote（推送工作流必需）、`docs/operations-log.md`（审计留痕不可篡改）、`scripts/runtime-go/deploy.sh`（真实部署脚本须拨真实主机）保留内网地址；其真实值已在本地凭据目录归档。
-- 测试夹具（`tests/security-fixes.test.ts`、`tests/unit/cdp-url-guard.test.ts`、`runtime-go/internal/distrib/node_test.go`）以 `192.168.0.150` 作 SSRF/解析负例，改动将破坏安全测试语义，保留。
+- `AGENTS.md` 的 git remote（推送工作流必需）、`docs/operations-log.md`（审计留痕不可篡改）保留内网地址；其真实值已在本地凭据目录归档。
+- 测试夹具（`tests/security-fixes.test.ts`、`tests/unit/cdp-url-guard.test.ts`）以 `192.168.0.150` 作 SSRF/解析负例，改动将破坏安全测试语义，保留。
+- 多机 runtime-go 的部署脚本与节点注册测试已于 2026-10-03 退役，原始内容归档在 `codex/archive-2026-10-03-multimachine`（现行口径见 ADR-011）。

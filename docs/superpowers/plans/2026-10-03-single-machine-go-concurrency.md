@@ -16,7 +16,7 @@
 | `runtime-go/internal/pcda/pool.go` | `stagePool`：每 stage N 个 worker + `sync.Pool` 复用 `Cycle`/batch | 已有成熟 stage 并发模型，可作为其他模块的样板 |
 | `runtime-go/internal/modelclient` | 多端点轮询 + 后台 health loop（每 `HealthInterval` 探测 `/health`） | 并发请求无显式 semaphore；需验证是否有 thundering herd |
 | `runtime-go/cmd/loadgen/main.go` | 单机压测 CLI：`-mode seed|search -qps -duration -workers -mix -docs -batch` | 可直接用于单机前后对比，无需多机 |
-| `runtime-go/internal/search/cluster.go` | 多 peer fan-out | **本计划不复用、不扩展**；多机退役后只保留单机 shard 并发 |
+| `runtime-go/internal/search/cluster.go`（2026-10-03 已退役归档） | 多 peer fan-out | 已随多机退役移除；本计划只保留单机 shard 并发 |
 
 ---
 
@@ -30,7 +30,7 @@
   4. 优雅退出：context 取消 + WaitGroup、无泄漏、无卡死；soak 后 goroutine 数回落；
   5. 单机端到端：`searchd` 单进程 + `loadgen` 可达稳定 QPS，无 n1/n2/w1、无 Redis/SSH 隧道依赖（Redis 仅作可选本地锁，缺失时降级）。
 - **改动清单（文件级）**：`runtime-go/internal/search/{engine,index,httpapi}.go`、`runtime-go/internal/pcda/pool.go`、`runtime-go/internal/modelclient/{client,health}.go`、`runtime-go/cmd/loadgen/main.go`、`runtime-go/**/*_test.go`（按步冻结）。
-- **不做项**：不做多机/分布式；不改 `internal/search/cluster.go` 的 peer 语义；不引入第三方并发框架（errgroup 若需要，优先标准库 `sync`/`context`，或评估 `golang.org/x/sync` 已是间接依赖）；不改搜索排序/相关性语义。
+- **不做项**：不做多机/分布式；peer 语义已随 `cluster.go` 退役，不再保留；不引入第三方并发框架（优先标准库 `sync`/`context`）；不改搜索排序/相关性语义。
 - **验证命令（路线图级）**：见 §六。
 - **风险/回滚**：并发行为变更风险高；每步先建 `-race` + benchmark 红/绿回路；改动限定在单文件/单模块；回滚用 revert；不做全局并发模型重写。
 
