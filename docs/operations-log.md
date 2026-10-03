@@ -25,7 +25,7 @@
 - **待用户执行**：`sudo install -m 0644 /tmp/axiom@.service /etc/systemd/system/axiom@.service && sudo systemctl daemon-reload && sudo systemctl restart axiom@listen.service`，随后 `journalctl ... | grep -i EROFS` 应无命中。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
 - **不做项**：未改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；未改 `ProtectHome=false`；未改应用代码。
-- **Commit**：`<EROFS_BUNX_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`d06287ed`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
