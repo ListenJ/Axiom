@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-03 — chore(cleanup): 多机互联内容清理 Batch A（TS 分布式框架 + 多机脚本 + Windows 二进制）
+
+- **任务**：用户裁定 n1/n2/w1 多机联动全部退役，清理仓库与工作区多机互联内容（T3）。Batch A 处理 TS 分布式测试框架、多机脚本、Windows 二进制与工作区产物；Go 多机代码留 Batch B，README/ADR 留 Batch C。
+- **归档（规则 4/9）**：建归档分支 `codex/archive-2026-10-03-multimachine`（tip `c121682e`，已推送），把 68 个多机文件复制到 `archive/multimachine-2026-10-03/<原相对路径>` 并写 `archive/ARCHIVE-LOG.md`；归档后才在工作分支 `git rm`。
+- **Batch A 移除**：`src/testing/{cluster,scheduler,scenarios,metrics}/**`、`tests/distributed/**`、`scripts/distributed-test-runner.ts`、`runtime-go/bin/{loadgen.exe,searchd-bench.exe}`；`src/testing/index.ts` 改为单机工具指针（arch-stats/tool-count/tool-declarations 保留）；新增 `runtime-go/.gitignore` 忽略 `/bin/{searchd,loadgen,agentd,pcdad}` 本地产物。
+- **工作区清理**：删除未跟踪 `runtime-go/bin/{agentd,pcdad}`（多机）；保留单机 `searchd`/`loadgen`（现已 gitignore）；本地拓扑笔记 `~/.axiom/axiom-secrets/runtime-go-topology.md` 退役为 `runtime-go-topology.md.retired-20261003`（不入库，原 `.pre-20261003.bak` 保留）。
+- **门禁同步**：`tests/doc-contract.test.ts` D0 豁免面 61→62（新增 `docs/reviews/2026-10-03-remove-multi-machine.md`）；ADR-008 引用的 `src/testing/scheduler/pcda-scheduler.ts` 按 tombstone 口径点名 `<!-- doc-caliber:absent: ... -->` 并加入 tombstone 在册清单；`docs/ARCHITECTURE.md` 统计随 TS 文件移除同步为 **38 模块 / 441 文件 / 119,610 行**（testFiles 476）。
+- **验证**：`bunx tsc --noEmit` rc=0；`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
+- **未完成（后续批次）**：Batch B — Go 多机代码移除（distrib/cluster/agentd/remote/2PC/Redis lock + searchd/search/pcdad 单机化，`go build/test/vet`）；Batch C — `runtime-go/README.md` 单机化 + `ADR-011-single-machine-runtime-go.md` + 当前时态多机描述清理。
+- **Commit**：`464df17a`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — fix(systemd): EROFS 复测根因（bunx 子进程不继承 BUN_TMPDIR，回退 ~/.bun）
 
 - **任务**：用户按上一版 unit（含 BUN_TMPDIR/BUN_INSTALL + ~/.cache/.npm ReadWritePaths）重启后，EROFS 仍在（`axiom[368351]`）。分级 **T3（运维）**。
