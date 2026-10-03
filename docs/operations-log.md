@@ -17,6 +17,26 @@
 
 ---
 
+## 2026-10-04 — test(bench): Step 1 单机 Go 并发 before 基线（bench + race + loadgen）
+
+- **任务**：计划 `2026-10-03-single-machine-go-concurrency.md` Step 1（T2/T3 验证）。在多机退役、单机化收口后固定 before 数字，作为 Step 2–8 的对照基线。
+- **Go bench（`go test -bench=. -benchmem -count=3 ./internal/search ./internal/pcda ./internal/modelclient`，rc=0）**：
+  - search：BuildIndex 10k/20k/40k ≈ 24.5/43.0/86.0ms（≈415k/465k/465k docs/sec）；SearchSimple ≈30µs/op（72 allocs）、SearchComplex ≈267µs/op（488 allocs）；SimpleParallel ≈11.3µs/op；HTTPSearchSimple ≈21.9µs/op（179 allocs）；QueryBinVsJSON JSON 714µs vs bin 174µs（≈4.1×），但 bin allocs 5,025 > JSON 2,016。
+  - pcda：EngineThroughput **291k–302k cycles/sec**（3.3µs/op，18 allocs）；RingMPMC ≈2.5–3.0µs/op（0 alloc）；LaneQueueDequeue ≈22.7ns/op（0 alloc）；TwoPC ≈37.8ns/op（0 alloc）。
+  - modelclient：当前**无 Benchmark 函数**（仅单测；Step 6 需先补 benchmark）。
+- **race**：`go test -race ./...` rc=0，全包绿。
+- **HTTP 单机基线（searchd 单进程，`SEARCHD_NUM_SHARDS=32`，临时 token）**：
+  - seed：`loadgen -mode seed -docs 100000 -batch 500` → **100,000 docs / 8.601s（≈11,627 docs/sec）**。
+  - search：`loadgen -mode search -qps 20000 -duration 30s -workers 64 -mix mixed` → issued **236,293**、ok 236,293、**errors 0**、achieved **7,876 QPS**、p50 **0.21ms**、p95 **1.22ms**、p99 **2.53ms**、max 18.44ms。
+  - `/stats`：documents 100000 / shards 32 / queries_total 236293 / avg_latency_ms 0.2622 / cow_swaps 200 / active 0；RSS **575,220 KB（≈575MB）**。
+  - `/cluster`：`{"mode":"single","num_shards":32,"owned_shards":[0..31]}`，确认单机化生效。
+- **Step 1 结论/待查**：① 20k QPS 目标未达（实收 7,876），但 p50 0.21ms/p99 2.53ms；Step 2/4 需先做“closed-loop 不设 qps 上限”对照，区分 loadgen pacing 与 searchd 单机吞吐上限。② Complex 比 Simple 慢 ≈9×、allocs 488 vs 72；Step 4/5 优先 Complex 与 bin 路径 alloc。③ RSS 575MB 作为 Step 5/8 内存上界基线。④ modelclient 无 benchmark，Step 6 先补。
+- **产物**：`docs/reviews/2026-10-04-single-machine-concurrency-baseline.md`（115 行）；原始 `/tmp/go-bench-before.txt`、`/tmp/go-race-before.txt`、`/tmp/loadgen-seed-before.txt`、`/tmp/loadgen-search-before.txt`、`/tmp/searchd-stats-before.json`、`/tmp/searchd-cluster-before.json`。
+- **门禁**：doc-contract **35/0**；docs-consistency **10/0**（D0 豁免面 62→63，逐件点名基线报告）；searchd 压测后已 SIGTERM 停止，9103 释放。
+- **Commit**：`<STEP1_BASELINE_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-03 — docs(cleanup): 多机互联内容清理 Batch C（README 单机化 + ADR-011 + 历史标记）
 
 - **任务**：T3 多机清理收尾文档批次。把 runtime-go 现行文档从多机拓扑改写为单机并发运行时，并给旧多机 ADR/报告加历史/取代标记。分级 **T3（文档/架构决策）**。
