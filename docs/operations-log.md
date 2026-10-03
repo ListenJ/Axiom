@@ -26,7 +26,7 @@
 - **Runbook 同步**：`step9-10-operator-runbook.md` §10 顶部标注 n1/n2/w1 多机全部退役、§10 仅历史参考、Step 10 见新计划。
 - **不做项**：不改 `/etc/systemd/system/axiom@.service`（需 sudo，用户执行）；不删 `runtime-go/bin/*` 本地构建物；不执行多机部署。
 - **验证**：`bun test tests/doc-contract.test.ts` = **35 pass / 0 fail**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**。
-- **Commit**：`<STEP10_GO_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`b9450302`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
