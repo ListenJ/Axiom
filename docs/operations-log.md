@@ -29,7 +29,7 @@
   5. `tools.go` 去掉 redis pin；`scripts/runtime-go/build-linux.sh` 只构建 `pcdad/searchd/loadgen`；`go mod tidy` 后 `github.com/redis/go-redis/v9` 依赖移除。
 - **验证**：`go build ./...` rc=0；`go test ./...` 全绿；`go vet ./...` rc=0；`go test -race ./...` 全绿（含 `internal/search` 5.17s、`internal/pcda` 1.67s、`internal/modelclient` 2.10s）；`bunx tsc --noEmit` rc=0；doc-contract 35/0；docs-consistency 10/0。
 - **未完成（Batch C）**：`runtime-go/README.md` 单机化、`ADR-011-single-machine-runtime-go.md`、ADR-006/旧 n2 报告标记 superseded/历史、`LIMITATIONS`/README 当前时态多机描述清理。
-- **Commit**：`<CLEANUP_B_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`20d8665f`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
