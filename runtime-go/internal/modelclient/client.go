@@ -28,6 +28,10 @@ const (
 	DefaultTimeout        = 30 * time.Second
 	DefaultHealthInterval = 10 * time.Second
 	DefaultMaxRetries     = 3
+	// DefaultMaxConcurrent bounds concurrent Chat calls per client. It keeps
+	// a single process from flooding the model service with unbounded
+	// in-flight requests (Step 6).
+	DefaultMaxConcurrent = 64
 
 	// DefaultContextWindow is the model context size in tokens (64K).
 	DefaultContextWindow = 65536
@@ -68,6 +72,9 @@ type Config struct {
 	// request is attempted at most MaxRetries+1 times. Zero uses
 	// DefaultMaxRetries.
 	MaxRetries int
+	// MaxConcurrent bounds concurrent Chat calls per client. Zero uses
+	// DefaultMaxConcurrent.
+	MaxConcurrent int
 	// ContextWindow is the model's total context size in tokens. Zero reads
 	// the MODEL_CONTEXT_WINDOW environment variable, then falls back to
 	// DefaultContextWindow.
@@ -103,6 +110,9 @@ func (c Config) withDefaults() Config {
 		c.MaxRetries = 0
 	} else if c.MaxRetries == 0 {
 		c.MaxRetries = DefaultMaxRetries
+	}
+	if c.MaxConcurrent <= 0 {
+		c.MaxConcurrent = DefaultMaxConcurrent
 	}
 	if c.ContextWindow <= 0 {
 		if env := os.Getenv("MODEL_CONTEXT_WINDOW"); env != "" {
@@ -174,6 +184,11 @@ type Client struct {
 	health map[string]*atomic.Bool // endpoint -> healthy
 	rr     atomic.Uint64           // round-robin cursor
 
+	// sem bounds concurrent Chat calls (Step 6). probing is a single-flight
+	// guard so overlapping health probe cycles cannot stampede endpoints.
+	sem     chan struct{}
+	probing atomic.Bool
+
 	fallbackMu sync.RWMutex
 	fallback   FallbackFunc
 
@@ -196,6 +211,7 @@ func NewClient(cfg Config, reg prometheus.Registerer) *Client {
 		},
 		metric: newMetrics(reg),
 		health: make(map[string]*atomic.Bool, len(cfg.Endpoints)),
+		sem:    make(chan struct{}, cfg.MaxConcurrent),
 		stopCh: make(chan struct{}),
 	}
 	for _, ep := range cfg.Endpoints {
@@ -249,6 +265,16 @@ func (c *Client) Chat(ctx context.Context, req ChatRequest) (ChatResponse, error
 	if err != nil {
 		c.metric.results.WithLabelValues("failure").Inc()
 		return ChatResponse{}, err
+	}
+	// Bounded concurrency: hold one slot for the whole Chat call (including
+	// retries/backoff). Waiting honors ctx cancellation.
+	select {
+	case c.sem <- struct{}{}:
+		defer func() { <-c.sem }()
+	case <-ctx.Done():
+		c.metric.results.WithLabelValues("failure").Inc()
+		return ChatResponse{}, observability.WrapError(ErrCodeNetwork,
+			"chat canceled waiting for concurrency slot", ctx.Err())
 	}
 	var lastErr error
 	for attempt := 0; attempt <= c.cfg.MaxRetries; attempt++ {

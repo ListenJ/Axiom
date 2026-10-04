@@ -26,6 +26,24 @@
 
 ---
 
+## 2026-10-04 — perf(modelclient): Step 6 有界并发与健康探测单飞
+
+- **任务**：计划 Step 6（T2，单机并发）。modelclient 原先无 benchmark、无并发上限、health probe 无单飞；本轮补 benchmark + 有界并发 + 单飞，保持 4xx/5xx 重试语义不变。
+- **改动（文件级）**：
+  1. `internal/modelclient/client.go`：`Config.MaxConcurrent`（默认 `DefaultMaxConcurrent=64`）；`Client.sem chan struct{}` 有界并发；`Chat` 在 `fitRequest` 后 `select` 获取槽位（`ctx.Done()` 取消安全），整次 Chat（含重试/退避）持槽、结束释放；`Client.probing atomic.Bool`。
+  2. `internal/modelclient/health.go`：`probeAll` 用 `probing.CompareAndSwap(false,true)` 单飞；上一轮未完成时本轮直接跳过，避免向所有端点重复 stampede。
+  3. `internal/modelclient/concurrency_test.go`：`TestMaxConcurrentBounded`（MaxConcurrent=4，64 并发 Chat，服务端 in-flight 峰值 ≤4）；`TestHealthProbeSingleFlight`（10 并发 probeAll，服务端并发探测峰值 ≤1）。
+  4. `internal/modelclient/bench_test.go`：`BenchmarkChatConcurrent`（httptest 假端点，RunParallel，MaxConcurrent=64）；`BenchmarkProbeAllSingleFlight`（并发 probeAll，报告 probes/op）。
+- **benchmark（`-benchmem -count=3`）**：
+  - `BenchmarkChatConcurrent`：**28,072–30,671 ns/op**，26,357–28,501 B/op，**109–111 allocs/op**；
+  - `BenchmarkProbeAllSingleFlight`：**59.18–73.96 ns/op**，0 B/op，0 allocs，**0.000048–0.000062 probes/op**（单飞生效）。
+- **语义保持**：`TestNoRetryOn4xx`、`TestRetryOn5xx` 全绿；4xx 不重试、5xx/网络重试语义未改。
+- **验证**：`go test ./internal/modelclient` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（modelclient 2.190s）；doc-contract **35/0**；docs-consistency **10/0**。
+- **原始读数**：`/tmp/go-bench-step6.txt`、`/tmp/go-race-step6.txt`、`/tmp/go-test-step6.txt`。
+- **Commit**：`<STEP6_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(search): Step 5 内存复用与分配上界（leaf/bitmap arena 复用）
 
 - **任务**：计划 Step 5（T2，单机并发）。用 memprofile 定位 Complex 查询分配热点并做最小复用，不改搜索相关性/排序语义。

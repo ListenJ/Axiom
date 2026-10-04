@@ -27,6 +27,14 @@ func (c *Client) healthLoop() {
 // probeAll checks every configured endpoint and updates health state and
 // the endpoint-health gauge.
 func (c *Client) probeAll() {
+	// Single-flight: if a probe cycle is already running (ticker fired while
+	// the previous cycle was slow, or a caller invoked probeAll manually),
+	// skip this cycle instead of stampeding every endpoint again.
+	if !c.probing.CompareAndSwap(false, true) {
+		return
+	}
+	defer c.probing.Store(false)
+
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.Timeout)
 	defer cancel()
 	for _, ep := range c.cfg.Endpoints {

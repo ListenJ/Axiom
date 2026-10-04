@@ -92,6 +92,8 @@
 - **动作**：`internal/modelclient` 增加有界并发与单飞（single-flight）健康探测；4xx/5xx 重试语义不变。
 - **验收**：并发请求数有上界；端点不健康时熔断/半开行为不变；`-race` 0。
 
+> **Step 6 执行结果（2026-10-04）**：新增 `Config.MaxConcurrent`（默认 64）+ `Chat` 有界并发信号量（ctx 取消安全）、`probeAll` 单飞保护；新增 `BenchmarkChatConcurrent`（≈28–31µs/op、109–111 allocs）与 `BenchmarkProbeAllSingleFlight`（≈60–74ns/op、0.00005 probes/op）；`TestMaxConcurrentBounded`（64 并发 Chat 峰值 ≤4）与 `TestHealthProbeSingleFlight`（并发 probe 峰值 ≤1）通过；4xx/5xx 重试语义不变，race/test 全绿。
+
 ### Step 7 — 优雅退出与泄漏检测
 
 - **目的**：单机常驻场景下，SIGTERM 后所有 worker/stage/modelclient goroutine 退出。

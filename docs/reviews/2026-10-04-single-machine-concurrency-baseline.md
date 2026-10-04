@@ -276,3 +276,38 @@ curl -sS http://127.0.0.1:9103/cluster
 - `go test -race ./...` rc=0（search 7.080s）；
 - 原始读数：`/tmp/search-complex-5s.mem`、`/tmp/go-bench-step5.txt`、`/tmp/go-race-step5.txt`、`/tmp/loadgen-step5-closed-{64,128}-mixed.txt`、`/tmp/searchd-step5.log`。
 
+---
+
+# 九、Step 6：modelclient 并发与健康（2026-10-04）
+
+## 9.1 改动
+
+- `internal/modelclient/client.go`：
+  - `Config.MaxConcurrent`（默认 `DefaultMaxConcurrent = 64`）；
+  - `Client.sem chan struct{}` 有界并发信号量；`Chat` 在 `fitRequest` 后获取一个槽位（`select` + `ctx.Done()` 取消安全），整次 Chat（含重试/退避）持槽，结束释放；
+  - `Client.probing atomic.Bool` 单飞保护。
+- `internal/modelclient/health.go`：`probeAll` 用 `probing.CompareAndSwap(false, true)` 做单飞；若上一轮探测未完成（ticker 又到或手动并发调用），本轮直接跳过，不再向所有端点重复 stampede。
+- 新增 `internal/modelclient/concurrency_test.go`：
+  - `TestMaxConcurrentBounded`：`MaxConcurrent=4`，64 个并发 Chat，服务端 in-flight 峰值 ≤4；
+  - `TestHealthProbeSingleFlight`：10 个并发 `probeAll`，服务端并发探测峰值 ≤1。
+- 新增 `internal/modelclient/bench_test.go`：
+  - `BenchmarkChatConcurrent`（httptest 假端点，RunParallel，MaxConcurrent=64）；
+  - `BenchmarkProbeAllSingleFlight`（并发 probeAll，报告 probes/op）。
+- 4xx 不重试 / 5xx 重试语义未改；既有 `TestNoRetryOn4xx`、`TestRetryOn5xx` 全绿。
+
+## 9.2 benchmark（新增，`-benchmem -count=3`）
+
+| Benchmark | ns/op | B/op | allocs/op | 备注 |
+|---|---|---|---|---|
+| BenchmarkChatConcurrent | 28,072–30,671 | 26,357–28,501 | 109–111 | MaxConcurrent=64 |
+| BenchmarkProbeAllSingleFlight | 59.18–73.96 | 0 | 0 | **0.000048–0.000062 probes/op** |
+
+**结论**：单飞把并发 probeAll 的实际探测次数压到 ~5e-5/次调用；Chat 并发有界且无额外分配回退。
+
+## 9.3 验证
+
+- `go test ./internal/modelclient` rc=0（新增有界并发 + 单飞用例，既有 4xx/5xx 用例全绿）；
+- `go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（modelclient 2.190s）；
+- 原始读数：`/tmp/go-bench-step6.txt`、`/tmp/go-race-step6.txt`、`/tmp/go-test-step6.txt`。
+
