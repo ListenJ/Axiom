@@ -536,20 +536,22 @@ export class UserAgentPromptPool {
   ): AssembledPrompt {
     // 简单模板渲染 (替代 Handlebars 以减少依赖) — 替换 pattern 由块常量派生，保证与模板一致
     let dynamicSuffix = entry.dynamicSuffixTemplate;
-    dynamicSuffix = dynamicSuffix.replace("{{task_description}}", dynamicVars.task_description);
-    dynamicSuffix = dynamicSuffix.replace(CONTEXT_BLOCK,
-      dynamicVars.context ? `\n## Context\n${dynamicVars.context}\n` : "");
-    dynamicSuffix = dynamicSuffix.replace(USER_INPUT_BLOCK,
-      dynamicVars.user_input ? `\n## User Input\n${dynamicVars.user_input}\n` : "");
+    dynamicSuffix = dynamicSuffix.replace("{{task_description}}", () => dynamicVars.task_description);
+    dynamicSuffix = dynamicSuffix.replace(CONTEXT_BLOCK, () =>
+      dynamicVars.context ? `\n## Context\n${dynamicVars.context}\n` : "",
+    );
+    dynamicSuffix = dynamicSuffix.replace(USER_INPUT_BLOCK, () =>
+      dynamicVars.user_input ? `\n## User Input\n${dynamicVars.user_input}\n` : "",
+    );
 
     // 处理 examples
     if (dynamicVars.examples && dynamicVars.examples.length > 0) {
       const examplesText = dynamicVars.examples
         .map(e => `Input: ${e.input}\nOutput: ${e.output}`)
         .join("\n\n");
-      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, `\n## Examples\n${examplesText}\n`);
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, () => `\n## Examples\n${examplesText}\n`);
     } else {
-      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, "");
+      dynamicSuffix = dynamicSuffix.replace(EXAMPLES_BLOCK, () => "");
     }
 
     // 组装完整提示词
@@ -571,16 +573,12 @@ export class UserAgentPromptPool {
   /**
    * 释放角色条目 (更新 LRU)
    */
-  release(role: AgentRole, cacheHit: boolean) {
+  release(role: AgentRole, _cacheHit: boolean) {
     const entries = this.pool.get(role);
     if (!entries || entries.length === 0) return;
 
-    const entry = entries[0];
-    entry.lastUsed = Date.now();
-
-    if (cacheHit) {
-      this.metrics.hits++;
-    }
+    // Hits are counted exactly once at acquire(); release only refreshes LRU.
+    entries[0].lastUsed = Date.now();
   }
 
   /**

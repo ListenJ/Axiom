@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(prompt-pool): 字面替换与 hits 单计（Batch E4-b）
+
+- **任务**：OCR high #6（用户输入含 `$&`/`$$`/`$'` 被 `String.replace` replacement template 展开）与 #7（acquire/release 双计 hits，hitRate 可 >1）。分级 **T2（正确性）**。
+- **RED**：`$& task` 未原样出现且残留 Handlebars；一次 acquire 后 `totalHits/hitRate` 经 release 变成 2/2。
+- **GREEN**：`assemblePrompt` 四处动态替换改用函数 replacer；`release()` 只刷新 LRU，hits 仅在 `acquire()` 统计一次。
+- **验证**：`bun test tests/prompt-pool-template.test.ts tests/prompt-engineer.test.ts` = **16 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变模板文本、前缀 hash、缓存 marker 或 release 公开签名。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — verify(codegen): OCR #5 双流死锁未能复现（Batch E4-a）
 
 - **任务**：OCR high #5 候选：stdout/stderr 顺序 drain 可能导致子进程 pipe 写满死锁。分级 **T2（性能/可靠性）**。

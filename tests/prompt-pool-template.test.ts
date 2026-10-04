@@ -96,3 +96,35 @@ describe("prompt-pool dynamic suffix rendering", () => {
     expectNoResidue(noExamples.systemPrompt);
   });
 });
+
+describe("prompt-pool literal replacement and metrics", () => {
+  test("dynamic values containing replacement tokens are inserted literally", () => {
+    const pool = new UserAgentPromptPool();
+    const context = "$& $$ $' $`";
+    const userInput = "$& and $$";
+    const task = "$& task";
+    const prompt = pool.acquire("main_coding", {
+      task_description: task,
+      context,
+      user_input: userInput,
+    });
+
+    expect(prompt.systemPrompt).toContain(task);
+    expect(prompt.systemPrompt).toContain(context);
+    expect(prompt.systemPrompt).toContain(userInput);
+  });
+
+  test("release does not double count an already-counted hit", () => {
+    const pool = new UserAgentPromptPool();
+    pool.resetMetrics();
+
+    pool.acquire("main_coding", { task_description: "one request" });
+    expect(pool.getMetrics().totalHits).toBe(1);
+    expect(pool.getMetrics().hitRate).toBe(1);
+
+    pool.release("main_coding", true);
+    expect(pool.getMetrics().totalHits).toBe(1);
+    expect(pool.getMetrics().hitRate).toBe(1);
+    expect(pool.getMetrics().hitRate).toBeLessThanOrEqual(1);
+  });
+});
