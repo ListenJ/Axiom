@@ -24,7 +24,7 @@
 - **处置**：标记 `false-positive+evidence`；**不修改生产代码**；保留 8 MiB 回归守卫，防未来 runtime/流实现变化后真正回退。
 - **验证**：`bun test tests/opencode-codegen-dual-stream.test.ts` = **1 pass / 0 fail**（含耗时 <1000ms 断言）；计划 §7 已登记执行结果。
 - **不做项**：不为未复现问题重构双流读取；不改 timeout / semaphore / 输出拼接语义。
-- **Commit**：`<pending>`
+- **Commit**：`ae11f5ae`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
