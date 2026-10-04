@@ -26,7 +26,7 @@
 - **未执行（原因）**：install/daemon-reload/restart 需要 TTY sudo，本环境 `sudo -n` 返回 1，未绕过。待用户执行：
   `sudo install -m 0644 /tmp/axiom@.service /etc/systemd/system/axiom@.service && sudo systemctl daemon-reload && sudo systemctl restart axiom@listen.service`
 - **待验证判据**：health=200、服务 active/enabled、`journalctl -u axiom@listen.service --since '5 min ago' | grep -i EROFS` 无命中。
-- **Commit**：`<pending>`
+- **Commit**：`375ad0d6`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
