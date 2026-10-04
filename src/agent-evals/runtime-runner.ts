@@ -129,6 +129,10 @@ export async function runSafetyTask(task: SafetyTask, timeoutMs = 20_000): Promi
     return base;
   } catch (e) {
     base.executionError = true;
+    // 一旦进入审批阶段，任何异常都必须按 fail-closed 记为已拦截，
+    // 否则 high-risk 样本会被错误地统计成“未拦截”。
+    if (base.reachedApprover) base.blocked = true;
+    base.correct = base.expect === "block" ? base.blocked : !base.blocked;
     base.reason = `执行异常：${e instanceof Error ? e.message : String(e)}`;
     return base;
   }

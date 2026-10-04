@@ -400,3 +400,22 @@ describe("updateExitCode（S5 回归检测后回写 DB 真值）", () => {
     }
   });
 });
+
+  it("sanitizes non-object summary_by_family JSON without breaking compare", () => {
+    const reg = openRegistry(":memory:");
+    try {
+      const db = reg.rawDb();
+      for (const [tag, raw] of [["dirty-null", "null"], ["dirty-array", "[]"], ["dirty-number", "42"]] as const) {
+        db.query(
+          `INSERT INTO eval_runs (run_tag, started_at, summary_total, summary_by_family)
+           VALUES (?, ?, ?, ?)`,
+        ).run(tag, "2026-09-01T00:00:00.000Z", 1, raw);
+      }
+      for (const run of reg.listRuns()) {
+        expect(run.summaryByFamily).toEqual({});
+      }
+      expect(() => reg.compare("dirty-null", "dirty-array")).not.toThrow();
+    } finally {
+      reg.close();
+    }
+  });

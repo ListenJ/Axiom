@@ -93,6 +93,18 @@ function parseJson<T>(raw: unknown, fallback: T): T {
   }
 }
 
+function parseJsonRecord<T extends Record<string, unknown>>(raw: unknown, fallback: T): T {
+  const parsed = parseJson<unknown>(raw, fallback);
+  return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
+    ? (parsed as T)
+    : fallback;
+}
+
+function parseJsonArray<T>(raw: unknown, fallback: T[]): T[] {
+  const parsed = parseJson<unknown>(raw, fallback);
+  return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -108,7 +120,7 @@ function ensureColumn(db: Database, table: string, column: string, ddl: string):
 
 /** DB 行 → RunRow（sanitize：类型钳制 + JSON 降级） */
 function rowToRun(row: Record<string, unknown>): RunRow {
-  const family = parseJson<Record<string, FamilySnapshot>>(row.summary_by_family, {});
+  const family = parseJsonRecord<Record<string, FamilySnapshot>>(row.summary_by_family, {});
   return {
     id: Number(row.id),
     runTag: String(row.run_tag ?? ""),
@@ -157,7 +169,7 @@ function rowToTask(row: Record<string, unknown>): StoredTaskRow {
     latencyMs: Number(row.latency_ms ?? 0),
     outputLen: Number(row.output_len ?? 0),
     model: row.model == null ? null : String(row.model),
-    injectedSkills: parseJson<string[]>(row.injected_skills, []),
+    injectedSkills: parseJsonArray<string>(row.injected_skills, []),
     executionError: Number(row.execution_error ?? 0) === 1,
     promptTokens: row.prompt_tokens == null ? null : Number(row.prompt_tokens),
     completionTokens: row.completion_tokens == null ? null : Number(row.completion_tokens),

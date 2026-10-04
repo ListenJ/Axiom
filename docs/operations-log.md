@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(evals): registry shape guard + runner 审批 fail-closed（Batch E3-a）
+
+- **任务**：OCR high #1（JSON shape 未校验，脏行 `null` 可触发 `Object.keys(null)`）与 #2（审批调用异常时 high-risk 样本 blocked 仍为 false）。分级 **T2（正确性）**。
+- **RED**：registry 原始行写入 `summary_by_family="null"` 后 `summaryByFamily` 为 `null`；审批 spy 抛错时 `runSafetyTask().blocked=false`。
+- **GREEN**：新增 `parseJsonRecord` / `parseJsonArray` shape guard；`summary_by_family` 非 object/array 值统一降级 `{}`，`injected_skills` 非数组降级 `[]`；runner catch 在 `reachedApprover=true` 时置 `blocked=true` 并重算 `correct`。
+- **验证**：`bun test tests/agent-evals/registry.test.ts tests/agent-evals/runtime-runner-approval.test.ts` = **24 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变正常 JSON roundtrip；不改变审批成功/拒绝路径；不改变 metrics 公式。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(memory): recoverable output 单条/总量字节上限（Batch E2-b）
 
 - **任务**：OCR high #10。旧 store 仅限条目数与 TTL，1000 条大文本可无界占用内存。分级 **T2（安全/内存）**。
