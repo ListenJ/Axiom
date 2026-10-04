@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-04 — fix(systemd): 同步 unit 模板并补齐 bunx 回退目录写权限
+
+- **任务**：用户选择优先项 1，收口 Step 9 的 EROFS。分级 **T3（运维）**。
+- **现场证据**：线上 `/etc/systemd/system/axiom@.service` 已有 `BUN_TMPDIR`/`BUN_INSTALL`，但缺少 `ReadWritePaths=/home/listen/.bun`；`bunx` 子进程实测只继承 `HOME=/home/listen`，会回退写 `~/.bun`，在 `ProtectHome=read-only` 下触发 EROFS。上次的 `/tmp/axiom@.service` 已丢失，仓库 `deploy/systemd/axiom.service` 仍是旧 `/opt` 模板。
+- **改动**：把 `deploy/systemd/axiom.service` 同步为当前实际 Axiom unit（`User=%i`、实际 repo/bun 路径、Bun temp/install 指向仓库 `.tmp`），并增加 `ReadWritePaths=/home/listen/.bun`；重建 `/tmp/axiom@.service`，与仓库模板同 hash。
+- **验证**：`systemd-analyze verify /tmp/axiom@.service` **rc=0**；`diff -u /etc/systemd/system/axiom@.service /tmp/axiom@.service` 只有新增 `.bun` 一行；仓库/暂存文件 SHA-256 均为 `bd139a42bbc544066899d3d12ad089539f7db62906d96fe082db511595828747`。备份：`.tmp/backups/deploy-systemd-axiom.service.20261004-213841.bak`。
+- **未执行（原因）**：install/daemon-reload/restart 需要 TTY sudo，本环境 `sudo -n` 返回 1，未绕过。待用户执行：
+  `sudo install -m 0644 /tmp/axiom@.service /etc/systemd/system/axiom@.service && sudo systemctl daemon-reload && sudo systemctl restart axiom@listen.service`
+- **待验证判据**：health=200、服务 active/enabled、`journalctl -u axiom@listen.service --since '5 min ago' | grep -i EROFS` 无命中。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-04 — chore(go): 忽略 go test 产物（runtime-go/search.test）
 
 - **任务**：Step 5 用 `go test -memprofile` 后遗留未跟踪的 `runtime-go/search.test` 测试二进制；清理并加 ignore，避免污染工作区。分级 **T1（工具链卫生）**。
