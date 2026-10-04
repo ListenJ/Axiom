@@ -76,6 +76,8 @@
 - **动作**：给 `Engine.Search` 的 shard 任务传 context；结果聚合保持确定性排序（tie-breaker 不依赖完成顺序）；超时路径有指标。
 - **验收**：同一查询重复执行结果逐字节一致；取消场景无 goroutine 泄漏；p99 改善或持平。
 
+> **Step 4 执行结果（2026-10-04）**：`searchShards` 增加 per-shard ctx 检查与 `Wait` 后 ctx 错误返回；`/search` 加 5s 查询超时；新增确定性（10 次逐字节一致）与取消无泄漏（200 次 + goroutine 计数）用例。query bench 持平/略优（Complex ≈252µs，allocs 488 不变）；closed-loop 64 mixed 14,115 QPS/p99 13.08ms（持平）、128 mixed 14,164/p99 29.73ms（+7% QPS，-7.8% p99）；race 绿。
+
 ### Step 5 — 内存复用与分配上界
 
 - **目的**：把已有 `scratchCh`/`sync.Pool` 模式推广到 HTTP 请求/响应缓冲；以 `-benchmem` 锁定 allocs/op。

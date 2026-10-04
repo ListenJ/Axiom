@@ -312,6 +312,9 @@ func (e *Engine) searchShards(ctx context.Context, idx *Index, node Node, shards
 			sc := e.getScratch()
 			defer e.putScratch(sc)
 			for i := lo; i < hi; i++ {
+				if ctx.Err() != nil {
+					return
+				}
 				sh := idx.shards[shards[i]]
 				sc.arena.reset()
 				sc.leaves = sc.leaves[:0]
@@ -325,6 +328,9 @@ func (e *Engine) searchShards(ctx context.Context, idx *Index, node Node, shards
 		})
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	h := make([]scoredDoc, 0, min(limit, 64))
 	for i, ts := range tops {

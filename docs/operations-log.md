@@ -17,6 +17,30 @@
 
 ---
 
+## 2026-10-04 — perf(search): Step 4 单机查询 fan-out 与取消加固
+
+- **任务**：计划 Step 4（T2，单机并发）。给 `searchShards` 加 per-shard ctx 取消检查与 `Wait` 后 ctx 错误返回；`/search` 加 5s 查询超时；补确定性/取消无泄漏回归。
+- **改动（文件级）**：
+  1. `internal/search/engine.go`：`searchShards` 每个 shard 处理前 `if ctx.Err() != nil { return }`；`wg.Wait()` 后 `if err := ctx.Err(); err != nil { return nil, err }`；结果排序保持 `score desc, ID asc`，scratch 仍 `defer putScratch` 释放。
+  2. `internal/search/httpapi.go`：`/search` 用 `context.WithTimeout(r.Context(), 5*time.Second)` 包裹 `SearchDetailed`。
+  3. `internal/search/search_test.go`：新增 `TestSearchDeterministicAcrossRepeats`（20k docs、复杂查询 10 次、hit JSON 逐字节一致）与 `TestSearchCancellationNoLeak`（已取消 ctx 200 次、错误为 `context.Canceled`、goroutine 数不增长）。
+- **query benchmark before/after（`-benchmem -count=3`）**：
+  | Benchmark | before | after | allocs |
+  |---|---|---|---|
+  | SearchSimple | 29.66–30.55µs | 29.22–29.61µs | 72（不变） |
+  | SearchComplex | 261.7–270.7µs | 244.3–256.5µs | 488（不变） |
+  | SearchSimpleParallel | 11.11–11.51µs | 10.86–11.54µs | 72（不变） |
+  | SearchComplexParallel | 279.4–298.5µs | 263.9–292.0µs | 488（不变） |
+- **HTTP closed-loop before/after（32 shards / 100k docs，0 错误）**：
+  - 64 mixed：before 14,207 QPS / p99 12.69ms → after **14,115 / 13.08ms**（持平）；
+  - 128 mixed：before 13,232 / 32.23ms → after **14,164 / 29.73ms**（QPS +7%，p99 -7.8%）。
+  searchd 压测后 RSS 约 825MB（两场景 + seed，Step 5 内存上界基线）。
+- **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 6.517s）；doc-contract **35/0**；docs-consistency **10/0**。
+- **原始读数**：`/tmp/go-bench-step4.txt`、`/tmp/go-race-step4.txt`、`/tmp/loadgen-step4-closed-{64,128}-mixed.txt`、`/tmp/searchd-step4.log`。
+- **Commit**：`<STEP4_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(search): Step 3 shard 构建并发加固（GOMAXPROCS 上限 + panic 隔离）
 
 - **任务**：计划 Step 3（T2，单机并发）。给 `internal/search/index.go` 的 shard 并发构建加固定 GOMAXPROCS 上限、panic 隔离与错误传播；不改 Index 不可变快照语义。

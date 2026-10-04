@@ -3,9 +3,11 @@ package search
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -177,5 +179,59 @@ func TestHTTPAPI(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("get %s: status %d", path, resp.StatusCode)
 		}
+	}
+}
+
+func newTestEngine(t *testing.T, docs int) *Engine {
+	t.Helper()
+	e := NewEngine(nil, 16)
+	if err := e.Build(context.Background(), genDocs(docs)); err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	return e
+}
+
+// TestSearchDeterministicAcrossRepeats verifies repeated identical queries
+// return byte-identical hit lists (score desc, ID asc) regardless of shard
+// completion order.
+func TestSearchDeterministicAcrossRepeats(t *testing.T) {
+	e := newTestEngine(t, 20_000)
+	const q = "w0042 w1999 OR w0007 -w3000 cat:c3 w05*"
+	var first []byte
+	for i := 0; i < 10; i++ {
+		hits, err := e.Search(context.Background(), q, 20)
+		if err != nil {
+			t.Fatalf("run %d search: %v", i, err)
+		}
+		buf, err := json.Marshal(hits)
+		if err != nil {
+			t.Fatalf("run %d marshal: %v", i, err)
+		}
+		if i == 0 {
+			first = buf
+			continue
+		}
+		if string(buf) != string(first) {
+			t.Fatalf("run %d differs: %s != %s", i, buf, first)
+		}
+	}
+}
+
+// TestSearchCancellationNoLeak verifies canceled queries return the context
+// error and do not grow the fixed worker-pool goroutine set.
+func TestSearchCancellationNoLeak(t *testing.T) {
+	e := newTestEngine(t, 20_000)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	before := runtime.NumGoroutine()
+	for i := 0; i < 200; i++ {
+		if _, _, err := e.SearchDetailed(ctx, "w0042 OR w0007", 10); !errors.Is(err, context.Canceled) {
+			t.Fatalf("iteration %d: want context.Canceled, got %v", i, err)
+		}
+	}
+	runtime.GC()
+	after := runtime.NumGoroutine()
+	if after > before+4 {
+		t.Fatalf("goroutine leak: before=%d after=%d", before, after)
 	}
 }

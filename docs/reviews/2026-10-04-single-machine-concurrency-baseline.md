@@ -181,3 +181,43 @@ curl -sS http://127.0.0.1:9103/cluster
 - `go test -race ./...` rc=0（`internal/search` 5.347s）。
 - 原始读数：`/tmp/go-bench-step3.txt`、`/tmp/go-race-step3.txt`、`/tmp/go-test-step3.txt`。
 
+---
+
+# 七、Step 4：单机查询 fan-out 与取消（2026-10-04）
+
+## 7.1 改动
+
+- `internal/search/engine.go`：`searchShards` 每个 shard 处理前检查 `ctx.Err()`（取消即停止剩余 shard）；`wg.Wait()` 后若 ctx 已取消，返回 `nil, ctx.Err()`，不再返回部分结果。
+- `internal/search/httpapi.go`：`/search` 增加 5s 查询超时（`context.WithTimeout(r.Context(), 5*time.Second)`），取消/超时路径有明确边界。
+- `internal/search/search_test.go`：
+  - `TestSearchDeterministicAcrossRepeats`：20k docs，复杂查询重复 10 次，断言 hit 列表 JSON 逐字节一致（score desc / ID asc，不依赖 shard 完成顺序）；
+  - `TestSearchCancellationNoLeak`：20k docs，已取消 ctx 重复 200 次，断言错误为 `context.Canceled` 且 goroutine 数不增长（固定 worker pool）。
+- 结果排序保持不变：`score desc, ID asc`；scratch 仍由 `defer putScratch` 释放。
+
+## 7.2 query benchmark before/after（`-benchmem -count=3`）
+
+| Benchmark | before（Step 1） | after（Step 4） | allocs/op |
+|---|---|---|---|
+| SearchSimple | 29.66–30.55µs | 29.22–29.61µs | 72（不变） |
+| SearchComplex | 261.7–270.7µs | 244.3–256.5µs | 488（不变） |
+| SearchSimpleParallel | 11.11–11.51µs | 10.86–11.54µs | 72（不变） |
+| SearchComplexParallel | 279.4–298.5µs | 263.9–292.0µs | 488（不变） |
+
+**结论**：per-shard ctx 检查的开销在噪声内；Complex 路径略有改善，alloc 不变。
+
+## 7.3 HTTP closed-loop before/after（32 shards / 100k docs）
+
+| 场景 | before QPS / p99 | after QPS / p99 |
+|---|---|---|
+| closed-loop 64 mixed | 14,207 / 12.69ms | **14,115 / 13.08ms**（持平，0 错误） |
+| closed-loop 128 mixed | 13,232 / 32.23ms | **14,164 / 29.73ms**（QPS +7%，p99 -7.8%） |
+
+**结论**：取消路径加固未造成吞吐回退；128 worker 过订阅场景在 per-shard 取消检查后反而略好。searchd 压测后 RSS 约 825MB（两场景 + seed 后；Step 5 内存上界基线，需与 Step 1 的 575MB 分场景对比）。
+
+## 7.4 验证
+
+- `go test ./internal/search` rc=0（含确定性 + 取消无泄漏用例）；
+- `go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（search 6.517s）；
+- 原始读数：`/tmp/go-bench-step4.txt`、`/tmp/go-race-step4.txt`、`/tmp/loadgen-step4-closed-{64,128}-mixed.txt`、`/tmp/searchd-step4.log`。
+

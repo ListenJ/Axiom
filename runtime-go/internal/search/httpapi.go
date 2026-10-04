@@ -96,8 +96,10 @@ func (e *Engine) handleSearch(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
 	start := time.Now()
-	hits, partial, err := e.SearchDetailed(r.Context(), q, limit)
+	hits, partial, err := e.SearchDetailed(ctx, q, limit)
 	if err != nil {
 		writeError(w, err, statusForError(err))
 		return
