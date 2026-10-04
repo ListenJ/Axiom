@@ -24,7 +24,7 @@
 - **GREEN**：`searchSessionLineage` 将每个用户 token 作为 FTS5 quoted literal + prefix，纯符号/空 token 回退最近列表；三类认知运行时工具改为 `caution`。
 - **验证**：`bun test tests/db/session-lineage.test.ts tests/unit/tool-classifications.test.ts tests/unit/tool-mode-gate.test.ts tests/risk-monitor.test.ts tests/unit/risk-monitor-coverage.test.ts` = **54 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变普通中英文检索相关性；不新增 SQL 文本插值；不改变 plan/agent/yolo 模式定义。
-- **Commit**：`<pending>`
+- **Commit**：`0021fda7`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
