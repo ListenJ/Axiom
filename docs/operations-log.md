@@ -37,7 +37,7 @@
   searchd 压测后 RSS 约 825MB（两场景 + seed，Step 5 内存上界基线）。
 - **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 6.517s）；doc-contract **35/0**；docs-consistency **10/0**。
 - **原始读数**：`/tmp/go-bench-step4.txt`、`/tmp/go-race-step4.txt`、`/tmp/loadgen-step4-closed-{64,128}-mixed.txt`、`/tmp/searchd-step4.log`。
-- **Commit**：`<STEP4_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`e3d64ba5`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
