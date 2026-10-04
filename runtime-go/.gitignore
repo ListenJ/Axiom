@@ -3,3 +3,4 @@
 /bin/loadgen
 /bin/agentd
 /bin/pcdad
+/*.test
