@@ -94,12 +94,17 @@ func (b *bitmap) count() int {
 // result. All bitmaps obtained from an arena become invalid on reset; an
 // arena serves a single goroutine at a time.
 type bitmapArena struct {
-	bufs [][]uint64
-	used int
+	bufs    [][]uint64
+	bitmaps []*bitmap
+	used    int
+	bused   int
 }
 
 // reset makes every previously handed-out bitmap available for reuse.
-func (a *bitmapArena) reset() { a.used = 0 }
+func (a *bitmapArena) reset() {
+	a.used = 0
+	a.bused = 0
+}
 
 // words returns a zeroed word slice of length n, reusing arena buffers.
 func (a *bitmapArena) words(n int) []uint64 {
@@ -121,12 +126,27 @@ func (a *bitmapArena) words(n int) []uint64 {
 
 // new returns a zeroed bitmap able to hold bits [0, n).
 func (a *bitmapArena) new(n int) *bitmap {
-	return &bitmap{w: a.words((n + 63) / 64)}
+	return a.bitmap(a.words((n + 63) / 64))
 }
 
 // cloneOf returns an arena-owned copy of b.
 func (a *bitmapArena) cloneOf(b *bitmap) *bitmap {
 	w := a.words(len(b.w))
 	copy(w, b.w)
-	return &bitmap{w: w}
+	return a.bitmap(w)
+}
+
+// bitmap returns an arena-owned bitmap struct for w. The struct pointers are
+// allocated once (first query) and reused across queries; only w changes, so
+// steady-state queries allocate no bitmap structs.
+func (a *bitmapArena) bitmap(w []uint64) *bitmap {
+	idx := a.bused
+	a.bused++
+	if idx < len(a.bitmaps) {
+		a.bitmaps[idx].w = w
+		return a.bitmaps[idx]
+	}
+	b := &bitmap{w: w}
+	a.bitmaps = append(a.bitmaps, b)
+	return b
 }

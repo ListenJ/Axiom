@@ -221,3 +221,58 @@ curl -sS http://127.0.0.1:9103/cluster
 - `go test -race ./...` rc=0（search 6.517s）；
 - 原始读数：`/tmp/go-bench-step4.txt`、`/tmp/go-race-step4.txt`、`/tmp/loadgen-step4-closed-{64,128}-mixed.txt`、`/tmp/searchd-step4.log`。
 
+---
+
+# 八、Step 5：内存复用与分配上界（2026-10-04）
+
+## 8.1 分配热点定位（memprofile，5s benchtime）
+
+`go test -bench=BenchmarkSearchComplex -benchtime=5s -memprofile` 显示查询侧主要分配：
+
+| 热点 | alloc_space | alloc_objects |
+|---|---|---|
+| `shardIndex.evalTerm` | 49.62% | 16.05% |
+| `shardIndex.prefixPostings` | 23.44% | 8.43% |
+| `bitmapArena.new` | 0.64% | 9.87%（4.04M objects） |
+| `scoreBoard.reset` | 1.40% | — |
+| `shardIndex.topK` | 0.75% | 1.20% |
+
+根因：`evalTerm` 每个 term 分配中间 `lists []leaf`；`prefixPostings` 每次分配 `[][]posting`；`bitmapArena.new` 每次 `&bitmap{}` 分配 struct（word 缓冲已复用，struct 未复用）。
+
+## 8.2 改动
+
+- `internal/search/bitmap.go`：`bitmapArena` 新增 `bitmaps []*bitmap` + `bused`；`new`/`cloneOf` 通过 `bitmap(w)` 返回复用的 `*bitmap` struct（word 仍由 arena 复用）；`reset` 复位 `bused`。稳态查询不再分配 bitmap struct。
+- `internal/search/eval.go`：
+  - `evalTerm` 改为直接 append 到调用方的 scratch `*leaves`（不再分配中间 `lists`）；
+  - prefix 展开内联到 `evalTerm`（不再调用会分配 `[][]posting` 的 `prefixPostings`；该函数保留给 `stats.go`）；
+  - negated term 使用本地 discard slice，语义不变（negated leaves 不参与打分）。
+- 搜索相关性/排序语义未改；`TestSearchDeterministicAcrossRepeats` 通过。
+
+## 8.3 benchmark before/after（`-benchmem`）
+
+| Benchmark | before allocs / B/op | after allocs / B/op | 降幅 |
+|---|---|---|---|
+| SearchSimple | 72 / 8,347 | **40 / 7,450** | allocs -44%，bytes -11% |
+| SearchComplex | 488 / ~400KB | **56 / ~23.5KB** | allocs **-88.5%**，bytes **-94%** |
+| SearchSimpleParallel | 72 / 8,346 | **40 / 7,450** | allocs -44% |
+| SearchComplexParallel | 488 / ~408KB | **56 / ~22.5KB** | allocs **-88.5%**，bytes **-94%** |
+
+延迟读数：
+- ComplexParallel `-count=5`：178–333µs（中位 ~207µs）vs before 264–298µs，倾向改善但方差大；
+- 单线程 Complex `-count=5`：314–428µs（读数随连续压测上升），vs before 262–271µs。该单线程读数呈**热/频率节流特征**（同轮 ComplexParallel 也从 333µs 降到 178µs），不作为干净回归信号；Step 8 做受控 before/after 复测。
+
+## 8.4 HTTP closed-loop（32 shards / 100k docs，0 错误）
+
+| 场景 | Step 4 后 QPS / p99 | Step 5 后 QPS / p99 |
+|---|---|---|
+| closed-loop 64 mixed | 14,115 / 13.08ms | 12,977 / **12.39ms** |
+| closed-loop 128 mixed | 14,164 / 29.73ms | 12,371 / **28.58ms** |
+
+本轮 seed 9.393s（Step 4 8.492s），机器负载偏高；QPS 差异落在运行间波动带（12.4k–14.2k），p99 略优。RSS：Step 5 两场景后 **606MB**（Step 4 825MB，降低）。
+
+## 8.5 验证
+
+- `go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（search 7.080s）；
+- 原始读数：`/tmp/search-complex-5s.mem`、`/tmp/go-bench-step5.txt`、`/tmp/go-race-step5.txt`、`/tmp/loadgen-step5-closed-{64,128}-mixed.txt`、`/tmp/searchd-step5.log`。
+

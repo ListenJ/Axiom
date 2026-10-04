@@ -17,6 +17,28 @@
 
 ---
 
+## 2026-10-04 — perf(search): Step 5 内存复用与分配上界（leaf/bitmap arena 复用）
+
+- **任务**：计划 Step 5（T2，单机并发）。用 memprofile 定位 Complex 查询分配热点并做最小复用，不改搜索相关性/排序语义。
+- **热点定位（5s benchtime memprofile）**：`evalTerm` alloc_space 49.62% / objects 16.05%；`prefixPostings` 23.44% / 8.43%；`bitmapArena.new` 4.04M objects（9.87%）；`scoreBoard.reset` 1.40%；`topK` 1.20%。根因：每 term 中间 `lists []leaf`、每次 prefix `[][]posting`、每次 `&bitmap{}`。
+- **改动（文件级）**：
+  1. `internal/search/bitmap.go`：`bitmapArena` 增加 `bitmaps []*bitmap` + `bused`；`new`/`cloneOf` 经 `bitmap(w)` 复用 `*bitmap` struct（word 缓冲已复用）；`reset` 复位 `bused`。稳态查询不再分配 bitmap struct。
+  2. `internal/search/eval.go`：`evalTerm` 改为直接 append 到调用方 scratch `*leaves`（去掉中间 `lists`）；prefix 展开内联（不再分配 `[][]posting`；`prefixPostings` 保留给 `stats.go`）；negated term 用本地 discard slice，语义不变。
+- **before/after（`-benchmem`）**：
+  | Benchmark | before allocs / B/op | after allocs / B/op |
+  |---|---|---|
+  | SearchSimple | 72 / 8,347 | **40 / 7,450** |
+  | SearchComplex | 488 / ~400KB | **56 / ~23.5KB** |
+  | SearchSimpleParallel | 72 / 8,346 | **40 / 7,450** |
+  | SearchComplexParallel | 488 / ~408KB | **56 / ~22.5KB** |
+  Complex allocs **-88.5%**、bytes **-94%**；Simple allocs -44%。
+- **延迟/HTTP**：ComplexParallel `-count=5` 178–333µs（中位 ~207µs）vs before 264–298µs；单线程 Complex 314–428µs，读数随连续压测上升（热/频率节流特征），Step 8 受控复测。HTTP closed-loop：64 mixed 12,977 QPS / p99 12.39ms（Step 4 14,115 / 13.08），128 mixed 12,371 / 28.58ms（Step 4 14,164 / 29.73）；本轮 seed 9.393s（Step 4 8.492s）机器负载偏高，QPS 在波动带内，p99 略优。RSS 606MB（Step 4 825MB）。
+- **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 7.080s）；doc-contract **35/0**；docs-consistency **10/0**；确定性用例通过（语义未改）。
+- **原始读数**：`/tmp/search-complex-5s.mem`、`/tmp/go-bench-step5.txt`、`/tmp/go-race-step5.txt`、`/tmp/loadgen-step5-closed-{64,128}-mixed.txt`、`/tmp/searchd-step5.log`。
+- **Commit**：`<STEP5_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(search): Step 4 单机查询 fan-out 与取消加固
 
 - **任务**：计划 Step 4（T2，单机并发）。给 `searchShards` 加 per-shard ctx 取消检查与 `Wait` 后 ctx 错误返回；`/search` 加 5s 查询超时；补确定性/取消无泄漏回归。

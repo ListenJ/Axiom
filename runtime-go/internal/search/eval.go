@@ -3,6 +3,7 @@ package search
 import (
 	"math/bits"
 	"sort"
+	"strings"
 )
 
 // tfOf returns the term frequency of doc in a doc-ordered posting list,
@@ -48,11 +49,13 @@ type leaf struct {
 func (s *shardIndex) eval(n Node, alive *bitmap, negated bool, leaves *[]leaf, ar *bitmapArena) *bitmap {
 	switch t := n.(type) {
 	case Term:
-		b, lists := s.evalTerm(t, ar)
-		if !negated {
-			*leaves = append(*leaves, lists...)
+		if negated {
+			// Leaves of a negated term must not contribute to scoring; use a
+			// throwaway slice so the hot positive path can append directly.
+			var discard []leaf
+			return s.evalTerm(t, ar, &discard)
 		}
-		return b
+		return s.evalTerm(t, ar, leaves)
 	case And:
 		var res *bitmap
 		for _, c := range t.Children {
@@ -88,20 +91,34 @@ func (s *shardIndex) eval(n Node, alive *bitmap, negated bool, leaves *[]leaf, a
 // scoped match, or prefix-fuzzy expansion (capped at maxPrefixTerms).
 // Multi-token values (e.g. CJK text tokenizing to several bigrams) are
 // intersected, i.e. treated as a phrase-like AND.
-func (s *shardIndex) evalTerm(t Term, ar *bitmapArena) (*bitmap, []leaf) {
+func (s *shardIndex) evalTerm(t Term, ar *bitmapArena, leaves *[]leaf) *bitmap {
 	b := ar.new(int(s.maxDoc))
-	var lists []leaf
 
 	if t.Prefix {
 		pre := t.Value
 		if t.Field != "" {
 			pre = fieldKey(t.Field, t.Value)
 		}
-		for _, p := range s.prefixPostings(pre, t.Field == "", maxPrefixTerms) {
+		// Inline prefix expansion: append leaves directly into the caller's
+		// scratch slice instead of allocating an intermediate [][]posting.
+		matched := 0
+		for i := sort.SearchStrings(s.termKeys, pre); i < len(s.termKeys); i++ {
+			k := s.termKeys[i]
+			if !strings.HasPrefix(k, pre) {
+				break
+			}
+			if t.Field == "" && strings.Contains(k, fieldSep) {
+				continue
+			}
+			p := s.terms[k]
 			setBits(b, p)
-			lists = append(lists, leaf{posts: p})
+			*leaves = append(*leaves, leaf{posts: p})
+			matched++
+			if matched >= maxPrefixTerms {
+				break
+			}
 		}
-		return b, lists
+		return b
 	}
 
 	toks := t.toks
@@ -121,13 +138,13 @@ func (s *shardIndex) evalTerm(t Term, ar *bitmapArena) (*bitmap, []leaf) {
 			setBits(tb, p)
 			b.and(tb)
 			if b.isZero() {
-				lists = append(lists, leaf{posts: p})
-				return b, lists
+				*leaves = append(*leaves, leaf{posts: p})
+				return b
 			}
 		}
-		lists = append(lists, leaf{posts: p, byTF: s.termsTF[key]})
+		*leaves = append(*leaves, leaf{posts: p, byTF: s.termsTF[key]})
 	}
-	return b, lists
+	return b
 }
 
 // topK scores every candidate in res (sum of term frequencies over the

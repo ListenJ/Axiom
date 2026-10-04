@@ -84,6 +84,8 @@
 - **动作**：复用 `searchJSONBufPool` 模式；对大响应加 `maxBytes` 上界与流式写；避免把大对象放入长生命周期池。
 - **验收**：稳态 RSS/alloc 有上界；soak 后不增长；`-benchmem` 对比。
 
+> **Step 5 执行结果（2026-10-04）**：memprofile 定位 `evalTerm`/`prefixPostings`/`bitmapArena.new`；改为 leaf 直接 append 到 scratch、prefix 内联、bitmap struct 复用。Complex **488→56 allocs/op**、~400KB→~23.5KB（-88.5% / -94%）；Simple 72→40 allocs。ComplexParallel 中位 ~207µs（before 264–298µs）；单线程 Complex 读数受热节流影响，Step 8 受控复测。HTTP p99 略优（64 mixed 13.08→12.39ms；128 mixed 29.73→28.58ms），RSS 606MB（Step 4 825MB）。race/test 全绿。
+
 ### Step 6 — modelclient 并发与健康
 
 - **目的**：多端点并发请求加 semaphore，避免 thundering herd；health loop 与请求路径解耦。
