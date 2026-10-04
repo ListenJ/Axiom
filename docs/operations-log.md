@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(context): goal 漂移边界 + system prompt 保留（Batch E3-b）
+
+- **任务**：OCR high #4（满容量后 `lastCycleHistoryLen` 把本轮快照当历史，Jaccard 假 1.0）与 #11（split/compress 后 system prompt 被归档）。分级 **T2（正确性）**。
+- **RED**：满容量 3 轮后换目标，旧 `detectDrift().consistencyScore=1.0`；split 的 activeMessages 只剩最近两条，compress 的 system 首条变成摘要。
+- **GREEN**：`trackHistory` 先 push/trim 再记录本轮起点，`previousHistory` 不再包含当前快照；ContextManager 新增 system/non-system 分区，split 保留 system 到 active、compress 输出 `[原 system, 摘要 system, 最近非 system]`，旧消息摘要不再吃 system。
+- **验证**：`bun test tests/consciousness-goal-tracker.test.ts tests/context/context-manager-system.test.ts` = **34 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变漂移阈值/窗口；不改变消息顺序中的非 system 相对顺序；不改变摘要模型选择。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(evals): registry shape guard + runner 审批 fail-closed（Batch E3-a）
 
 - **任务**：OCR high #1（JSON shape 未校验，脏行 `null` 可触发 `Object.keys(null)`）与 #2（审批调用异常时 high-risk 样本 blocked 仍为 false）。分级 **T2（正确性）**。

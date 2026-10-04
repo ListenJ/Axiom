@@ -259,16 +259,17 @@ export class GoalTracker {
    * @param goals 本轮活跃目标
    */
   trackHistory(goals: GoalRecord[]): void {
-    this.lastCycleHistoryLen = this.goalHistory.length;
     this.cycleCount++;
-    // 记录当前活跃目标的快照（深拷贝 description 用于漂移检测）
+    // 记录当前活跃目标的快照（浅拷贝足够，后续只读）
     for (const goal of goals) {
       this.goalHistory.push({ ...goal });
     }
-    // 修剪历史到上限
+    // 先修剪，再记录本轮快照在修剪后数组中的起点；否则满容量时
+    // previousHistory 会把本轮快照也当成“历史”，Jaccard 恒为 1.0。
     if (this.goalHistory.length > this.config.maxHistorySize) {
       this.goalHistory = this.goalHistory.slice(-this.config.maxHistorySize);
     }
+    this.lastCycleHistoryLen = Math.max(0, this.goalHistory.length - goals.length);
   }
 
   /**

@@ -157,9 +157,12 @@ export class ContextManager {
   ): Promise<{ activeMessages: ChatMessage[]; archivedChunks: ContextChunk[] }> {
     const { maxChunkTokens = 8000, preserveRecent = 4, parallelProcessing = true } = options;
 
-    // 保留最近的消息
-    const recentMessages = messages.slice(-preserveRecent);
-    const olderMessages = messages.slice(0, -preserveRecent);
+    // System messages are policy, not replayable history: keep them active even
+    // when the recent-message window would otherwise archive them.
+    const { systemMessages, olderMessages, recentMessages } = this.partitionForCompaction(
+      messages,
+      preserveRecent,
+    );
 
     if (olderMessages.length === 0) {
       return { activeMessages: messages, archivedChunks: [] };
@@ -192,7 +195,7 @@ export class ContextManager {
       archivedChunks: chunks.length,
     });
 
-    return { activeMessages: recentMessages, archivedChunks: chunks };
+    return { activeMessages: [...systemMessages, ...recentMessages], archivedChunks: chunks };
   }
 
   /**
@@ -204,8 +207,10 @@ export class ContextManager {
   ): Promise<ChatMessage[]> {
     const { preserveRecent = 4 } = options;
 
-    const recentMessages = messages.slice(-preserveRecent);
-    const olderMessages = messages.slice(0, -preserveRecent);
+    const { systemMessages, olderMessages, recentMessages } = this.partitionForCompaction(
+      messages,
+      preserveRecent,
+    );
 
     if (olderMessages.length === 0) return messages;
 
@@ -229,6 +234,7 @@ export class ContextManager {
 
     // 返回压缩后的上下文：系统提示 + 摘要 + 最近消息
     const compressedMessages: ChatMessage[] = [
+      ...systemMessages,
       {
         role: "system",
         content: `Previous conversation summary:\n${summary}\n\n(Use retrieveFromMemory() if you need details from earlier context)`,
@@ -342,6 +348,19 @@ export class ContextManager {
   // ═══════════════════════════════════════════════════════════════
   // 私有辅助方法
   // ═══════════════════════════════════════════════════════════════
+
+  private partitionForCompaction(
+    messages: ChatMessage[],
+    preserveRecent: number,
+  ): { systemMessages: ChatMessage[]; olderMessages: ChatMessage[]; recentMessages: ChatMessage[] } {
+    const systemMessages = messages.filter((m) => m.role === "system");
+    const nonSystemMessages = messages.filter((m) => m.role !== "system");
+    return {
+      systemMessages,
+      olderMessages: nonSystemMessages.slice(0, -preserveRecent),
+      recentMessages: nonSystemMessages.slice(-preserveRecent),
+    };
+  }
 
   private createChunks(messages: ChatMessage[], maxChunkTokens: number): ContextChunk[] {
     const chunks: ContextChunk[] = [];

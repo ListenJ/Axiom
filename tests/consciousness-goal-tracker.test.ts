@@ -667,3 +667,31 @@ describe("GoalTracker — 单例", () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe("GoalTracker — 满容量漂移边界", () => {
+  test("detectDrift 不应把本轮刚写入的快照当作历史", () => {
+    const tracker = new GoalTracker({ maxHistorySize: 3, driftWindowSize: 5 });
+    const makeGoal = (description: string): GoalRecord => ({
+      id: description,
+      description,
+      priority: 5,
+      status: "active",
+      firstSeenAt: 1,
+      lastSeenAt: 1,
+      occurrenceCount: 1,
+      validationScore: 1,
+    });
+
+    tracker.trackHistory([makeGoal("alpha beta")]);
+    tracker.trackHistory([makeGoal("alpha beta")]);
+    tracker.trackHistory([makeGoal("alpha beta")]);
+
+    const changed = makeGoal("performance benchmark testing suite");
+    tracker.mergeGoals([changed]);
+    tracker.trackHistory([changed]);
+
+    const drift = tracker.detectDrift();
+    expect(drift.consistencyScore).toBe(0);
+    expect(drift.drifting).toBe(true);
+  });
+});
