@@ -24,7 +24,7 @@
 - **GREEN**：新增 `parseJsonRecord` / `parseJsonArray` shape guard；`summary_by_family` 非 object/array 值统一降级 `{}`，`injected_skills` 非数组降级 `[]`；runner catch 在 `reachedApprover=true` 时置 `blocked=true` 并重算 `correct`。
 - **验证**：`bun test tests/agent-evals/registry.test.ts tests/agent-evals/runtime-runner-approval.test.ts` = **24 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变正常 JSON roundtrip；不改变审批成功/拒绝路径；不改变 metrics 公式。
-- **Commit**：`<pending>`
+- **Commit**：`4336fb41`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
