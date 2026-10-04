@@ -24,7 +24,7 @@
 - **关键约束**：13 条均为 OCR 候选；每条必须先 RED→GREEN，允许结论为 `confirmed+fixed` / `confirmed+deferred` / `false-positive+evidence`，禁止静默跳过；只收紧安全边界，不重构模块。
 - **覆盖**：OCR #1–#13 全部登记；`medium/low` 不混入，E5 单列 triage。
 - **验证**：`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = **45 pass / 0 fail**；`git diff --check` rc=0；计划内无内网地址/密钥明文。
-- **Commit**：`<pending>`
+- **Commit**：`2eee3a88`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
