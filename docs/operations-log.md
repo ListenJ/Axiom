@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(cli): `.env` 写入统一为 0600（Batch E1-a）
+
+- **任务**：OCR high #9。修复 setup 向导与 `key` CLI 直接写 `.env` 可能保留默认宽权限的问题。分级 **T2（安全）**。
+- **RED**：新增 `tests/utils/env-file-permissions.test.ts`；首次运行因 `writeSecureEnvFile` 不存在而以模块导出错误失败。
+- **GREEN**：`src/utils/env-file.ts` 增加 `writeSecureEnvFile`（mode 0600 + 写后 chmod，已存在 0644 文件也会收紧），`upsertEnvVar` 复用它；`src/cli/setup.ts` 与 `src/cli.ts` 的全部 `.env` 写入点改走该 helper。
+- **验证**：权限/接线测试 **3 pass / 0 fail**；环境与组件路由定向回归 **23 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：未改 `.env` 内容生成、变量校验、CLI 输出格式；未回显任何 key。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — docs(plan): OCR src 13 条 high 修复计划（Batch E）
 
 - **任务**：按 OCR 报告 §五建议建立 13 条 high 的独立修复计划；不混入前 12 步计划。分级 **T3（书面计划）**。

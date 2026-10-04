@@ -8,6 +8,7 @@ import { Database } from "bun:sqlite";
 import { searchAggregator } from "./crawl/search-engines.js";
 import { logger } from "./utils/logger.js";
 import { readString } from "./utils/env.js";
+import { writeSecureEnvFile } from "./utils/env-file.js";
 import {
   openCodeSession,
   startOpenCodeServer,
@@ -128,7 +129,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
         console.log(`[Added] ${envKey}`);
       }
 
-      fs.writeFileSync(envPath, envContent);
+      writeSecureEnvFile(envContent, envPath);
       console.log(`[Success] API key for ${provider} saved to .env`);
     },
   },
@@ -169,7 +170,7 @@ const commands: Record<string, { desc: string; run: (args: string[]) => Promise<
       const regex = new RegExp(`^${envKey}=.*$`, "m");
       if (regex.test(envContent)) {
         envContent = envContent.replace(regex, `# ${envKey}=(removed)`);
-        fs.writeFileSync(envPath, envContent);
+        writeSecureEnvFile(envContent, envPath);
         console.log(`[Removed] ${envKey}`);
       } else {
         console.log(`[Not Found] ${envKey} not in .env`);

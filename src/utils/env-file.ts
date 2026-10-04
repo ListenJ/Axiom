@@ -16,6 +16,26 @@ import { logger } from "./logger.js";
 
 const DEFAULT_ENV_PATH = "./.env";
 
+const ENV_FILE_MODE = 0o600;
+
+function tightenEnvFileMode(envPath: string): void {
+  // .env 可能含密钥：写入后立即收紧权限（组/其他用户不可读）
+  try {
+    chmodSync(envPath, ENV_FILE_MODE);
+  } catch (e) {
+    logger.warn("[EnvFile] 收紧 .env 权限失败（不影响写入）", {
+      path: envPath,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+/** 以 0600 写入完整 .env 内容；已存在文件也会被强制收紧。 */
+export function writeSecureEnvFile(content: string, envPath = DEFAULT_ENV_PATH): void {
+  writeFileSync(envPath, content, { encoding: "utf-8", mode: ENV_FILE_MODE });
+  tightenEnvFileMode(envPath);
+}
+
 export interface UpsertResult {
   path: string;
   /** 是新增还是替换了已有变量 */
@@ -53,17 +73,7 @@ export function upsertEnvVar(name: string, value: string, envPath = DEFAULT_ENV_
     lines.push(`${name}=${value}`);
   }
 
-  writeFileSync(envPath, lines.join("\n"), "utf-8");
-
-  // .env 可能含密钥：写入后立即收紧权限（组/其他用户不可读）
-  try {
-    chmodSync(envPath, 0o600);
-  } catch (e) {
-    logger.warn("[EnvFile] 收紧 .env 权限失败（不影响写入）", {
-      path: envPath,
-      error: e instanceof Error ? e.message : String(e),
-    });
-  }
+  writeSecureEnvFile(lines.join("\n"), envPath);
 
   logger.info("[EnvFile] 环境变量已写入", { name, path: envPath, action });
   return { path: envPath, action };

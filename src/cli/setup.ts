@@ -1,7 +1,8 @@
 import { createInterface } from "readline";
-import { writeFileSync, readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { APP_VERSION } from "../version.js";
 import { join } from "path";
+import { writeSecureEnvFile } from "../utils/env-file.js";
 
 interface ProviderConfig {
   key: string;
@@ -400,7 +401,7 @@ export async function runSetupWizard(args: string[]) {
 
   // 生成并保存 .env 文件
   const envContent = generateEnvContent(configs);
-  writeFileSync(envPath, envContent, "utf-8");
+  writeSecureEnvFile(envContent, envPath);
 
   console.log("\n✅ 配置已成功保存到 .env 文件!");
   console.log(`📁 文件路径: ${envPath}`);
