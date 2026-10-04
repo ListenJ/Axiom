@@ -202,6 +202,8 @@ bunx tsc --noEmit
 
 ## 7. Step E4-a — Codegen 双流并发 drain
 
+> **执行结果（2026-10-05）**：`false-positive+evidence`。在 Bun 1.4.2 / Linux 下用真实子进程写入 **8 MiB stderr 后再写 stdout**，旧顺序读取仍 13ms 完成，无法复现死锁；Bun 的 spawn 流层实际并行排空。**不修改生产代码**，保留回归守卫 `tests/opencode-codegen-dual-stream.test.ts`。
+
 **级别/优先级**：T2 / High（性能/可靠性）
 
 **Context brief**：OCR #5。先读完 stdout 再读 stderr；子进程若 stderr 先写满 64KB pipe 会阻塞，导致 30s 超时。

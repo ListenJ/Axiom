@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — verify(codegen): OCR #5 双流死锁未能复现（Batch E4-a）
+
+- **任务**：OCR high #5 候选：stdout/stderr 顺序 drain 可能导致子进程 pipe 写满死锁。分级 **T2（性能/可靠性）**。
+- **证据**：新增真实子进程回归 `tests/opencode-codegen-dual-stream.test.ts`：先写 **8 MiB stderr**，再写 stdout；Bun 1.4.2 / Linux 下旧顺序读取 **18.81ms 完成**，未触发 timeout，无法复现 OCR 推定的 pipe 死锁。
+- **处置**：标记 `false-positive+evidence`；**不修改生产代码**；保留 8 MiB 回归守卫，防未来 runtime/流实现变化后真正回退。
+- **验证**：`bun test tests/opencode-codegen-dual-stream.test.ts` = **1 pass / 0 fail**（含耗时 <1000ms 断言）；计划 §7 已登记执行结果。
+- **不做项**：不为未复现问题重构双流读取；不改 timeout / semaphore / 输出拼接语义。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(context): goal 漂移边界 + system prompt 保留（Batch E3-b）
 
 - **任务**：OCR high #4（满容量后 `lastCycleHistoryLen` 把本轮快照当历史，Jaccard 假 1.0）与 #11（split/compress 后 system prompt 被归档）。分级 **T2（正确性）**。
