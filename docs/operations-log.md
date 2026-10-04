@@ -35,7 +35,7 @@
 - **延迟/HTTP**：ComplexParallel `-count=5` 178–333µs（中位 ~207µs）vs before 264–298µs；单线程 Complex 314–428µs，读数随连续压测上升（热/频率节流特征），Step 8 受控复测。HTTP closed-loop：64 mixed 12,977 QPS / p99 12.39ms（Step 4 14,115 / 13.08），128 mixed 12,371 / 28.58ms（Step 4 14,164 / 29.73）；本轮 seed 9.393s（Step 4 8.492s）机器负载偏高，QPS 在波动带内，p99 略优。RSS 606MB（Step 4 825MB）。
 - **验证**：`go test ./internal/search` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 7.080s）；doc-contract **35/0**；docs-consistency **10/0**；确定性用例通过（语义未改）。
 - **原始读数**：`/tmp/search-complex-5s.mem`、`/tmp/go-bench-step5.txt`、`/tmp/go-race-step5.txt`、`/tmp/loadgen-step5-closed-{64,128}-mixed.txt`、`/tmp/searchd-step5.log`。
-- **Commit**：`<STEP5_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`98b7839c`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
