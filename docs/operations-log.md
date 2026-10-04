@@ -24,7 +24,7 @@
 - **GREEN**：`RecoverableOutputStore` 增加 `maxEntryBytes` / `maxTotalBytes`（默认 32MiB / 256MiB，单条上限钳制到总量上限）；写入前拒绝超限条目；淘汰/过期同步维护 `totalBytes`；`stats()` 暴露两项上限。MCP server 增加 `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES` / `...MAX_TOTAL_BYTES` 环境覆盖。
 - **验证**：`bun test tests/components/recoverable-output.test.ts tests/mcp/external-mcp-stdio.test.ts` = **11 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变外置阈值（仍默认 8192B）、不改变 `read_tool_result` 协议、不改变 TTL/条目淘汰顺序语义。
-- **Commit**：`<pending>`
+- **Commit**：`e49848cf`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
