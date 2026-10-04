@@ -143,21 +143,28 @@ function rowToRef(row: Record<string, unknown>): SessionLineageRef {
 
 const REF_COLUMNS = `session_id, parent_session_id, title, summary, message_count, token_estimate, status, created_at, updated_at`;
 
+function recentSessionLineage(db: Database, limit: number): SessionLineageRef[] {
+  return db.query(
+    `SELECT ${REF_COLUMNS} FROM session_lineage ORDER BY updated_at DESC LIMIT ?`,
+  ).all(limit).map((row) => rowToRef(row as Record<string, unknown>));
+}
+
 export function searchSessionLineage(db: Database, query: string, limit = 20): SessionLineageRef[] {
   ensureSessionLineage(db);
   const safeLimit = Math.min(Math.max(1, limit), 100);
   const trimmed = query.trim();
-  if (!trimmed) {
-    return db.query(
-      `SELECT ${REF_COLUMNS} FROM session_lineage ORDER BY updated_at DESC LIMIT ?`,
-    ).all(safeLimit).map((row) => rowToRef(row as Record<string, unknown>));
-  }
+  if (!trimmed) return recentSessionLineage(db, safeLimit);
 
-  const ftsQuery = trimmed
+  const terms = trimmed
     .split(/\s+/)
-    .filter(Boolean)
-    .map((term) => `${term.replace(/[^0-9a-zA-Z\u4e00-\u9fa5]/g, "")}*`)
-    .filter(Boolean)
+    .map((term) => term.replace(/[^\p{L}\p{N}_]/gu, ""))
+    .filter(Boolean);
+  if (terms.length === 0) return recentSessionLineage(db, safeLimit);
+
+  // FTS5 MATCH has its own operator language (OR/AND/NEAR/quotes). Treat each
+  // user token as one quoted literal and apply prefix matching only after that.
+  const ftsQuery = terms
+    .map((term) => `"${term.replace(/"/g, '""')}"*`)
     .join(" OR ");
   return db.query(
     `SELECT ${REF_COLUMNS.split(", ").map((c) => `sl.${c}`).join(", ")}

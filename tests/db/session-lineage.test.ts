@@ -28,3 +28,21 @@ it("returns ancestors and descendants", () => {
   expect(lineage.descendants.map((r) => r.sessionId)).toEqual(["grandchild"]);
   db.close();
 });
+
+it("treats FTS operators as literal terms and falls back on symbol-only input", () => {
+  const db = new Database(":memory:");
+  try {
+    sl.upsertSessionLineage(db, { sessionId: "fts-1", title: "alpha beta", summary: "gamma delta" });
+    sl.upsertSessionLineage(db, { sessionId: "fts-2", title: "unrelated", summary: "other" });
+
+    const operatorLike = sl.searchSessionLineage(db, "alpha OR beta", 10);
+    expect(operatorLike.some((r) => r.sessionId === "fts-1")).toBe(true);
+    expect(sl.searchSessionLineage(db, "AND", 10)).toEqual([]);
+
+    expect(() => sl.searchSessionLineage(db, '"', 10)).not.toThrow();
+    expect(() => sl.searchSessionLineage(db, "!!!", 10)).not.toThrow();
+    expect(sl.searchSessionLineage(db, "!!!", 10).length).toBeGreaterThan(0);
+  } finally {
+    db.close();
+  }
+});

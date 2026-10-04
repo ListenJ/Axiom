@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(security): FTS5 查询隔离 + 认知工具风险升级（Batch E1-b）
+
+- **任务**：OCR high #12（FTS5 MATCH 用户输入导致语法错误）与 #8（认知闭环/TaskGraph 工具被标 safe，绕过 plan mode 风险门）。分级 **T2（安全/正确性）**。
+- **RED**：`alpha OR beta` 在旧实现中抛 `fts5: syntax error near "OR"`；`cognitive_loop` / `cognitive_loop_full` / `task_graph_execute` 仍为 `safe`，新增分类测试失败。
+- **GREEN**：`searchSessionLineage` 将每个用户 token 作为 FTS5 quoted literal + prefix，纯符号/空 token 回退最近列表；三类认知运行时工具改为 `caution`。
+- **验证**：`bun test tests/db/session-lineage.test.ts tests/unit/tool-classifications.test.ts tests/unit/tool-mode-gate.test.ts tests/risk-monitor.test.ts tests/unit/risk-monitor-coverage.test.ts` = **54 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变普通中英文检索相关性；不新增 SQL 文本插值；不改变 plan/agent/yolo 模式定义。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(cli): `.env` 写入统一为 0600（Batch E1-a）
 
 - **任务**：OCR high #9。修复 setup 向导与 `key` CLI 直接写 `.env` 可能保留默认宽权限的问题。分级 **T2（安全）**。
