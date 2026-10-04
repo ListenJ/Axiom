@@ -42,7 +42,7 @@
 - **验证**：`go test ./internal/search` rc=0（含 alloc 棘轮/确定性/取消/panic 隔离）；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 7.577s）；doc-contract **35/0**；docs-consistency **10/0**。
 - **单机并发计划状态**：**8/8 完成**（baseline → worker pool → shard 构建 → fan-out/cancel → 内存复用 → modelclient 并发/单飞 → 优雅退出/泄漏 → 端到端/soak）。
 - **原始读数**：`/tmp/loadgen-step8-soak-{1,2,3}.txt`、`/tmp/loadgen-step8-closed-128-mixed.txt`、`/tmp/go-race-step8.txt`、`/tmp/go-test-step8.txt`、`/tmp/go-vet-step8.txt`。
-- **Commit**：`<STEP8_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`0770743d`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
