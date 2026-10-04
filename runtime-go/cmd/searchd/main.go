@@ -64,7 +64,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := netutil.ServeAll(ctx, srv, addr, "SEARCHD_LISTENERS", "searchd"); err != nil {
-		log.Fatal(err)
+	serveErr := netutil.ServeAll(ctx, srv, addr, "SEARCHD_LISTENERS", "searchd")
+	engine.Close()
+	if serveErr != nil {
+		log.Fatal(serveErr)
 	}
 }

@@ -100,6 +100,8 @@
 - **动作**：为 workerPool/stagePool/health loop 加 context 取消与 `WaitGroup.Wait`；增加泄漏测试（前后 goroutine 数）。
 - **验收**：`go test -race ./...` 0；SIGTERM 后 `runtime.NumGoroutine()` 回落；无挂起进程。
 
+> **Step 7 执行结果（2026-10-04）**：`workerPool` 增加 `done`/`WaitGroup`/`stopOnce` + `stop()`；新增 `Engine.Close()`，searchd 在 `ServeAll` 返回后调用（SIGTERM 冒烟：health 200 → exited cleanly → 端口释放）；`modelclient.Close()` 改为 `sync.Once` 幂等。新增 engine/client 泄漏与 Close 幂等用例；race/full test/vet 全绿。
+
 ### Step 8 — 单机端到端压测与固化
 
 - **目的**：把优化后的单机性能写成可复现基线，纳入回归。

@@ -192,8 +192,9 @@ type Client struct {
 	fallbackMu sync.RWMutex
 	fallback   FallbackFunc
 
-	stopCh  chan struct{}
-	stopped sync.WaitGroup
+	stopCh    chan struct{}
+	stopped   sync.WaitGroup
+	closeOnce sync.Once
 }
 
 // NewClient creates a Client and starts its background health-check loop.
@@ -225,9 +226,10 @@ func NewClient(cfg Config, reg prometheus.Registerer) *Client {
 	return c
 }
 
-// Close stops the background health-check loop.
+// Close stops the background health-check loop. It is idempotent: repeated
+// calls wait for the same shutdown and never panic on a closed channel.
 func (c *Client) Close() {
-	close(c.stopCh)
+	c.closeOnce.Do(func() { close(c.stopCh) })
 	c.stopped.Wait()
 }
 

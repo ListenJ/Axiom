@@ -18,32 +18,67 @@ import (
 // the queue is full the caller runs the task inline, which keeps fan-out
 // deadlock-free under nested or saturated submission.
 type workerPool struct {
-	tasks chan func()
-	n     int
+	tasks    chan func()
+	done     chan struct{}
+	n        int
+	wg       sync.WaitGroup
+	stopOnce sync.Once
 }
 
 func newWorkerPool(n int) *workerPool {
 	if n < 1 {
 		n = 1
 	}
-	p := &workerPool{tasks: make(chan func(), n*8), n: n}
+	p := &workerPool{
+		tasks: make(chan func(), n*8),
+		done:  make(chan struct{}),
+		n:     n,
+	}
 	for i := 0; i < n; i++ {
+		p.wg.Add(1)
 		go func() {
-			for f := range p.tasks {
-				f()
+			defer p.wg.Done()
+			for {
+				select {
+				case <-p.done:
+					return
+				default:
+				}
+				select {
+				case <-p.done:
+					return
+				case f := <-p.tasks:
+					f()
+				}
 			}
 		}()
 	}
 	return p
 }
 
-// run schedules f on the pool, executing it inline if the queue is full.
+// run schedules f on the pool, executing it inline if the queue is full or
+// the pool has been stopped.
 func (p *workerPool) run(f func()) {
 	select {
+	case <-p.done:
+		f()
+		return
+	default:
+	}
+	select {
 	case p.tasks <- f:
+	case <-p.done:
+		f()
 	default:
 		f()
 	}
+}
+
+// stop terminates the worker goroutines and waits for running tasks to exit.
+// It is idempotent; queued tasks may be dropped after shutdown.
+func (p *workerPool) stop() {
+	p.stopOnce.Do(func() { close(p.done) })
+	p.wg.Wait()
 }
 
 // scratch bundles the per-query buffers a shard evaluation reuses: the
@@ -192,6 +227,14 @@ func NewEngine(reg prometheus.Registerer, numShards int, opts ...Option) *Engine
 	idx, _ := BuildIndex(nil, numShards, 1) // nil docs: empty index build cannot fail
 	e.idx.Store(idx)
 	return e
+}
+
+// Close stops the engine's worker pool. Call it after the HTTP server has
+// stopped serving new queries (Step 7 graceful shutdown).
+func (e *Engine) Close() {
+	if e.pool != nil {
+		e.pool.stop()
+	}
 }
 
 // Build replaces the index with one built from docs in parallel. It is the

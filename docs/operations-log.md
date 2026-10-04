@@ -26,6 +26,22 @@
 
 ---
 
+## 2026-10-04 — perf(runtime): Step 7 优雅退出与泄漏检测
+
+- **任务**：计划 Step 7（T2，单机并发）。给 search worker pool 加可停止生命周期、searchd SIGTERM 后 Close、modelclient Close 幂等，并补泄漏/幂等回归。
+- **改动（文件级）**：
+  1. `internal/search/engine.go`：`workerPool` 增加 `done chan struct{}`、`sync.WaitGroup`、`sync.Once`；worker 循环优先检查 `done` 退出；`run` 在 pool 停止后 inline 执行；`stop()` 幂等关闭并 `wg.Wait()`；新增 `Engine.Close()`。
+  2. `cmd/searchd/main.go`：`netutil.ServeAll` 返回后调用 `engine.Close()`，再处理 serve 错误；SIGTERM 路径优雅退出。
+  3. `internal/modelclient/client.go`：`Client.closeOnce sync.Once`；`Close()` 幂等（重复调用不再 panic），仍等待 health loop 退出。
+  4. `internal/search/shutdown_test.go`：`TestEngineCloseStopsWorkers`（20 engine 创建 + Close，goroutine 数回落 ≤+4）；`internal/modelclient/shutdown_test.go`：`TestClientCloseIdempotent`、`TestClientCloseStopsHealthLoop`（20 client 创建 + Close，goroutine 数回落 ≤+4）。
+  5. `pcdad` 既有 `Engine.Shutdown`（stagePool stop + 最终快照）复核无需改动。
+- **SIGTERM 冒烟**：searchd :19103 启动 → `healthz=200` → SIGTERM → **exited cleanly** → **19103 released**。
+- **验证**：`go test ./internal/search ./internal/modelclient` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 6.684s、modelclient 2.211s）；doc-contract **35/0**；docs-consistency **10/0**。
+- **原始读数**：`/tmp/go-race-step7.txt`、`/tmp/go-test-step7.txt`、`/tmp/searchd-step7.log`。
+- **Commit**：`<STEP7_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(modelclient): Step 6 有界并发与健康探测单飞
 
 - **任务**：计划 Step 6（T2，单机并发）。modelclient 原先无 benchmark、无并发上限、health probe 无单飞；本轮补 benchmark + 有界并发 + 单飞，保持 4xx/5xx 重试语义不变。

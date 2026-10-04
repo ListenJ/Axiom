@@ -311,3 +311,37 @@ curl -sS http://127.0.0.1:9103/cluster
 - `go test -race ./...` rc=0（modelclient 2.190s）；
 - 原始读数：`/tmp/go-bench-step6.txt`、`/tmp/go-race-step6.txt`、`/tmp/go-test-step6.txt`。
 
+---
+
+# 十、Step 7：优雅退出与泄漏检测（2026-10-04）
+
+## 10.1 改动
+
+- `internal/search/engine.go`：
+  - `workerPool` 增加 `done chan struct{}`、`sync.WaitGroup`、`sync.Once`；worker 循环优先检查 `done` 退出；`run` 在 pool 停止后 inline 执行；
+  - `workerPool.stop()` 幂等关闭 `done` 并 `wg.Wait()`；
+  - 新增 `Engine.Close()` 停止 worker pool（在 HTTP server 停止新查询后调用）。
+- `cmd/searchd/main.go`：`netutil.ServeAll` 返回后调用 `engine.Close()`，再处理 serve 错误；SIGTERM 路径优雅退出。
+- `internal/modelclient/client.go`：`Client.closeOnce sync.Once`；`Close()` 改为幂等（重复调用不再 `close of closed channel` panic），仍 `stopped.Wait()` 等待 health loop 退出。
+- 新增泄漏/幂等用例：
+  - `internal/search/shutdown_test.go`：`TestEngineCloseStopsWorkers`（20 个 engine 创建 + Close，goroutine 数回落 ≤+4）；
+  - `internal/modelclient/shutdown_test.go`：`TestClientCloseIdempotent`（重复 Close 不 panic）、`TestClientCloseStopsHealthLoop`（20 个 client 创建 + Close，goroutine 数回落 ≤+4）。
+- `pcdad` 既有 `Engine.Shutdown`（stagePool stop + 最终快照）复核无需改动。
+
+## 10.2 searchd SIGTERM 冒烟
+
+```
+healthz=200 pid=364530
+SIGTERM -> exited cleanly
+19103 released
+```
+
+**结论**：HTTP server 停止后 `Engine.Close()` 回收 worker pool，进程干净退出、端口释放。
+
+## 10.3 验证
+
+- `go test ./internal/search ./internal/modelclient` rc=0（含新增泄漏/幂等用例）；
+- `go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（search 6.684s、modelclient 2.211s）；
+- 原始读数：`/tmp/go-race-step7.txt`、`/tmp/go-test-step7.txt`、`/tmp/searchd-step7.log`。
+
