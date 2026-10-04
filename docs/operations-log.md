@@ -24,7 +24,7 @@
 - **GREEN**：`trackHistory` 先 push/trim 再记录本轮起点，`previousHistory` 不再包含当前快照；ContextManager 新增 system/non-system 分区，split 保留 system 到 active、compress 输出 `[原 system, 摘要 system, 最近非 system]`，旧消息摘要不再吃 system。
 - **验证**：`bun test tests/consciousness-goal-tracker.test.ts tests/context/context-manager-system.test.ts` = **34 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变漂移阈值/窗口；不改变消息顺序中的非 system 相对顺序；不改变摘要模型选择。
-- **Commit**：`<pending>`
+- **Commit**：`05bf7b57`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
