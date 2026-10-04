@@ -35,6 +35,31 @@ describe("RecoverableToolOutput", () => {
     expect(store.read(first)).toBeUndefined();
   });
 
+
+  it("rejects a single entry over maxEntryBytes without storing it", () => {
+    const store = new RecoverableOutputStore({ maxEntryBytes: 10, maxTotalBytes: 100 });
+    expect(() => store.store("x".repeat(11), "too-large")).toThrow(/maxEntryBytes/);
+    expect(store.stats().entries).toBe(0);
+  });
+
+  it("evicts oldest entries when total bytes exceed maxTotalBytes", () => {
+    const store = new RecoverableOutputStore({ maxEntries: 10, maxEntryBytes: 5, maxTotalBytes: 11 });
+    const first = store.store("12345", "a");
+    const second = store.store("67890", "b");
+    const third = store.store("abcde", "c");
+
+    expect(store.read(second)).toBeDefined();
+    expect(store.read(third)).toBeDefined();
+    expect(store.read(first)).toBeUndefined();
+    expect(store.stats().entries).toBe(2);
+    expect(store.stats().totalBytes).toBe(10);
+  });
+
+  it("reports configured byte limits in stats", () => {
+    const store = new RecoverableOutputStore({ maxEntryBytes: 32, maxTotalBytes: 128 });
+    expect(store.stats()).toMatchObject({ maxEntryBytes: 32, maxTotalBytes: 128 });
+  });
+
   it("keeps small output inline", async () => {
     const store = new RecoverableOutputStore();
     const wrapped = wrapWithRecoverableOutput(

@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(memory): recoverable output 单条/总量字节上限（Batch E2-b）
+
+- **任务**：OCR high #10。旧 store 仅限条目数与 TTL，1000 条大文本可无界占用内存。分级 **T2（安全/内存）**。
+- **RED**：新增单条超限、总量淘汰、stats 上限三测；旧实现全部失败（不会抛、不会按总量淘汰、stats 无字段）。
+- **GREEN**：`RecoverableOutputStore` 增加 `maxEntryBytes` / `maxTotalBytes`（默认 32MiB / 256MiB，单条上限钳制到总量上限）；写入前拒绝超限条目；淘汰/过期同步维护 `totalBytes`；`stats()` 暴露两项上限。MCP server 增加 `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES` / `...MAX_TOTAL_BYTES` 环境覆盖。
+- **验证**：`bun test tests/components/recoverable-output.test.ts tests/mcp/external-mcp-stdio.test.ts` = **11 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变外置阈值（仍默认 8192B）、不改变 `read_tool_result` 协议、不改变 TTL/条目淘汰顺序语义。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(approver): 超长审批命令 fail-closed（Batch E2-a）
 
 - **任务**：OCR high #3。旧实现把待审命令静默截断到 1000 字符，尾部危险内容可能绕过“已审阅=已执行”的等价性。分级 **T2（安全）**。

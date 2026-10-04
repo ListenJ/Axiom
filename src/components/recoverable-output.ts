@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import { estimateTokens } from "../context/token-estimator.js";
 import type { ToolSurfaceLike } from "../utils/tool-surface.js";
 
+export const DEFAULT_MAX_ENTRY_BYTES = 32 * 1024 * 1024;
+export const DEFAULT_MAX_TOTAL_BYTES = 256 * 1024 * 1024;
+
 export interface RecoverableOutputMeta {
   tool: string;
   bytes: number;
@@ -17,30 +20,47 @@ interface StoredEntry {
 export interface RecoverableOutputStoreOptions {
   maxEntries?: number;
   ttlMs?: number;
+  maxEntryBytes?: number;
+  maxTotalBytes?: number;
 }
 
 export class RecoverableOutputStore {
   private entries = new Map<string, StoredEntry>();
   private readonly maxEntries: number;
   private readonly ttlMs: number;
+  private readonly maxEntryBytes: number;
+  private readonly maxTotalBytes: number;
+  private totalBytes = 0;
 
   constructor(options: RecoverableOutputStoreOptions = {}) {
     this.maxEntries = Math.max(1, options.maxEntries ?? 1000);
     this.ttlMs = Math.max(1000, options.ttlMs ?? 60 * 60 * 1000);
+    this.maxTotalBytes = Math.max(1, options.maxTotalBytes ?? DEFAULT_MAX_TOTAL_BYTES);
+    this.maxEntryBytes = Math.min(
+      this.maxTotalBytes,
+      Math.max(1, options.maxEntryBytes ?? DEFAULT_MAX_ENTRY_BYTES),
+    );
   }
 
   store(text: string, tool: string): string {
     this.prune();
+    const bytes = Buffer.byteLength(text, "utf8");
+    if (bytes > this.maxEntryBytes) {
+      throw new Error(
+        `[RecoverableOutput] entry ${bytes} bytes exceeds maxEntryBytes ${this.maxEntryBytes}`,
+      );
+    }
     const id = randomUUID();
     this.entries.set(id, {
       text,
       meta: {
         tool,
-        bytes: Buffer.byteLength(text, "utf8"),
+        bytes,
         tokens: estimateTokens(text),
         createdAt: Date.now(),
       },
     });
+    this.totalBytes += bytes;
     this.evict();
     return id;
   }
@@ -60,6 +80,8 @@ export class RecoverableOutputStore {
     totalTokens: number;
     maxEntries: number;
     ttlMs: number;
+    maxEntryBytes: number;
+    maxTotalBytes: number;
   } {
     this.prune();
     let totalBytes = 0;
@@ -74,11 +96,14 @@ export class RecoverableOutputStore {
       totalTokens,
       maxEntries: this.maxEntries,
       ttlMs: this.ttlMs,
+      maxEntryBytes: this.maxEntryBytes,
+      maxTotalBytes: this.maxTotalBytes,
     };
   }
 
   dispose(): void {
     this.entries.clear();
+    this.totalBytes = 0;
   }
 
   private prune(): void {
@@ -86,15 +111,18 @@ export class RecoverableOutputStore {
     for (const [id, entry] of this.entries) {
       if (now - entry.meta.createdAt > this.ttlMs) {
         this.entries.delete(id);
+        this.totalBytes -= entry.meta.bytes;
       }
     }
   }
 
   private evict(): void {
-    while (this.entries.size > this.maxEntries) {
+    while (this.entries.size > this.maxEntries || this.totalBytes > this.maxTotalBytes) {
       const oldest = this.entries.keys().next().value;
       if (oldest === undefined) return;
+      const entry = this.entries.get(oldest);
       this.entries.delete(oldest);
+      if (entry) this.totalBytes -= entry.meta.bytes;
     }
   }
 }

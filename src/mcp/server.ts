@@ -54,7 +54,12 @@ import { adaptTools } from "./adapt-tool.js";
 import { readTool } from "../tools/read-tool.js";
 import { writeTool } from "../tools/write-tool.js";
 import { queryTool } from "../tools/query-tool.js";
-import { RecoverableOutputStore, wrapWithRecoverableOutput } from "../components/recoverable-output.js";
+import {
+  RecoverableOutputStore,
+  wrapWithRecoverableOutput,
+  DEFAULT_MAX_ENTRY_BYTES,
+  DEFAULT_MAX_TOTAL_BYTES,
+} from "../components/recoverable-output.js";
 import { registerRecoverableOutputTools } from "./server/recoverable-output-tools.js";
 import { registerMindTools } from "./server/mind-tools.js";
 import { registerBrowserTools } from "./server/browser-tools.js";
@@ -86,6 +91,12 @@ const registry = new ToolRegistry({ lazy: lazyTools });
 const recoverableOutputStore = new RecoverableOutputStore({
   maxEntries: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES", "1000")) || 1000,
   ttlMs: Number(readString("AXIOM_EXTERNAL_RECOVERABLE_TTL_MS", String(60 * 60 * 1000))) || 60 * 60 * 1000,
+  maxEntryBytes:
+    Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES", String(DEFAULT_MAX_ENTRY_BYTES))) ||
+    DEFAULT_MAX_ENTRY_BYTES,
+  maxTotalBytes:
+    Number(readString("AXIOM_EXTERNAL_RECOVERABLE_MAX_TOTAL_BYTES", String(DEFAULT_MAX_TOTAL_BYTES))) ||
+    DEFAULT_MAX_TOTAL_BYTES,
 });
 registerRecoverableOutputTools(registry, recoverableOutputStore);
 
