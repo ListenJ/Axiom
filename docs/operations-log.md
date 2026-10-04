@@ -24,7 +24,7 @@
 - **GREEN**：`assemblePrompt` 四处动态替换改用函数 replacer；`release()` 只刷新 LRU，hits 仅在 `acquire()` 统计一次。
 - **验证**：`bun test tests/prompt-pool-template.test.ts tests/prompt-engineer.test.ts` = **16 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变模板文本、前缀 hash、缓存 marker 或 release 公开签名。
-- **Commit**：`<pending>`
+- **Commit**：`2c5cdfd3`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
