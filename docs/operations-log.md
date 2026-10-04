@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-05 — verify(systemd): EROFS 线上安装与新进程复验闭合
+
+- **任务**：完成优先项 1 的线上验收（T3 运维）。
+- **安装证据**：`/etc/systemd/system/axiom@.service`、`/tmp/axiom@.service`、`deploy/systemd/axiom.service` 三者 SHA-256 均为 `bd139a42bbc544066899d3d12ad089539f7db62906d96fe082db511595828747`；线上 unit 第 30 行为 `ReadWritePaths=/home/listen/.bun`。
+- **运行证据**：`ActiveEnterTimestamp=2026-10-05 00:20:08 CST`，`ExecMainPID=498702`，`active` / `enabled`，`/health` HTTP 200。
+- **EROFS 证据**：自该次重启以来 journal EROFS 命中 **0**；新进程已实际初始化 `bunx`/MCP，E-ROFS 子项关闭。
+- **残留（与 EROFS 无关）**：`free-search-mcp` npm registry 返回 404；`freeweb`、`obsidian` 各 10s 超时，外部 MCP 仍 degraded。单列为后续运行态问题，不混入本修复结论。
+- **文档**：runbook 新增 §9.7 固化同一证据。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-04 — fix(systemd): 同步 unit 模板并补齐 bunx 回退目录写权限
 
 - **任务**：用户选择优先项 1，收口 Step 9 的 EROFS。分级 **T3（运维）**。

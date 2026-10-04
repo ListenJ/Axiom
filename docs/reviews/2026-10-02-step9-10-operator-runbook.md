@@ -140,6 +140,14 @@ journalctl -u axiom@listen.service --since "5 min ago" | grep -i EROFS && echo '
 
 - 若仍有 MCP 子进程写 `~/.cache`/`~/.npm` 的 EROFS，优先保留 `ProtectHome=read-only` + 精确 `ReadWritePaths`，不要直接改 `ProtectHome=false`。
 
+### 9.7 线上闭合验收（2026-10-05）
+
+- `/etc/systemd/system/axiom@.service`、`/tmp/axiom@.service`、`deploy/systemd/axiom.service` 三者 SHA-256 一致：`bd139a42bbc544066899d3d12ad089539f7db62906d96fe082db511595828747`。
+- 线上 unit 已含 `ReadWritePaths=/home/listen/.bun`（第 30 行）。
+- 服务在 `2026-10-05 00:20:08 CST` 重启，`ExecMainPID=498702`；`active` / `enabled`，`/health` = 200。
+- 自该次重启以来 `journalctl -u axiom@listen.service | grep -ci EROFS` = **0**；EROFS 子项关闭。
+- 独立残留（与 EROFS 无关）：`free-search-mcp` 从 npm registry 返回 404；`freeweb` 与 `obsidian` MCP 各 10s 超时，外部 MCP 仍处于 degraded 状态。
+
 ---
 
 ## Step 10 — runtime-go 拓扑与冒烟
