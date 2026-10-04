@@ -24,7 +24,7 @@
 - **GREEN**：新增 `MAX_APPROVAL_COMMAND_CHARS=1000` 与请求前长度门；超限不调用 provider，返回 `decided:false` / `approved:false`，原因明确写明“禁止截断后冒充完整命令”。审批提示词改传完整 command。
 - **验证**：`bun test tests/agents/approver-model-truncation.test.ts tests/security-fixes.test.ts tests/unit/risk-monitor-degraded.test.ts` = **47 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变短命令审批路径；不改变 provider 选择、超时、JSON 解析与 fail-closed 语义。
-- **Commit**：`<pending>`
+- **Commit**：`c338c17e`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
