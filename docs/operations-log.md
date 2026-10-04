@@ -38,7 +38,7 @@
 - **SIGTERM 冒烟**：searchd :19103 启动 → `healthz=200` → SIGTERM → **exited cleanly** → **19103 released**。
 - **验证**：`go test ./internal/search ./internal/modelclient` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 6.684s、modelclient 2.211s）；doc-contract **35/0**；docs-consistency **10/0**。
 - **原始读数**：`/tmp/go-race-step7.txt`、`/tmp/go-test-step7.txt`、`/tmp/searchd-step7.log`。
-- **Commit**：`<STEP7_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`1113056e`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
