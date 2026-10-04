@@ -235,3 +235,21 @@ func TestSearchCancellationNoLeak(t *testing.T) {
 		t.Fatalf("goroutine leak: before=%d after=%d", before, after)
 	}
 }
+
+// TestSearchComplexAllocBudget is a CI-runnable allocation ratchet for the
+// hot complex query. Measured after Step 5: 56 allocs/op; budget 80 leaves
+// headroom while catching a return to the pre-Step-5 ~488 allocs/op.
+func TestSearchComplexAllocBudget(t *testing.T) {
+	e := newTestEngine(t, 20_000)
+	const q = "w0042 w1999 OR w0007 -w3000 cat:c3 w05*"
+	var searchErr error
+	allocs := testing.AllocsPerRun(50, func() {
+		_, searchErr = e.Search(context.Background(), q, 20)
+	})
+	if searchErr != nil {
+		t.Fatalf("search: %v", searchErr)
+	}
+	if allocs > 80 {
+		t.Fatalf("SearchComplex allocs/op %.1f exceeds budget 80 (Step 5 measured 56)", allocs)
+	}
+}

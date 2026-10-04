@@ -345,3 +345,57 @@ SIGTERM -> exited cleanly
 - `go test -race ./...` rc=0（search 6.684s、modelclient 2.211s）；
 - 原始读数：`/tmp/go-race-step7.txt`、`/tmp/go-test-step7.txt`、`/tmp/searchd-step7.log`。
 
+---
+
+# 十一、Step 8：单机端到端压测与固化（2026-10-04）
+
+## 11.1 分配回归棘轮（CI 可跑）
+
+`internal/search/search_test.go` 新增：
+
+```go
+func TestSearchComplexAllocBudget(t *testing.T) {
+    // 20k docs, 复杂查询, testing.AllocsPerRun(50)
+    // 实测 56 allocs/op；预算 80，防回退到 Step 5 前的 ~488。
+}
+```
+
+`go test ./internal/search` 通过；这为 CI 提供了一条不断言绝对耗时、但能捕获分配回退的棘轮。
+
+## 11.2 3×30s soak（closed-loop 64 mixed，32 shards / 100k docs）
+
+| 轮次 | QPS | p50 | p95 | p99 | RSS | go_goroutines |
+|---|---|---|---|---|---|---|
+| 1 | 14,398 | 4.19ms | 8.55ms | 11.36ms | 592,456 KB | 40 |
+| 2 | 14,173 | 4.24ms | 8.76ms | 11.61ms | 645,668 KB | 40 |
+| 3 | 14,199 | 4.23ms | 8.70ms | 11.64ms | 601,036 KB | 41 |
+
+**结论**：QPS 稳定在 14.17k–14.40k；p99 稳定在 11.36–11.64ms；goroutine 40–41 稳定；RSS 在 592–646MB 间波动（round 2 高水位、round 3 回落），**无单调增长/无泄漏**。
+
+## 11.3 终测：closed-loop 128 mixed
+
+```
+issued: 465748  ok: 465748  errors: 0  achieved qps: 15509
+latency: p50=7.88ms p95=15.86ms p99=21.47ms max=74.94ms
+RSS 574,212 KB  go_goroutines 40
+```
+
+## 11.4 单机并发计划 before/after 总表
+
+| 指标 | Step 1 before | Step 8 final | 变化 |
+|---|---|---|---|
+| 64 mixed QPS / p99 | 14,207 / 12.69ms | 14,199（soak 中位）/ 11.61ms | QPS 持平，p99 **-8.5%** |
+| 128 mixed QPS / p99 | 13,232 / 32.23ms | **15,509 / 21.47ms** | QPS **+17.2%**，p99 **-33.4%** |
+| SearchComplex allocs/op | 488 | **56** | **-88.5%** |
+| SearchComplex B/op | ~400KB | **~23.5KB** | **-94%** |
+| SearchComplexParallel | 264–298µs | ~207µs（Step 5 中位） | 约 -25% |
+| goroutine 稳态 | — | 40–41 | 有界 |
+| RSS（100k docs/32 shards） | 575MB（Step 1） | 574–646MB（soak） | 同量级，无增长 |
+
+## 11.5 验证
+
+- `go test ./internal/search` rc=0（含 alloc 棘轮、确定性、取消、panic 隔离）；
+- `go test ./...` rc=0；`go vet ./...` rc=0；
+- `go test -race ./...` rc=0（search 7.577s）；
+- 原始读数：`/tmp/loadgen-step8-soak-{1,2,3}.txt`、`/tmp/loadgen-step8-closed-128-mixed.txt`、`/tmp/go-race-step8.txt`、`/tmp/go-test-step8.txt`、`/tmp/go-vet-step8.txt`。
+

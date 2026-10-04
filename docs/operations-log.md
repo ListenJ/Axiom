@@ -26,6 +26,26 @@
 
 ---
 
+## 2026-10-04 — test(bench): Step 8 单机端到端压测 + 分配回归棘轮（单机并发计划收官）
+
+- **任务**：计划 Step 8（T2/T3，单机并发计划最后一步）。用最终代码重跑 closed-loop 64/128 mixed、3×30s soak、加 CI 可跑分配棘轮，形成 before/after 总表。
+- **分配棘轮**：`internal/search/search_test.go` 新增 `TestSearchComplexAllocBudget`（`testing.AllocsPerRun(50)`，Complex ≤ **80 allocs/op**，Step 5 实测 56 留余量，防回退到 Step 5 前的 ~488）。
+- **3×30s soak（closed-loop 64 mixed，32 shards / 100k docs）**：
+  | 轮次 | QPS | p50 | p95 | p99 | RSS | go_goroutines |
+  |---|---|---|---|---|---|---|
+  | 1 | 14,398 | 4.19ms | 8.55ms | 11.36ms | 592,456 KB | 40 |
+  | 2 | 14,173 | 4.24ms | 8.76ms | 11.61ms | 645,668 KB | 40 |
+  | 3 | 14,199 | 4.23ms | 8.70ms | 11.64ms | 601,036 KB | 41 |
+  QPS/p99/goroutine 稳定，RSS 592–646MB 波动无单调增长。
+- **终测 closed-loop 128 mixed**：**15,509 QPS**，p50 7.88ms / p95 15.86ms / p99 **21.47ms**，0 错误，RSS 574,212 KB，go_goroutines 40。
+- **Step 1 → Step 8 总表**：64 mixed 14,207/12.69ms → 14,199（soak 中位）/11.61ms（QPS 持平，p99 -8.5%）；128 mixed 13,232/32.23ms → **15,509/21.47ms（QPS +17.2%，p99 -33.4%）**；SearchComplex allocs 488→**56（-88.5%）**、bytes ~400KB→**~23.5KB（-94%）**；ComplexParallel 264–298µs→~207µs；goroutine 40–41 有界；RSS 同量级无增长。
+- **验证**：`go test ./internal/search` rc=0（含 alloc 棘轮/确定性/取消/panic 隔离）；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（search 7.577s）；doc-contract **35/0**；docs-consistency **10/0**。
+- **单机并发计划状态**：**8/8 完成**（baseline → worker pool → shard 构建 → fan-out/cancel → 内存复用 → modelclient 并发/单飞 → 优雅退出/泄漏 → 端到端/soak）。
+- **原始读数**：`/tmp/loadgen-step8-soak-{1,2,3}.txt`、`/tmp/loadgen-step8-closed-128-mixed.txt`、`/tmp/go-race-step8.txt`、`/tmp/go-test-step8.txt`、`/tmp/go-vet-step8.txt`。
+- **Commit**：`<STEP8_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+
+---
+
 ## 2026-10-04 — perf(runtime): Step 7 优雅退出与泄漏检测
 
 - **任务**：计划 Step 7（T2，单机并发）。给 search worker pool 加可停止生命周期、searchd SIGTERM 后 Close、modelclient Close 幂等，并补泄漏/幂等回归。

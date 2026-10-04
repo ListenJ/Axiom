@@ -165,3 +165,5 @@ go tool pprof -top /tmp/search.cpu.prof
 - 无多机依赖（无 n1/n2/w1、无 SSH 隧道、Redis 可选）；
 - ops log 一条记录 + commit hash + 推送 `internal <分支>`；
 - 未决项显式列出。
+
+> **Step 8 执行结果（2026-10-04，计划收官）**：新增 `TestSearchComplexAllocBudget`（≤80 allocs/op，实测 56）；3×30s soak（closed-loop 64 mixed）QPS 14,173–14,398、p99 11.36–11.64ms、goroutine 40–41、RSS 592–646MB 无增长；终测 closed-loop 128 mixed **15,509 QPS / p99 21.47ms**（Step 1 before 13,232 / 32.23，QPS +17.2%、p99 -33.4%）；Complex allocs 488→56（-88.5%）。race/full test/vet 全绿。单机并发计划 8/8 完成。
