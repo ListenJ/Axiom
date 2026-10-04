@@ -24,7 +24,7 @@
 - **GREEN**：`src/utils/env-file.ts` 增加 `writeSecureEnvFile`（mode 0600 + 写后 chmod，已存在 0644 文件也会收紧），`upsertEnvVar` 复用它；`src/cli/setup.ts` 与 `src/cli.ts` 的全部 `.env` 写入点改走该 helper。
 - **验证**：权限/接线测试 **3 pass / 0 fail**；环境与组件路由定向回归 **23 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：未改 `.env` 内容生成、变量校验、CLI 输出格式；未回显任何 key。
-- **Commit**：`<pending>`
+- **Commit**：`f0128a71`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
