@@ -22,7 +22,7 @@
 - **任务**：Step 5 用 `go test -memprofile` 后遗留未跟踪的 `runtime-go/search.test` 测试二进制；清理并加 ignore，避免污染工作区。分级 **T1（工具链卫生）**。
 - **改动**：删除 `runtime-go/search.test`（可确定性重建的测试产物）；`runtime-go/.gitignore` 增加 `/*.test`（已有 `/bin/searchd`、`/bin/loadgen`、`/bin/agentd`、`/bin/pcdad`）。
 - **验证**：`git status --porcelain=v1` 清除该未跟踪项；不涉及源码/门禁变更。
-- **Commit**：`<GO_TEST_IGNORE_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`780dea73`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
