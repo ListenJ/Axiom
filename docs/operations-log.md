@@ -25,7 +25,7 @@
 - **EROFS 证据**：自该次重启以来 journal EROFS 命中 **0**；新进程已实际初始化 `bunx`/MCP，E-ROFS 子项关闭。
 - **残留（与 EROFS 无关）**：`free-search-mcp` npm registry 返回 404；`freeweb`、`obsidian` 各 10s 超时，外部 MCP 仍 degraded。单列为后续运行态问题，不混入本修复结论。
 - **文档**：runbook 新增 §9.7 固化同一证据。
-- **Commit**：`<pending>`
+- **Commit**：`c1d5b256`（已推送；同一 commit 已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
