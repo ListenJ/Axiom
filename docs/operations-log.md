@@ -40,7 +40,7 @@
 - **语义保持**：`TestNoRetryOn4xx`、`TestRetryOn5xx` 全绿；4xx 不重试、5xx/网络重试语义未改。
 - **验证**：`go test ./internal/modelclient` rc=0；`go test ./...` rc=0；`go vet ./...` rc=0；`go test -race ./...` rc=0（modelclient 2.190s）；doc-contract **35/0**；docs-consistency **10/0**。
 - **原始读数**：`/tmp/go-bench-step6.txt`、`/tmp/go-race-step6.txt`、`/tmp/go-test-step6.txt`。
-- **Commit**：`<STEP6_COMMIT_PENDING>`（已推送，按规则 9 以记录维护提交回填）
+- **Commit**：`c84ab3fd`（已推送，按规则 9 以记录维护提交回填）
 
 ---
 
