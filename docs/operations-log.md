@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — docs(plan): OCR src 13 条 high 修复计划（Batch E）
+
+- **任务**：按 OCR 报告 §五建议建立 13 条 high 的独立修复计划；不混入前 12 步计划。分级 **T3（书面计划）**。
+- **产物**：新增 `docs/superpowers/plans/2026-10-03-ocr-src-high-remediation.md`。冻结任务契约，按 E1 安全快修 → E2 审批/内存 → E3 Agent 状态 → E4 工具输出拆成 10 个 Step，最后 Step 10 做全量回归 + OCR diff 增量复核。
+- **关键约束**：13 条均为 OCR 候选；每条必须先 RED→GREEN，允许结论为 `confirmed+fixed` / `confirmed+deferred` / `false-positive+evidence`，禁止静默跳过；只收紧安全边界，不重构模块。
+- **覆盖**：OCR #1–#13 全部登记；`medium/low` 不混入，E5 单列 triage。
+- **验证**：`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = **45 pass / 0 fail**；`git diff --check` rc=0；计划内无内网地址/密钥明文。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — verify(systemd): EROFS 线上安装与新进程复验闭合
 
 - **任务**：完成优先项 1 的线上验收（T3 运维）。
