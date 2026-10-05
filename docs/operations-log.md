@@ -29,7 +29,7 @@
   结论：**0 个新增可行动缺陷**；此前 OCR 9 findings 的 medium/low 修复均已由定向测试锁定。
 - **验证**：4 文件对应测试 **40 pass / 0 fail**；`bunx tsc --noEmit` rc=0；全量终态仍为 **4,637 pass / 67 skip / 0 fail**（4,704 tests / 482 files / 119.08s）。
 - **覆盖口径**：低并发 SenseNova 完成 10/14 + 主模型人工补审 4/14；GLM-4.7-flash OCR 运行不计入完成证据。
-- **Commit**：`<pending>`
+- **Commit**：`916c01a5`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
