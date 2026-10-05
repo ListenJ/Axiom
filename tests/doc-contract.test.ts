@@ -191,8 +191,10 @@ describe("D0 口径扫描范围自证", () => {
     // （多机互联内容退役清理计划/证据；含即将归档的路径清单，豁免 D1/D3）。
     // 62→63（2026-10-04）：docs/reviews/2026-10-04-single-machine-concurrency-baseline.md
     // （单机 Go 并发 before 基线；bench/loadgen 原始读数，证据性质）。
+    // 63→64（2026-10-06）：docs/reviews/2026-10-06-step12b-test-threshold-parallelization.md
+    // （Step 12b 阈值双口径与并行化验证证据；含命令日志摘要与门禁读数，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(63);
+    expect(exempted.length).toBeLessThanOrEqual(64);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 

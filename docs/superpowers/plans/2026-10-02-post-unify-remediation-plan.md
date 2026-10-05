@@ -474,6 +474,8 @@ Batch D（覆盖率与棘轮，依赖 A+B 完成）
 
 ### Step 12 — 全仓 OCR 覆盖 + 测试阈值棘轮
 
+> **2026-10-06 执行结果（12b）**：无需新增阈值转换，保留 `test-full.ts --isolate --parallel=8`；连续 3 次默认套件 4509/0，strict `test:perf` 31/0，`test:gate` 12/0。目录分片未引入，理由与证据见 `docs/reviews/2026-10-06-step12b-test-threshold-parallelization.md`。12a 的 OCR provider 部分覆盖记录仍保留。
+
 | 字段 | 值 |
 |---|---|
 | 级别 | T2/T3（验证 + 测试基础设施） |

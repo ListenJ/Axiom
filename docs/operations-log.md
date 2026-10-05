@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-06 — test(perf): Step 12b 阈值双口径与并行化收口
+
+- **任务**：完成 post-unify 计划 Step 12b：确认墙钟阈值转换面、验证连续全量稳定、评估目录分片并行。分级 **T2（测试基础设施）**。
+- **阈值结论**：现有 `perfBudget(strict, relaxed)` 已覆盖此前实证红过的路径；本轮 3 次默认套件无新增墙钟红，不为剩余约 90 处混合语义阈值做一次性批量改写。
+- **并行结论**：`package.json test` 继续使用 `scripts/test-full.ts --parallel=8`，collector 传 `--isolate --timeout 15000`。`--isolate` 已以每文件独立全局对象消除跨文件 mock/单例/env 污染；不引入目录分片作为第二层调度。
+- **验证**：`bun run test` 连续 3 次均 **4509 pass / 0 fail**；`AXIOM_PERF_ASSERT=1 bun run test:perf` = **31 pass / 0 fail**；`bun run test:gate` = **12 pass / 0 fail**。原始日志：`/tmp/step12b-*.log`。
+- **产物**：新增 `docs/reviews/2026-10-06-step12b-test-threshold-parallelization.md`；计划 Step 12 增加执行结果。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(ocr): 当前主模型补审剩余 4 文件
 
 - **任务**：按用户要求使用当前主模型完成 OCR 未覆盖部分。分级 **T3（复核）**。
