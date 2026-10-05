@@ -64,6 +64,7 @@
 - **LLM**：`src/knowledge/pipeline.ts` 的 `KNOWLEDGE_USE_LLM` 开关（`readBool("KNOWLEDGE_USE_LLM", false)` 共两处读取：图/视频自动理解分支与内容结构化分支各一处）默认 `false` 走 `fallbackTFIDF`（TF-IDF 回退），仅 `true` 时走 `structureKnowledgeWithEdge`/`structureWithGLM`，非历史旧宣称。
 - **PG**：`src/db/pg-client.ts` 已删（38966d12），`src/db/pg-schema.sql` 仍在仓库但无运行时消费者；`sqlite-memory.ts`/`kg/enhanced.ts`/`codegraph-sync.ts` 为默认；PG 数据面能力在 TS 运行时不可启用 —— `package.json` 依赖与 `bun.lock` 均无 PG 驱动，`src/` 下无客户端、无开关、无入口，恢复需先重建客户端与索引迁移（口径见 §2.3）。 <!-- doc-caliber:absent: src/db/pg-client.ts -->
 - **工具数**：口径以 `src/testing/tool-count.ts` 的 `countMcpTools()` 实测值为准（零重复断言同在 `docs-consistency`）；引用该数值的文档以 `bun run scripts/count-tools.mjs` 生成，禁止手抄。历史 133/150/172/173 与本文旧版"权威 172"均为已腐烂快照，一律废止。
+- **Vault wiki-link 图**：Markdown 仍是唯一事实源；`SQLiteMemory` 的 `vault_wiki_links` 仅在写入/增量重扫时收敛为可重建索引，`VaultManager.writeNote`/`reindexAll` 同步，KAL `getReferences` 优先查该表并用注入引擎补齐未命中来源。未解析/自引用链接以 `target_path=NULL` 保存，不产生入链。
 
 ### 2.3 当前边界与待校准项
 
@@ -73,6 +74,7 @@
 | PG vector 切换 | PG 客户端已随 H-M1-03 删除（`src/db/pg-client.ts`），当前 `src/` 下无任何可调用的 PG 入口（本节旧口径给出的 `isPgAvailable`/`getPG()` 已无宿主，仅存一条说明其已移除的注释） | 默认 FTS5 无向量语义召回；"手动启用"这条路今天不存在，需 PG 时必须重建客户端与索引迁移 | 按规则 4 先裁决 `src/db/pg-schema.sql` 存废（仍在仓库、无运行时消费者），再决定是否恢复该能力；在此之前文档不得给出可调用 PG 符号 <!-- doc-caliber:absent: src/db/pg-client.ts --> |
 | native 退役（2026-09-28） | `native/`（含 crates/cloud 的 deadpool PG 探针）与 `src/native-bridge.ts` 已整体删除，Rust 面退役；运行时为纯 TypeScript，"TS 运行时无 PG 数据面入口"由例外披露转为事实全称 | 例外不复存在，无需再点名披露；涉及 `axiom-cloud`/`AXIOM_EDITION` 的历史文档按退役口径理解 | 如未来重建 PG 面，须先按规则 4 裁决并重新登记 D11 例外披露 | <!-- doc-caliber:absent: src/native-bridge.ts -->
 | LLM 可选性 | `KNOWLEDGE_USE_LLM=false` 时全走 TF-IDF，无法利用 LLM 结构化 | 长文本结构化召回率低于 LLM 模式 | 待评估 TF-IDF vs LLM 质量对比并披露 |
+| wiki-link 索引边界 | `vault_wiki_links` 是派生索引，不是第二事实源；外部直接改 `.md` 后未调 `reindexAll`/`writeNote` 时索引可暂时陈旧；`target_path=NULL` 的链接是可观测的未解析项 | KAL 入链查询在重扫前可能看到旧图；未解析链接不进入 backlinks | 外部落盘后调用 `reindexAll()`；重命名走 `archiveNotePath`/重扫收敛 |
 | 工具数漂移 | 权威计数与文档声明的相等断言已落地（`tests/unit/docs-consistency.test.ts` 对受控文件清单内的文档做"声明值 == `countMcpTools()` 实测值"精确相等 + 零重复），新增工具后跑生成器取数即可 | 受控清单是测试里硬编码的文件名数组 ⇒ 清单外的规范件（含本文旧版"权威 172"）仍可能各说各话，且这类"手抄公式/代码块/数值"形态本身无门覆盖 | 把受控清单扩到 `caliberDocs` 全量，或规定非权威件不得出现数值；与"手抄件漏拦"合并裁决 |
 
 ### 2.4 使用建议
@@ -80,6 +82,7 @@
 - Vault 检索的默认入口是 `src/memory/vault-manager.ts` 的 `search()`（FTS5 主索引 + 确定性关键词加分为补）；PG vector 当前不可启用（客户端已删，见 §2.3），需语义检索时只有 embedding 可选语义层一条路；`cosineSimilarity` 阈值 0.7 是 `consolidate()` 的默认参数，调用方可覆盖。
 - 知识库 keep `KNOWLEDGE_USE_LLM=false` 以满足确定性承诺，需 LLM 结构化时显式开启并接受 `structureKnowledgeWithEdge` 失败回退 TF-IDF。
 - 工具数以 `src/testing/tool-count.ts` 的 `countMcpTools()` 为权威（`src/mcp/tool-registry.ts` 的 `size` 是运行时注册表大小，口径不同，不作为文档数值来源）；新增工具后跑 `bun run scripts/count-tools.mjs` 取生成片段，再跑 `bun test ./tests/unit/docs-consistency.test.ts` 复验。
+- wiki-link 图以 Markdown 为源；SQLite 侧可用 `vault_wiki_links` 做确定性入链查询，但外部直接落盘后需触发 `VaultManager.reindexAll()` 再查。
 
 ---
 

@@ -62,6 +62,15 @@
 **验证**：定向测试、`bunx tsc --noEmit`、全量 `bun test --timeout 15000 ./tests`、doc-contract/docs-consistency。
 **产物**：本计划执行记录、ops log、必要时更新 `docs/LIMITATIONS.md` 的 wiki-link 边界说明。
 
+## 5.1 执行结果（2026-10-06）
+
+- P2-2a：`SQLiteMemory.vault_wiki_links` schema + SAVEPOINT replace + 确定性 backlinks + 删除清理；定向 28/0。
+- P2-2b：`DeterministicSearchEngine.getWikiOutgoingLinks`；解析/未解析/去重稳定；定向 18/0。
+- P2-2c：`VaultManager.writeNote`/`reindexAll` 同步、删除清理、失败降级；定向 10/0。
+- P2-2d：KAL `getReferences` DB-first + 注入引擎补缺 + 去重；定向 33/0。
+- P2-2e：`arch:stats` = **38 模块 / 442 文件 / 119,956 行**；`LIMITATIONS.md` 更新派生索引边界；同步逻辑抽到 `vault-wiki-link-sync.ts` 以保持 `vault-manager.ts < 1000` 行；全量 4644/0。
+- 覆盖边界：SQLite 表是可重建索引，不复制 Markdown；外部直接落盘后需 `reindexAll()` 收敛；未解析链接保留 `target_path=NULL` 且不产生入链。
+
 ## 6. 变更协议
 
 任何超出上述文件的改动必须先回写本计划并说明原因；不得借 P2-2 重写记忆检索/KAL 架构。

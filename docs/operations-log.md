@@ -61,6 +61,17 @@
 
 ---
 
+## 2026-10-06 — feat(memory): P2-2 wiki_links 持久化收口
+
+- **任务**：P2-2 第 5 步。完成 Vault wiki-link 图从 Markdown → SQLite 可重建索引 → KAL 跨存储引用的闭环，并同步限制文档。分级 **T3（跨存储接口）**。
+- **收口内容**：`vault_wiki_links` schema/SAVEPOINT 替换/确定性 backlinks；`getWikiOutgoingLinks` 解析引擎出链；`writeNote`/`reindexAll` 同步、删除清链；KAL `getReferences` DB-first + 注入引擎补缺去重；同步逻辑抽到 `src/memory/vault-wiki-link-sync.ts`，避免 `vault-manager.ts` 超过 1000 行架构棘轮。
+- **文档**：`LIMITATIONS.md` 增加“派生索引边界”（外部直接改 `.md` 需 `reindexAll()`，未解析链接 `target_path=NULL` 不产生入链）；`ARCHITECTURE.md` 统计同步为 **38 模块 / 442 文件 / 119,956 行**。
+- **验证**：全量 `bun test --timeout 15000 ./tests` = **4,644 pass / 67 skip / 0 fail**（4,711 tests / 484 files；109.54s）；`bunx tsc --noEmit` rc=0；doc/env 定向 47/0；架构完整性含行数棘轮 0 fail。
+- **不做项**：不改 Markdown wiki-link 解析/搜索打分；不新增依赖；不把 Vault 原件复制进 SQLite。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(plan): P2-2 wiki_links 持久化计划
 
 - **任务**：架构路线图 P2-2。新增 Vault wiki-link 的 SQLite 可重建索引、VaultManager 增量同步、KAL 跨存储引用查询；Vault Markdown 仍是事实源。分级 **T3（跨存储接口）**。

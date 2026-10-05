@@ -26,6 +26,7 @@ import { CodeIndexer } from "./code-indexer.js";
 import { notifyKnowledgeWritten } from "../services/knowledge-index-hook.js";
 import { vaultNoteNodeId } from "../kal/knowledge-node-id.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
+import { reloadAndSyncWikiLinks, syncWikiLinks } from "./vault-wiki-link-sync.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
 import { readString, readInt } from "../utils/env.js";
@@ -85,22 +86,6 @@ export class VaultManager {
       vaultPath: this.config.vaultPath,
       notes: this.engine.stats().totalNotes,
     });
-  }
-
-  /** P2-2：把当前引擎解析出的 wiki 出链收敛到 SQLite 可重建索引；失败不阻断 Vault 写。 */
-  private syncWikiLinks(notePath: string): void {
-    try {
-      const links = this.engine.getWikiOutgoingLinks(notePath).map((link) => ({
-        targetText: link.targetText,
-        targetPath: link.targetPath,
-      }));
-      this.sqliteMemory.replaceWikiLinks(notePath, links);
-    } catch (e) {
-      logger.warn("[Vault] wiki-link index sync failed", {
-        path: notePath,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
   }
 
   // ===== FTS 索引重建 =====
@@ -167,7 +152,7 @@ export class VaultManager {
             createdAt: mtime,
             updatedAt: mtime,
           });
-          this.syncWikiLinks(note.path);
+          syncWikiLinks(this.engine, this.sqliteMemory, note.path);
           count++;
         } catch {}
       }
@@ -444,17 +429,8 @@ export class VaultManager {
     }
 
     // SQLite FTS index updated via upsertNote above.
-    // P2-2：刷新引擎后同步 wiki 出链，保证 SQLite 索引与已发布 Markdown 一致。
-    try {
-      this.engine.reload(this.config.vaultPath);
-      this.lastVaultMtime = fs.statSync(this.config.vaultPath).mtimeMs;
-      this.syncWikiLinks(notePath);
-    } catch (e) {
-      logger.warn("[Vault] post-write wiki-link reload failed", {
-        path: notePath,
-        error: e instanceof Error ? e.message : String(e),
-      });
-    }
+    // P2-2：刷新引擎后同步 wiki 出链；不更新 lastVaultMtime，确保外部落盘仍会触发重扫。
+    reloadAndSyncWikiLinks(this.engine, this.sqliteMemory, this.config.vaultPath, notePath);
 
     // 语义索引（2026-09-21）：file + SQLite 都已落定后**推送**本条笔记。
     // 未注入索引器（默认）/未授权时 `notifyKnowledgeWritten` 立即返回（不读库、不触网）。
