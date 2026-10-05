@@ -24,7 +24,7 @@
 - **GREEN**：`initSchema` 幂等创建 `vault_wiki_links(source_path,target_path,target_text,updated_at)` + source/target 索引；`replaceWikiLinks` 用 SAVEPOINT 全量替换（兼容外层事务）；`getWikiBacklinks` 按 source_path 确定性返回并 join 标题；`deleteNote` 清出链+悬空入链；`archiveNotePath` 同步 source/target 路径。
 - **验证**：`bun test tests/sqlite-memory.test.ts tests/memory/sqlite-memory-tags.test.ts tests/unit/sqlite-memory-wiki-links.test.ts` = **28 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：VaultManager 引擎同步、KAL 查询分别留 P2-2b/c/d。
-- **Commit**：`<pending>`
+- **Commit**：`c09ab051`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
