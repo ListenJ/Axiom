@@ -61,6 +61,17 @@
 
 ---
 
+## 2026-10-06 — docs(review): P2-3 EDGE_RISK 默认关闭复核
+
+- **任务**：架构路线图 P2-3。评估 `EDGE_RISK_MONITOR` 默认关闭的风险敞口与开启组合。分级 **T0/T2（安全复核）**。
+- **结论**：发布默认继续保持关闭；关闭概率层不等于关闭安全防线，HardFloor 与 `reviewSequence` 仍强制。若部署方显式启用，推荐同时设置 `EDGE_RISK_MONITOR=1` + `EDGE_RISK_FAIL_CLOSED=1` 且配置常驻 `EDGE_LLM_URL`，并监控 `security.degraded_bypass`。
+- **证据**：`bun test tests/unit/llm-default-off-policy.test.ts tests/unit/risk-monitor-degraded.test.ts tests/risk-monitor.test.ts tests/capability-invariants.test.ts` = **101 pass / 0 fail**。
+- **产物**：新增 `docs/reviews/2026-10-06-p2-3-edge-risk-default-review.md`；未改默认值/代码。
+- **边界**：无真实 edge 模型误报率/漏报率数据；生产启用前需用目标模型跑真实 payload 集。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(memory): P2-2 wiki_links 持久化收口
 
 - **任务**：P2-2 第 5 步。完成 Vault wiki-link 图从 Markdown → SQLite 可重建索引 → KAL 跨存储引用的闭环，并同步限制文档。分级 **T3（跨存储接口）**。
