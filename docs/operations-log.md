@@ -68,7 +68,7 @@
 - **实测快照**：`code_symbols=16615`、`code_calls=75479`、`code_index_meta=1`；业务面 `memory_notes=184`、`conversations=13`、`kg_nodes/kg_edges=0`；`agent.db=152MB`、`freelist=11744 pages`（最近全量测试负载后，非稳定生产基线）。
 - **产物**：新增 `docs/reviews/2026-10-06-p2-4-codeindex-db-split-review.md`；未迁移 DB、未改 `DATABASE_PATH` 语义、未改 codeindex 代码。
 - **验证**：只读 `sqlite` 快照与源码消费者盘点；doc-contract D0 豁免面 65→66 逐件登记后复跑。
-- **Commit**：`<pending>`
+- **Commit**：`28b18f73`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
