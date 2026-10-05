@@ -68,7 +68,7 @@
 - **证据**：`bun test tests/unit/llm-default-off-policy.test.ts tests/unit/risk-monitor-degraded.test.ts tests/risk-monitor.test.ts tests/capability-invariants.test.ts` = **101 pass / 0 fail**。
 - **产物**：新增 `docs/reviews/2026-10-06-p2-3-edge-risk-default-review.md`；未改默认值/代码。
 - **边界**：无真实 edge 模型误报率/漏报率数据；生产启用前需用目标模型跑真实 payload 集。
-- **Commit**：`<pending>`
+- **Commit**：`3b5b3684`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
