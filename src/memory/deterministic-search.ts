@@ -37,6 +37,12 @@ export interface SearchResult {
   excerpt: string;
 }
 
+export interface ResolvedWikiLink {
+  targetText: string;
+  /** 已解析目标路径；无法解析或自引用时为 null。 */
+  targetPath: string | null;
+}
+
 interface SearchOptions {
   limit?: number;
   types?: string[];
@@ -670,6 +676,28 @@ export class DeterministicSearchEngine {
     const lite = this.notes.get(path);
     if (!lite) return undefined;
     return this.resolveNote(lite);
+  }
+
+  /** P2-2：已解析的 wiki 出链，供 SQLite 索引同步。 */
+  getWikiOutgoingLinks(notePath: string): ResolvedWikiLink[] {
+    const lite = this.notes.get(notePath);
+    if (!lite) return [];
+    const linkToPath = this.getLinkToPath();
+    const seen = new Set<string>();
+    const out: ResolvedWikiLink[] = [];
+    for (const targetText of lite.wikiLinks) {
+      const normalized = this.normalizeLink(targetText);
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      const targetPath = linkToPath.get(normalized);
+      out.push({
+        targetText,
+        targetPath: targetPath && targetPath !== notePath ? targetPath : null,
+      });
+    }
+    return out.sort((a, b) =>
+      a.targetText.localeCompare(b.targetText) || (a.targetPath ?? "").localeCompare(b.targetPath ?? ""),
+    );
   }
 
   /** 按 PARA 分类浏览（按需读取 content） */

@@ -166,6 +166,14 @@ tags: [random]
     expect(metaNotes[0].path).toBe("SOUL.md");
   });
 
+  test("解析 wiki 出链：目标路径缺失时显式 null，重复链接去重", () => {
+    const engine = new DeterministicSearchEngine(TEST_VAULT);
+    const links = engine.getWikiOutgoingLinks("01-Projects/axiom.md");
+    expect(links).toContainEqual({ targetText: "SOUL", targetPath: "SOUL.md" });
+    expect(links).toContainEqual({ targetText: "SQLite", targetPath: null });
+    expect(engine.getWikiOutgoingLinks("unrelated.md")).toEqual([]);
+  });
+
   test("关联网络", () => {
     const engine = new DeterministicSearchEngine(TEST_VAULT);
     const network = engine.getNetwork("01-Projects/axiom.md", 1);

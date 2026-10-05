@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-06 — feat(memory): P2-2b 引擎解析 wiki 出链
+
+- **任务**：P2-2 第 2 步。给 `DeterministicSearchEngine` 增加已解析出链读取接口，供 SQLite 同步。分级 **T2**。
+- **RED**：新增出链用例，旧引擎无 `getWikiOutgoingLinks`，失败。
+- **GREEN**：新增 `ResolvedWikiLink` 与 `getWikiOutgoingLinks(notePath)`；复用现有 `normalizeLink` + `getLinkToPath`，按 targetText 去重/稳定排序，未解析或自引用 `targetPath=null`；不改搜索/排序。
+- **验证**：`bun test tests/deterministic-search.test.ts tests/memory/link-collision.test.ts` = **18 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：未改 wiki-link 解析规则；VaultManager/KAL 分列 P2-2c/d。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(memory): P2-2a vault_wiki_links schema/API
 
 - **任务**：P2-2 第 1 步。为 Vault wiki-link 图建立可重建 SQLite 索引，不改 Markdown 事实源。分级 **T2**。
