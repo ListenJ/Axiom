@@ -195,8 +195,10 @@ describe("D0 口径扫描范围自证", () => {
     // （Step 12b 阈值双口径与并行化验证证据；含命令日志摘要与门禁读数，证据性质）。
     // 64→65（2026-10-06）：docs/reviews/2026-10-06-p2-3-edge-risk-default-review.md
     // （EDGE_RISK_MONITOR 默认关闭复核；含开关决策、测试矩阵与风险边界，证据性质）。
+    // 65→66（2026-10-06）：docs/reviews/2026-10-06-p2-4-codeindex-db-split-review.md
+    // （codeindex 独立 DB 迁移评估；含数据快照、方案比较与 ADR 前置条件，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(65);
+    expect(exempted.length).toBeLessThanOrEqual(66);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 

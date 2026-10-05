@@ -61,6 +61,17 @@
 
 ---
 
+## 2026-10-06 — docs(review): P2-4 codeindex 独立 DB 评估
+
+- **任务**：架构路线图 P2-4。评估 codeindex 产物迁独立 `codegraph.db` 的收益、成本和前置决策。分级 **T3（数据面/架构）**。
+- **结论**：本轮不默认拆库。2026-08-20 已有“单一知识库”合并决策；默认拆回属于架构反转，需先写 ADR/用户裁决。若拆分，建议先做 opt-in `CODEINDEX_DB_PATH`（默认仍回落 `DATABASE_PATH`），再做 `VACUUM INTO`/表复制迁移与双模式回归。
+- **实测快照**：`code_symbols=16615`、`code_calls=75479`、`code_index_meta=1`；业务面 `memory_notes=184`、`conversations=13`、`kg_nodes/kg_edges=0`；`agent.db=152MB`、`freelist=11744 pages`（最近全量测试负载后，非稳定生产基线）。
+- **产物**：新增 `docs/reviews/2026-10-06-p2-4-codeindex-db-split-review.md`；未迁移 DB、未改 `DATABASE_PATH` 语义、未改 codeindex 代码。
+- **验证**：只读 `sqlite` 快照与源码消费者盘点；doc-contract D0 豁免面 65→66 逐件登记后复跑。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(review): P2-3 EDGE_RISK 默认关闭复核
 
 - **任务**：架构路线图 P2-3。评估 `EDGE_RISK_MONITOR` 默认关闭的风险敞口与开启组合。分级 **T0/T2（安全复核）**。
