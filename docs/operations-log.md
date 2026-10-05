@@ -24,7 +24,7 @@
 - **GREEN**：rawPath 解析后先查 `vault_wiki_links`（LEFT JOIN memory_notes 取标题，按 source_path 排序）；再调注入引擎补齐未命中来源；Set 去重；无表时 debug 降级。
 - **验证**：`bun test tests/kal-references.test.ts tests/kal-semantic-merge.test.ts tests/kg-empty-doc.test.ts` = **33 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：KG/DRE 引用语义不变；KAL 不直接 import Vault 文件层。
-- **Commit**：`<pending>`
+- **Commit**：`8cac8e09`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
