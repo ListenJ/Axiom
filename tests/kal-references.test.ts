@@ -102,6 +102,40 @@ describe("KnowledgeAccessLayer.getReferences", () => {
     expect(hit?.metadata.referencedBy).toBe(seeded);
   });
 
+  test("P2-2d: 无注入引擎时从 vault_wiki_links 表返回入链", async () => {
+    const db = makeVaultDb();
+    const seeded = await seedVaultNote(db, "a.md", "anchor db-only");
+    db.run(
+      `INSERT INTO vault_wiki_links (source_path, target_path, target_text, updated_at) VALUES (?, ?, ?, ?)`,
+      ["b.md", "a.md", "A", Date.now()],
+    );
+    seedNote(db, 2, "b.md", "B", "source note", "[]");
+
+    const kal = new KnowledgeAccessLayer(db, { getWikiBacklinks: () => [] });
+    await kal.query({ query: "anchor", targetStore: "vault" });
+    const refs = await kal.getReferences(seeded);
+    const vaultRefs = refs.filter((r) => r.store === "vault");
+    expect(vaultRefs).toHaveLength(1);
+    expect(vaultRefs[0].metadata.sourcePath).toBe("b.md");
+  });
+
+  test("P2-2d: DB 与注入引擎同源时去重", async () => {
+    const db = makeVaultDb();
+    const seeded = await seedVaultNote(db, "a.md", "anchor dedupe");
+    db.run(
+      `INSERT INTO vault_wiki_links (source_path, target_path, target_text, updated_at) VALUES (?, ?, ?, ?)`,
+      ["b.md", "a.md", "A", Date.now()],
+    );
+    seedNote(db, 2, "b.md", "B", "source note", "[]");
+
+    const kal = new KnowledgeAccessLayer(db, {
+      getWikiBacklinks: () => [{ path: "b.md", title: "B" }],
+    });
+    await kal.query({ query: "anchor", targetStore: "vault" });
+    const refs = await (await kal.getReferences(seeded)).filter((r) => r.store === "vault");
+    expect(refs).toHaveLength(1);
+  });
+
   test("P1-T2: 未注入 vault 适配器时保持旧行为(仅 KG 边)", async () => {
     const db = makeDb();
     const kal = new KnowledgeAccessLayer(db);
@@ -229,6 +263,13 @@ function makeVaultDb(): Database {
       INSERT INTO memory_notes_fts(rowid, title, content, tags)
       VALUES (new.id, new.title, new.content, new.tags);
     END;
+    CREATE TABLE vault_wiki_links (
+      source_path TEXT NOT NULL,
+      target_path TEXT,
+      target_text TEXT NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (source_path, target_text)
+    );
   `);
   return db;
 }

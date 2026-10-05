@@ -799,18 +799,50 @@ export class KnowledgeAccessLayer {
           }
           rawPath = this.vaultNodeIdToPath.get(nodeId);
         }
-        if (rawPath && this.vault) {
-          for (const src of this.vault.getWikiBacklinks(rawPath)) {
-            results.push({
-              nodeId: createNodeId("vault", "note", src.path),
-              store: "vault",
-              type: "note",
-              title: src.title || src.path,
-              snippet: "",
-              relevance: 0.55,
-              tags: [],
-              metadata: { referencedBy: nodeId, sourcePath: src.path },
-            });
+        if (rawPath) {
+          const wikiSources = new Set<string>();
+          try {
+            const rows = this.db.query(
+              `SELECT l.source_path AS path,
+                      COALESCE(NULLIF(n.title, ''), l.source_path) AS title
+               FROM vault_wiki_links l
+               LEFT JOIN memory_notes n ON n.path = l.source_path
+               WHERE l.target_path = ?
+               ORDER BY l.source_path ASC`,
+            ).all(rawPath) as Array<{ path: string; title: string }>;
+            for (const src of rows) {
+              wikiSources.add(src.path);
+              results.push({
+                nodeId: createNodeId("vault", "note", src.path),
+                store: "vault",
+                type: "note",
+                title: src.title || src.path,
+                snippet: "",
+                relevance: 0.55,
+                tags: [],
+                metadata: { referencedBy: nodeId, sourcePath: src.path },
+              });
+            }
+          } catch (err) {
+            // 旧库/测试夹具可能没有 vault_wiki_links 表：降级到注入引擎。
+            logger.debug("[KAL] vault_wiki_links unavailable", { error: String(err) });
+          }
+
+          if (this.vault?.getWikiBacklinks) {
+            for (const src of this.vault.getWikiBacklinks(rawPath)) {
+              if (wikiSources.has(src.path)) continue;
+              wikiSources.add(src.path);
+              results.push({
+                nodeId: createNodeId("vault", "note", src.path),
+                store: "vault",
+                type: "note",
+                title: src.title || src.path,
+                snippet: "",
+                relevance: 0.55,
+                tags: [],
+                metadata: { referencedBy: nodeId, sourcePath: src.path },
+              });
+            }
           }
         }
       } catch (err) {

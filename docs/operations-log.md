@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-06 — feat(kal): P2-2d 跨存储 wiki 入链查询
+
+- **任务**：P2-2 第 4 步。让 KAL `getReferences` 对 vault node 优先查 `vault_wiki_links`，不再强制依赖注入引擎。分级 **T2**。
+- **RED**：新增 DB-only 用例；旧 KAL 只调用注入 `getWikiBacklinks`，DB 有行但注入返回空时结果 0，失败。
+- **GREEN**：rawPath 解析后先查 `vault_wiki_links`（LEFT JOIN memory_notes 取标题，按 source_path 排序）；再调注入引擎补齐未命中来源；Set 去重；无表时 debug 降级。
+- **验证**：`bun test tests/kal-references.test.ts tests/kal-semantic-merge.test.ts tests/kg-empty-doc.test.ts` = **33 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：KG/DRE 引用语义不变；KAL 不直接 import Vault 文件层。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(memory): P2-2c VaultManager wiki 出链同步
 
 - **任务**：P2-2 第 3 步。把 `writeNote` / `reindexAll` 的 wiki 出链收敛到 SQLite；删除笔记清悬空引用。分级 **T2**。
