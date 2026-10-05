@@ -359,6 +359,8 @@ ocr review --audience agent \
   - L5 laya missing 报告不可辨：已显式序列化 `missing`，缺失 margin/choice 用 `null`。
 - 终态验证：定向回归 **34 pass / 0 fail**；全量 **4,637 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 同步为 **38 模块 / 441 文件 / 119,767 行**。
 - OCR 仍为**部分复核**：4/14 文件因 provider 限流失败，后续可在限流恢复后再次低并发重跑。
+- 主模型补审（2026-10-06）：OCR session `aa13f28c-ca6e-4a4e-a304-f666f93f9f8d` 的 4 个未完成文件——`src/agents/approver-model.ts`、`src/agents/consciousness/goal-tracker.ts`、`src/agents/prompt-pool.ts`、`src/agents/tool-classifications.ts`——已由当前主模型逐 diff 人工复核；**0 个新增可行动缺陷**，对应定向测试 **40 pass / 0 fail**。
+- 主模型 OCR 尝试：以 `z-ai/glm-4.7-flash` 运行 25 分钟超时，14 files / 0 comments / 13 failed（tool-call timeout）；该次运行未作为完成证据，最终证据采用低并发 SenseNova 9 findings + 人工补审 4 files。
 
 ## 11. 对抗性自检（主代理执行）
 

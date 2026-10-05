@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-10-06 — docs(ocr): 当前主模型补审剩余 4 文件
+
+- **任务**：按用户要求使用当前主模型完成 OCR 未覆盖部分。分级 **T3（复核）**。
+- **主模型 OCR 尝试（未采用）**：使用 `z-ai/glm-4.7-flash`、`--concurrency 1` 复核 `16980d66..HEAD`；25 分钟超时，14 files / 0 comments / 13 failed（多为 tool-call timeout）。工具调用不稳定，未将此次结果作为完成证据。
+- **人工补审（采用）**：从低并发 SenseNova session `aa13f28c-ca6e-4a4e-a304-f666f93f9f8d` 提取 4 个未完成文件，由当前主模型逐 diff 审查：
+  - `src/agents/approver-model.ts`
+  - `src/agents/consciousness/goal-tracker.ts`
+  - `src/agents/prompt-pool.ts`
+  - `src/agents/tool-classifications.ts`
+  结论：**0 个新增可行动缺陷**；此前 OCR 9 findings 的 medium/low 修复均已由定向测试锁定。
+- **验证**：4 文件对应测试 **40 pass / 0 fail**；`bunx tsc --noEmit` rc=0；全量终态仍为 **4,637 pass / 67 skip / 0 fail**（4,704 tests / 482 files / 119.08s）。
+- **覆盖口径**：低并发 SenseNova 完成 10/14 + 主模型人工补审 4/14；GLM-4.7-flash OCR 运行不计入完成证据。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — fix(ocr-triage): OCR delta medium/low regressions
 
 - **任务**：处理 Batch E OCR 低并发 delta 复核新增的 4 个 medium/low 回归；这些是本批修复引入的边界回归，不再简单延后。分级 **T2（正确性/安全边界）**。
