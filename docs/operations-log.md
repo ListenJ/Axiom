@@ -32,7 +32,7 @@
   - Laya 要求 probabilities ≥2 项，报告显式输出 missing/null，单键分布判 insufficient。
 - **验证**：定向 6 文件 **34 pass / 0 fail**；全量 `bun test --timeout 15000 ./tests` = **4,637 pass / 67 skip / 0 fail**（4,704 tests / 482 files；119.08s）；`bunx tsc --noEmit` rc=0；`bun run arch:stats` = 38 模块 / 441 文件 / 119,767 行；doc/env 定向 47/0。
 - **OCR 覆盖说明**：低并发运行 14 files / 9 comments，但仍有 4/14 selected items 因 SenseNova 429 未完整复核；不宣称 OCR 100% 覆盖。
-- **Commit**：`<pending>`
+- **Commit**：`a59e3da1`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
