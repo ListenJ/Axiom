@@ -24,7 +24,7 @@
 - **GREEN**：`DriftSample` 增加显式 `missing`；`runDrift` 缺 answers/choice/probabilities（空分布）时标 missing，不再伪造 choice/margin；`judgeDrift` 任一样本 missing 即返回 `insufficient`。既有 strict 判据因此对缺失返回 1。
 - **验证**：`bun test tests/decision/laya-drift.test.ts tests/decision/laya-calibrate.test.ts tests/decision/laya-http.test.ts tests/decision/laya-cli-http-check.test.ts` = **34 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：不改变 choice 一致/稳定性带判据；不改变 Laya HTTP 契约、分块与重试。
-- **Commit**：`<pending>`
+- **Commit**：`1ed7e7c6`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
