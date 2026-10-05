@@ -315,6 +315,32 @@ ocr review --audience agent \
 
 ---
 
+## 10.1 13 条 high 处置结果（2026-10-05）
+
+| OCR # | 文件 | 处置 | 证据 |
+|---|---|---|---|
+| #9 | `src/cli/setup.ts` / `src/cli.ts` | `confirmed+fixed` | `tests/utils/env-file-permissions.test.ts`；commit `f0128a71` |
+| #8 | `src/agents/tool-classifications.ts` | `confirmed+fixed` | `tests/unit/tool-classifications.test.ts`；commit `0021fda7` |
+| #12 | `src/db/session-lineage.ts` | `confirmed+fixed` | `tests/db/session-lineage.test.ts`；commit `0021fda7` |
+| #3 | `src/agents/approver-model.ts` | `confirmed+fixed` | `tests/agents/approver-model-truncation.test.ts`；commit `c338c17e` |
+| #10 | `src/components/recoverable-output.ts` | `confirmed+fixed` | `tests/components/recoverable-output.test.ts`；commit `e49848cf` |
+| #1 | `src/agent-evals/registry.ts` | `confirmed+fixed` | `tests/agent-evals/registry.test.ts`；commit `4336fb41` |
+| #2 | `src/agent-evals/runtime-runner.ts` | `confirmed+fixed` | `tests/agent-evals/runtime-runner-approval.test.ts`；commit `4336fb41` |
+| #4 | `src/agents/consciousness/goal-tracker.ts` | `confirmed+fixed` | `tests/consciousness-goal-tracker.test.ts`；commit `05bf7b57` |
+| #11 | `src/context/context-manager.ts` | `confirmed+fixed` | `tests/context/context-manager-system.test.ts`；commit `05bf7b57` |
+| #5 | `src/agents/opencode-tools/codegen.ts` | `false-positive+evidence` | 8 MiB stderr 真实子进程回归 18.81ms 完成；commit `ae11f5ae` |
+| #6 | `src/agents/prompt-pool.ts` | `confirmed+fixed` | `tests/prompt-pool-template.test.ts` 字面替换；commit `2c5cdfd3` |
+| #7 | `src/agents/prompt-pool.ts` | `confirmed+fixed` | `tests/prompt-pool-template.test.ts` hits 单计；commit `2c5cdfd3` |
+| #13 | `src/decision/laya-calibrate.ts` | `confirmed+fixed` | `tests/decision/laya-drift.test.ts` 缺失响应边界；commit `1ed7e7c6` |
+
+### 10.2 最终门禁证据
+
+- `bunx tsc --noEmit` rc=0。
+- `bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` 45 pass / 0 fail。
+- 全量 `bun test --timeout 15000 ./tests`：**4,633 pass / 67 skip / 0 fail**（4,700 tests / 482 files；105.09s）。
+- 首次全量暴露并修复的收口问题：两个新 recoverable env 未登记、`ARCHITECTURE.md` 统计未同步、审批测试 spy 污染并行 DRE 测试；修复后全量复跑为 0 fail。
+- OCR delta review：见本节执行记录；不把 OCR 原始报告候选直接表述为确认缺陷。
+
 ## 11. 对抗性自检（主代理执行）
 
 - **范围审查**：只修 high；E1 的安全写入 helper 不得演变为 CLI 重构。

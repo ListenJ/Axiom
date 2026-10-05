@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-05 — test(closeout): OCR src high Batch E 全量收口（Step E5）
+
+- **任务**：Batch E Step 10。对 13 条 OCR high 做最终处置登记与全量回归。分级 **T3（收口）**。
+- **处置结果**：13/13 有结论——12 条 `confirmed+fixed`，1 条 `false-positive+evidence`（#5 codegen 双流死锁；8 MiB stderr 实测 18.81ms 完成）。明细表见修复计划 §10.1。
+- **首次全量**：`4,629 pass / 67 skip / 4 fail`。红因分两类：① 新增 recoverable env 未在 `.env.example` 登记、`ARCHITECTURE.md` 源码行数未执行 `arch:stats` 同步；② 新增审批测试用 `spyOn(providerCaller, "callProvider")`，与并行 DRE 测试共享模块时污染其 fetch 结果。
+- **修复**：`.env.example` 增登 `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES`/`...MAX_TOTAL_BYTES`；`bun run arch:stats` 实测 `38 模块 / 441 文件 / 119,730 行` 并同步 `docs/ARCHITECTURE.md`；审批测试改为未知 provider 黑盒断言，不再 spy 共享模块。
+- **验证**：全量 `bun test --timeout 15000 ./tests` = **4,633 pass / 67 skip / 0 fail**（4,700 tests / 482 files；105.09s）；`bunx tsc --noEmit` rc=0；文档/环境定向测试 rc=0。
+- **不做项**：不修 OCR medium/low；不改 E5 之外的业务逻辑。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(laya): 缺失响应按 insufficient（Batch E4-c）
 
 - **任务**：OCR high #13。批响应缺结果/分布被伪造为 `<none>` / margin 0，全部缺失时可误判 stable，strict 也返回 0。分级 **T2（正确性）**。
