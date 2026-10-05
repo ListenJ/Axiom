@@ -23,7 +23,7 @@
 - **产物**：新增 `docs/superpowers/plans/2026-10-06-p2-2-wiki-links-persistence.md`，冻结 5 个可独立验证 Step：schema/API → 引擎出链解析 → Vault 同步/删除 → KAL 查询 → 全量收口。
 - **不做项**：不改 wiki-link 解析/搜索打分、不新增依赖、不做路径重命名迁移、不复制 Markdown 原件。
 - **验证**：计划文件落盘，`git diff --check` rc=0；执行阶段按计划逐 Step RED→GREEN。
-- **Commit**：`<pending>`
+- **Commit**：`440e30fa`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
