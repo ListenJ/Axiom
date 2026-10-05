@@ -25,7 +25,7 @@
 - **修复**：`.env.example` 增登 `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES`/`...MAX_TOTAL_BYTES`；`bun run arch:stats` 实测 `38 模块 / 441 文件 / 119,730 行` 并同步 `docs/ARCHITECTURE.md`；审批测试改为未知 provider 黑盒断言，不再 spy 共享模块。
 - **验证**：全量 `bun test --timeout 15000 ./tests` = **4,633 pass / 67 skip / 0 fail**（4,700 tests / 482 files；105.09s）；`bunx tsc --noEmit` rc=0；文档/环境定向测试 rc=0。
 - **不做项**：不修 OCR medium/low；不改 E5 之外的业务逻辑。
-- **Commit**：`<pending>`
+- **Commit**：`090f3707`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
