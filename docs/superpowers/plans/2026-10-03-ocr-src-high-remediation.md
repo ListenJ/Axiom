@@ -337,19 +337,28 @@ ocr review --audience agent \
 
 - `bunx tsc --noEmit` rc=0。
 - `bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` 45 pass / 0 fail。
-- 全量 `bun test --timeout 15000 ./tests`：**4,633 pass / 67 skip / 0 fail**（4,700 tests / 482 files；105.09s）。
+- 全量 `bun test --timeout 15000 ./tests`：**4,637 pass / 67 skip / 0 fail**（4,704 tests / 482 files；119.08s；E5.1 triage 修复后终态）。
 - 首次全量暴露并修复的收口问题：两个新 recoverable env 未登记、`ARCHITECTURE.md` 统计未同步、审批测试 spy 污染并行 DRE 测试；修复后全量复跑为 0 fail。
 - OCR delta review：见本节执行记录；不把 OCR 原始报告候选直接表述为确认缺陷。
 
-### 10.3 OCR diff 增量复核（2026-10-05）
+### 10.3 OCR diff 增量复核（2026-10-05/06）
 
 - 工具：`open-code-review v1.12.12`（用户授权升级；隔离安装于 `~/.local/share/ocr-latest`）。
-- 范围：`16980d66..HEAD`；本次输出：14 files reviewed、2 comments；13/14 selected items 因 SenseNova `429 rpm exhausted` 未完整复核，结果按**部分完成**记录。
-- Finding M1（medium）：`src/mcp/server.ts` 接入 32MiB 单条上限后，超过上限的 tool output 会在 `store.store()` 抛出，工具调用失败；旧行为会存储任意大小。
-  - Triage：按 E2-b 冻结契约“单条超限直接拒绝/降级，不写入 Map”，**Batch E 不改行为**；已将其明确登记为 fail-closed，并保留后续“返回无法取回占位而非抛错”的单独 triage 项。
-- Finding L1（low）：新增的两个 recoverable env 未在 `mcp/external/SKILL.md` 登记（`.env.example` 已在 E5 补登）。
-  - 处置：本次补登 `MAX_ENTRY_BYTES` / `MAX_TOTAL_BYTES` 及超限语义，不再混入 high 修复结论。
-- 本增量复核**不宣称完整覆盖**；剩余项需在 provider 限流恢复后按低并发重跑。
+- 范围：`16980d66..HEAD`。
+- 第一轮（默认并发）：14 files reviewed / 2 comments；13/14 selected items 因 SenseNova `429 rpm exhausted` 失败。
+- 第二轮（`--concurrency 1`）：14 files reviewed / **9 comments**；仍有 4/14 selected items 因 429 未完整复核。因此本记录不宣称 OCR 100% 覆盖。
+- 增量发现与处置：
+  - M1 recoverable output：超过 `maxEntryBytes` 时 wrapper 直接抛错。已修为返回 `available:false` 的不可取回占位，工具调用不再因超限中断。
+  - M2 context-manager：旧 compaction summary 被当作 policy 永久保留，反复压缩会累积摘要。已把旧摘要降级为可再压缩历史，只保留真正的 policy system message。
+  - M3 session-lineage：FTS 清洗允许 `_`，但 `unicode61` 把 `_` 当分隔符，`___` 会走到空 FTS 查询。已要求 token 至少含一个 letter/digit，纯分隔符回退最近列表。
+  - M4 laya-calibrate：单键分布被当作有效 margin=1，可能伪造 stable。已要求至少两个概率项；缺失样本在报告中输出 `missing` 与 `null` choice/margin。
+  - L1 external skill env 文档：已在 `mcp/external/SKILL.md` 补登 `MAX_ENTRY_BYTES`/`MAX_TOTAL_BYTES` 与 fail-closed 语义。
+  - L2 context split 日志 activeMessages 少计 system：已按实际返回数组计数。
+  - L3 context split 早退路径 system 顺序不一致：已统一为 policy system 在前。
+  - L4 session-lineage dead quote escape：已移除。
+  - L5 laya missing 报告不可辨：已显式序列化 `missing`，缺失 margin/choice 用 `null`。
+- 终态验证：定向回归 **34 pass / 0 fail**；全量 **4,637 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 同步为 **38 模块 / 441 文件 / 119,767 行**。
+- OCR 仍为**部分复核**：4/14 文件因 provider 限流失败，后续可在限流恢复后再次低并发重跑。
 
 ## 11. 对抗性自检（主代理执行）
 

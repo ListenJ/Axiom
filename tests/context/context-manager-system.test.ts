@@ -45,6 +45,27 @@ describe("ContextManager system message preservation", () => {
     }
   });
 
+  it("replaces the prior compaction summary instead of accumulating it", async () => {
+    const spies = mockRouter();
+    const manager = new ContextManager({ maxContextWindow: 128000 });
+    try {
+      const first = await manager.compressContext(messages, { preserveRecent: 2 });
+      const withNextTurn = [
+        ...first,
+        { role: "user" as const, content: "new user" },
+        { role: "assistant" as const, content: "new answer" },
+      ];
+      const second = await manager.compressContext(withNextTurn, { preserveRecent: 2 });
+      const summaries = second.filter(
+        (m) => m.role === "system" && m.content.includes("Previous conversation summary"),
+      );
+      expect(summaries).toHaveLength(1);
+      expect(second[0]).toEqual(messages[0]);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it("keeps the original system message when compressing", async () => {
     const spies = mockRouter();
     const manager = new ContextManager({ maxContextWindow: 128000 });

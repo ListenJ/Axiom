@@ -165,7 +165,7 @@ export class ContextManager {
     );
 
     if (olderMessages.length === 0) {
-      return { activeMessages: messages, archivedChunks: [] };
+      return { activeMessages: [...systemMessages, ...recentMessages], archivedChunks: [] };
     }
 
     // 将旧消息分割为 chunks
@@ -189,13 +189,14 @@ export class ContextManager {
 
     this.chunks.push(...chunks);
 
+    const activeMessages = [...systemMessages, ...recentMessages];
     logger.info("[ContextManager] Context split", {
       originalMessages: messages.length,
-      activeMessages: recentMessages.length,
+      activeMessages: activeMessages.length,
       archivedChunks: chunks.length,
     });
 
-    return { activeMessages: [...systemMessages, ...recentMessages], archivedChunks: chunks };
+    return { activeMessages, archivedChunks: chunks };
   }
 
   /**
@@ -212,7 +213,7 @@ export class ContextManager {
       preserveRecent,
     );
 
-    if (olderMessages.length === 0) return messages;
+    if (olderMessages.length === 0) return [...systemMessages, ...recentMessages];
 
     // 生成整体摘要
     const summary = await this.generateSummary(olderMessages);
@@ -349,15 +350,25 @@ export class ContextManager {
   // 私有辅助方法
   // ═══════════════════════════════════════════════════════════════
 
+  private isCompactionSummary(message: ChatMessage): boolean {
+    return message.role === "system" && message.content.startsWith("Previous conversation summary:");
+  }
+
   private partitionForCompaction(
     messages: ChatMessage[],
     preserveRecent: number,
   ): { systemMessages: ChatMessage[]; olderMessages: ChatMessage[]; recentMessages: ChatMessage[] } {
-    const systemMessages = messages.filter((m) => m.role === "system");
+    const policySystemMessages = messages.filter(
+      (m) => m.role === "system" && !this.isCompactionSummary(m),
+    );
+    const generatedSummaries = messages.filter((m) => this.isCompactionSummary(m));
     const nonSystemMessages = messages.filter((m) => m.role !== "system");
     return {
-      systemMessages,
-      olderMessages: nonSystemMessages.slice(0, -preserveRecent),
+      systemMessages: policySystemMessages,
+      // A previous generated summary is replayable history, not policy. Put it
+      // back into the compaction input so the next summary replaces it instead
+      // of accumulating another system message forever.
+      olderMessages: [...generatedSummaries, ...nonSystemMessages.slice(0, -preserveRecent)],
       recentMessages: nonSystemMessages.slice(-preserveRecent),
     };
   }

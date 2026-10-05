@@ -17,6 +17,25 @@
 
 ---
 
+## 2026-10-06 — fix(ocr-triage): OCR delta medium/low regressions
+
+- **任务**：处理 Batch E OCR 低并发 delta 复核新增的 4 个 medium/low 回归；这些是本批修复引入的边界回归，不再简单延后。分级 **T2（正确性/安全边界）**。
+- **RED（4/4 复现）**：
+  - recoverable wrapper 在单条超过 `maxEntryBytes` 时直接抛错，工具调用失败；
+  - `compressContext` 第二轮后保留两个 `Previous conversation summary` system message；
+  - FTS `searchSessionLineage("___")` 返回 0 而非回退最近列表；
+  - Laya 单键概率分布被 `marginOf` 伪造成 1，判成 stable。
+- **GREEN**：
+  - `wrapWithRecoverableOutput` 超限返回 `available:false`、`toolId:""` 的不可取回占位，不抛穿工具调用；
+  - context compaction 把旧摘要当可替换历史，只保留 policy system；split 日志与早退顺序同步修正；
+  - session-lineage token 必须含 letter/digit，纯分隔符回退最近列表，移除死 quote escape；
+  - Laya 要求 probabilities ≥2 项，报告显式输出 missing/null，单键分布判 insufficient。
+- **验证**：定向 6 文件 **34 pass / 0 fail**；全量 `bun test --timeout 15000 ./tests` = **4,637 pass / 67 skip / 0 fail**（4,704 tests / 482 files；119.08s）；`bunx tsc --noEmit` rc=0；`bun run arch:stats` = 38 模块 / 441 文件 / 119,767 行；doc/env 定向 47/0。
+- **OCR 覆盖说明**：低并发运行 14 files / 9 comments，但仍有 4/14 selected items 因 SenseNova 429 未完整复核；不宣称 OCR 100% 覆盖。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — docs(ocr): Batch E 增量复核与 triage
 
 - **任务**：用户授权升级 OCR 后，对 `16980d66..HEAD` 做 Batch E diff 增量复核。分级 **T3（复核/文档）**。

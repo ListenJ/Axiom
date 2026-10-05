@@ -134,6 +134,9 @@ export interface RecoverableOutputPlaceholder {
   bytes: number;
   tokens: number;
   message: string;
+  /** false 表示超过单条上限，内容未存储；toolId 为空且不可取回。 */
+  available?: boolean;
+  error?: string;
 }
 
 export function wrapWithRecoverableOutput(
@@ -156,13 +159,35 @@ export function wrapWithRecoverableOutput(
             : JSON.stringify(result);
       const bytes = Buffer.byteLength(text, "utf8");
       if (bytes <= thresholdBytes) return result;
-      const toolId = store.store(text, tool.name);
+      let toolId: string;
+      try {
+        toolId = store.store(text, tool.name);
+      } catch (error) {
+        if (
+          !(error instanceof Error) ||
+          !error.message.includes("[RecoverableOutput]") ||
+          !error.message.includes("maxEntryBytes")
+        ) {
+          throw error;
+        }
+        return {
+          recoverable: true,
+          toolId: "",
+          tool: tool.name,
+          bytes,
+          tokens: 0,
+          available: false,
+          error: error.message,
+          message: `Output ${bytes} bytes exceeds maxEntryBytes; not stored. Reduce the output or raise the configured cap.`,
+        };
+      }
       return {
         recoverable: true,
         toolId,
         tool: tool.name,
         bytes,
         tokens: estimateTokens(text),
+        available: true,
         message: `Output ${bytes} bytes exceeded ${thresholdBytes} byte threshold; use read_tool_result with toolId ${toolId}`,
       };
     },

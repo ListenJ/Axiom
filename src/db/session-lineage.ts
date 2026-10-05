@@ -158,13 +158,13 @@ export function searchSessionLineage(db: Database, query: string, limit = 20): S
   const terms = trimmed
     .split(/\s+/)
     .map((term) => term.replace(/[^\p{L}\p{N}_]/gu, ""))
-    .filter(Boolean);
+    .filter((term) => /[\p{L}\p{N}]/u.test(term));
   if (terms.length === 0) return recentSessionLineage(db, safeLimit);
 
   // FTS5 MATCH has its own operator language (OR/AND/NEAR/quotes). Treat each
   // user token as one quoted literal and apply prefix matching only after that.
   const ftsQuery = terms
-    .map((term) => `"${term.replace(/"/g, '""')}"*`)
+    .map((term) => `"${term}"*`)
     .join(" OR ");
   return db.query(
     `SELECT ${REF_COLUMNS.split(", ").map((c) => `sl.${c}`).join(", ")}

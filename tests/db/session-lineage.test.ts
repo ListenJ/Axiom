@@ -46,3 +46,14 @@ it("treats FTS operators as literal terms and falls back on symbol-only input", 
     db.close();
   }
 });
+
+it("falls back to recent sessions for underscore-only FTS input", () => {
+  const db = new Database(":memory:");
+  try {
+    sl.upsertSessionLineage(db, { sessionId: "underscore-1", title: "alpha", summary: "beta" });
+    expect(() => sl.searchSessionLineage(db, "___", 10)).not.toThrow();
+    expect(sl.searchSessionLineage(db, "___", 10).length).toBeGreaterThan(0);
+  } finally {
+    db.close();
+  }
+});

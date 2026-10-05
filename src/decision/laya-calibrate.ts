@@ -273,7 +273,7 @@ export async function runDrift(argv: string[]): Promise<number> {
         !ans ||
         typeof ans.choice !== "string" ||
         !ans.probabilities ||
-        Object.keys(ans.probabilities).length === 0
+        Object.keys(ans.probabilities).length < 2
       ) {
         samples.push({ choice: "", margin: 0, missing: true });
       } else {
@@ -284,8 +284,9 @@ export async function runDrift(argv: string[]): Promise<number> {
     return {
       id: c.id,
       paraphrases: c.paraphrases.length,
-      choices: samples.map((s) => s.choice),
-      margins: samples.map((s) => Number(s.margin.toFixed(4))),
+      choices: samples.map((s) => (s.missing ? null : s.choice)),
+      margins: samples.map((s) => (s.missing ? null : Number(s.margin.toFixed(4)))),
+      missing: samples.map((s) => Boolean(s.missing)),
       spread: v.spread,
       verdict: v.verdict,
       reason: v.reason,

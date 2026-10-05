@@ -81,10 +81,11 @@ function mockByState(choiceFor: (state: string) => { choice: string; p1: number;
         results: body.items.map((it) => {
           const q = Object.keys(it.questions)[0];
           const c = choiceFor(it.state);
+          const otherChoice = c.choice === "reject" ? "auto_fix" : "reject";
           return {
             id: it.id,
             ok: true,
-            answers: { [q]: { type: "choice", choice: c.choice, probabilities: { [c.choice]: c.p1, reject: c.p2 } } },
+            answers: { [q]: { type: "choice", choice: c.choice, probabilities: { [c.choice]: c.p1, [otherChoice]: c.p2 } } },
           };
         }),
       }),
@@ -188,6 +189,41 @@ describe("runDrift —— 缺失响应边界", () => {
       };
       expect(report.insufficient).toBe(2);
       expect(report.propositions.map((p) => p.verdict)).toEqual(["insufficient", "insufficient"]);
+      expect(await runDrift(["--drift", file, "--out", out, "--strict"])).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("runDrift —— 单键分布边界", () => {
+
+  test("single-entry distributions are insufficient, not fabricated stable", async () => {
+    const { file, cleanup } = setup([
+      { id: "degenerate", question: "action", criteria: ["auto_fix", "reject"], paraphrases: ["A", "B"] },
+    ]);
+    process.env.LAYA_DECISION_URL = "http://laya.test:18081";
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({
+        total: 2,
+        ok: 2,
+        failed: 0,
+        results: [
+          { id: "degenerate#0", ok: true, answers: { action: { type: "choice", choice: "auto_fix", probabilities: { auto_fix: 1 } } } },
+          { id: "degenerate#1", ok: true, answers: { action: { type: "choice", choice: "auto_fix", probabilities: { auto_fix: 1 } } } },
+        ],
+      }), { status: 200 })) as unknown as typeof fetch;
+    try {
+      const out = join(file.replace(/\.json$/, "") + ".degenerate.drift.json");
+      expect(await runDrift(["--drift", file, "--out", out])).toBe(0);
+      const report = JSON.parse(readFileSync(out, "utf8")) as {
+        insufficient: number;
+        propositions: Array<{ verdict: string; missing: boolean[]; margins: Array<number | null> }>;
+      };
+      expect(report.insufficient).toBe(1);
+      expect(report.propositions[0].verdict).toBe("insufficient");
+      expect(report.propositions[0].missing).toEqual([true, true]);
+      expect(report.propositions[0].margins).toEqual([null, null]);
       expect(await runDrift(["--drift", file, "--out", out, "--strict"])).toBe(1);
     } finally {
       cleanup();

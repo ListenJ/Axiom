@@ -42,6 +42,25 @@ describe("RecoverableToolOutput", () => {
     expect(store.stats().entries).toBe(0);
   });
 
+  it("returns an unavailable placeholder instead of throwing when an output exceeds maxEntryBytes", async () => {
+    const store = new RecoverableOutputStore({ maxEntryBytes: 4, maxTotalBytes: 100 });
+    const wrapped = wrapWithRecoverableOutput(
+      tool(async () => "12345"),
+      store,
+      1,
+    );
+
+    const result = await wrapped.handler({}) as {
+      recoverable: true;
+      available?: boolean;
+      message: string;
+    };
+    expect(result.recoverable).toBe(true);
+    expect(result.available).toBe(false);
+    expect(result.message).toContain("maxEntryBytes");
+    expect(store.stats().entries).toBe(0);
+  });
+
   it("evicts oldest entries when total bytes exceed maxTotalBytes", () => {
     const store = new RecoverableOutputStore({ maxEntries: 10, maxEntryBytes: 5, maxTotalBytes: 11 });
     const first = store.store("12345", "a");
