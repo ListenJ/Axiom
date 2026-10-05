@@ -24,7 +24,7 @@
 - **GREEN**：新增 `ResolvedWikiLink` 与 `getWikiOutgoingLinks(notePath)`；复用现有 `normalizeLink` + `getLinkToPath`，按 targetText 去重/稳定排序，未解析或自引用 `targetPath=null`；不改搜索/排序。
 - **验证**：`bun test tests/deterministic-search.test.ts tests/memory/link-collision.test.ts` = **18 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：未改 wiki-link 解析规则；VaultManager/KAL 分列 P2-2c/d。
-- **Commit**：`<pending>`
+- **Commit**：`47a28353`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
