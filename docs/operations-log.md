@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-06 — feat(memory): P2-2c VaultManager wiki 出链同步
+
+- **任务**：P2-2 第 3 步。把 `writeNote` / `reindexAll` 的 wiki 出链收敛到 SQLite；删除笔记清悬空引用。分级 **T2**。
+- **RED**：新增临时 Vault 测试；旧实现的 writeNote/reindexAll 均不产生 backlinks，2 例失败。
+- **GREEN**：`syncWikiLinks(notePath)` 调引擎解析并发 `replaceWikiLinks`；writeNote 在文件发布后 reload 引擎并同步；reindexAll upsert 后同步；同步失败只日志，不阻断 Vault 写；deleteNote 沿用 P2-2a 的清链语义。
+- **验证**：`bun test tests/memory/vault-wiki-links.test.ts tests/vault-manager.test.ts tests/memory/vault-reindex.test.ts tests/memory/vault-atomic-write.test.ts` = **10 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：KAL 查询留 P2-2d；不改 wiki-link 解析规则与 Vault 文件格式。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(memory): P2-2b 引擎解析 wiki 出链
 
 - **任务**：P2-2 第 2 步。给 `DeterministicSearchEngine` 增加已解析出链读取接口，供 SQLite 同步。分级 **T2**。
