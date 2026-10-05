@@ -24,7 +24,7 @@
 - **GREEN**：`syncWikiLinks(notePath)` 调引擎解析并发 `replaceWikiLinks`；writeNote 在文件发布后 reload 引擎并同步；reindexAll upsert 后同步；同步失败只日志，不阻断 Vault 写；deleteNote 沿用 P2-2a 的清链语义。
 - **验证**：`bun test tests/memory/vault-wiki-links.test.ts tests/vault-manager.test.ts tests/memory/vault-reindex.test.ts tests/memory/vault-atomic-write.test.ts` = **10 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
 - **不做项**：KAL 查询留 P2-2d；不改 wiki-link 解析规则与 Vault 文件格式。
-- **Commit**：`<pending>`
+- **Commit**：`2f9f8d91`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
