@@ -68,7 +68,7 @@
 - **文档**：`LIMITATIONS.md` 增加“派生索引边界”（外部直接改 `.md` 需 `reindexAll()`，未解析链接 `target_path=NULL` 不产生入链）；`ARCHITECTURE.md` 统计同步为 **38 模块 / 442 文件 / 119,956 行**。
 - **验证**：全量 `bun test --timeout 15000 ./tests` = **4,644 pass / 67 skip / 0 fail**（4,711 tests / 484 files；109.54s）；`bunx tsc --noEmit` rc=0；doc/env 定向 47/0；架构完整性含行数棘轮 0 fail。
 - **不做项**：不改 Markdown wiki-link 解析/搜索打分；不新增依赖；不把 Vault 原件复制进 SQLite。
-- **Commit**：`<pending>`
+- **Commit**：`7e790b6e`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
