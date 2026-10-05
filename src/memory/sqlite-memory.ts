@@ -252,6 +252,20 @@ export class SQLiteMemory {
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_para ON memory_notes(para_category)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_type ON memory_notes(type)`);
     this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_updated ON memory_notes(updated_at DESC)`);
+
+    // P2-2：Vault wiki-link 图的可重建 SQLite 索引。Markdown 仍是事实源；
+    // 表由 VaultManager 在写入/重扫时收敛，删除笔记时同步清理悬空引用。
+    this.db.run(`
+      CREATE TABLE IF NOT EXISTS vault_wiki_links (
+        source_path TEXT NOT NULL,
+        target_path TEXT,
+        target_text TEXT NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (source_path, target_text)
+      )
+    `);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_vault_wiki_source ON vault_wiki_links(source_path)`);
+    this.db.run(`CREATE INDEX IF NOT EXISTS idx_vault_wiki_target ON vault_wiki_links(target_path)`);
   }
 
   /**
@@ -575,7 +589,57 @@ export class SQLiteMemory {
     }));
   }
 
+  /**
+   * P2-2：全量替换某来源笔记的出链集合。SAVEPOINT 兼容 VaultManager 重扫的外层事务。
+   */
+  replaceWikiLinks(
+    sourcePath: string,
+    links: Array<{ targetText: string; targetPath?: string | null }>,
+  ): void {
+    const unique = new Map<string, { targetText: string; targetPath: string | null }>();
+    for (const link of links) {
+      const targetText = link.targetText.trim();
+      if (!targetText) continue;
+      unique.set(targetText, { targetText, targetPath: link.targetPath ?? null });
+    }
+    const rows = [...unique.values()].sort((a, b) => a.targetText.localeCompare(b.targetText));
+
+    this.db.run("SAVEPOINT vault_wiki_links_replace");
+    try {
+      this.db.run("DELETE FROM vault_wiki_links WHERE source_path = ?", [sourcePath]);
+      const now = Date.now();
+      for (const row of rows) {
+        this.db.run(
+          `INSERT INTO vault_wiki_links (source_path, target_path, target_text, updated_at)
+           VALUES (?, ?, ?, ?)`,
+          [sourcePath, row.targetPath, row.targetText, now],
+        );
+      }
+      this.db.run("RELEASE SAVEPOINT vault_wiki_links_replace");
+    } catch (e) {
+      try { this.db.run("ROLLBACK TO SAVEPOINT vault_wiki_links_replace"); } catch {}
+      try { this.db.run("RELEASE SAVEPOINT vault_wiki_links_replace"); } catch {}
+      throw e;
+    }
+  }
+
+  /** P2-2：查目标路径的 wiki 入链，按 source_path 确定排序。 */
+  getWikiBacklinks(targetPath: string): Array<{ path: string; title: string }> {
+    return this.db.query(
+      `SELECT l.source_path AS path, COALESCE(NULLIF(n.title, ''), l.source_path) AS title
+       FROM vault_wiki_links l
+       LEFT JOIN memory_notes n ON n.path = l.source_path
+       WHERE l.target_path = ?
+       ORDER BY l.source_path ASC`,
+    ).all(targetPath) as Array<{ path: string; title: string }>;
+  }
+
   deleteNote(notePath: string): boolean {
+    // P2-2：删除笔记时同时清掉它的出链与指向它的悬空入链。
+    this.db.run(
+      "DELETE FROM vault_wiki_links WHERE source_path = ? OR target_path = ?",
+      [notePath, notePath],
+    );
     const result = this.db.run("DELETE FROM memory_notes WHERE path = ?", [notePath]);
     const removed = result.changes > 0;
     // 删除同步（2026-09-21）：行真的被删掉后，通知索引侧清掉**同 nodeId 的向量**。
@@ -586,6 +650,22 @@ export class SQLiteMemory {
   }
 
   archiveNotePath(notePath: string, archivePath: string): boolean {
+    this.db.run("SAVEPOINT vault_wiki_links_archive");
+    try {
+      this.db.run(
+        "UPDATE vault_wiki_links SET source_path = ? WHERE source_path = ?",
+        [archivePath, notePath],
+      );
+      this.db.run(
+        "UPDATE vault_wiki_links SET target_path = ? WHERE target_path = ?",
+        [archivePath, notePath],
+      );
+      this.db.run("RELEASE SAVEPOINT vault_wiki_links_archive");
+    } catch (e) {
+      try { this.db.run("ROLLBACK TO SAVEPOINT vault_wiki_links_archive"); } catch {}
+      try { this.db.run("RELEASE SAVEPOINT vault_wiki_links_archive"); } catch {}
+      throw e;
+    }
     const result = this.db.run(
       "UPDATE memory_notes SET path = ?, para_category = 'archives', updated_at = ? WHERE path = ?",
       [archivePath, Date.now(), notePath],

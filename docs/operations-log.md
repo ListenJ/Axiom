@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-06 — feat(memory): P2-2a vault_wiki_links schema/API
+
+- **任务**：P2-2 第 1 步。为 Vault wiki-link 图建立可重建 SQLite 索引，不改 Markdown 事实源。分级 **T2**。
+- **RED**：新增 `tests/unit/sqlite-memory-wiki-links.test.ts`，旧 `SQLiteMemory` 无 `replaceWikiLinks`/`getWikiBacklinks`，2 例失败。
+- **GREEN**：`initSchema` 幂等创建 `vault_wiki_links(source_path,target_path,target_text,updated_at)` + source/target 索引；`replaceWikiLinks` 用 SAVEPOINT 全量替换（兼容外层事务）；`getWikiBacklinks` 按 source_path 确定性返回并 join 标题；`deleteNote` 清出链+悬空入链；`archiveNotePath` 同步 source/target 路径。
+- **验证**：`bun test tests/sqlite-memory.test.ts tests/memory/sqlite-memory-tags.test.ts tests/unit/sqlite-memory-wiki-links.test.ts` = **28 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：VaultManager 引擎同步、KAL 查询分别留 P2-2b/c/d。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(plan): P2-2 wiki_links 持久化计划
 
 - **任务**：架构路线图 P2-2。新增 Vault wiki-link 的 SQLite 可重建索引、VaultManager 增量同步、KAL 跨存储引用查询；Vault Markdown 仍是事实源。分级 **T3（跨存储接口）**。
