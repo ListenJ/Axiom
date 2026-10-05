@@ -55,6 +55,8 @@ Clients connect to `http://127.0.0.1:3001` with `x-api-key: your-token`.
 - `AXIOM_EXTERNAL_RECOVERABLE_THRESHOLD` - outputs above this byte size are stored and returned as a placeholder (default `8192`).
 - `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRIES` - maximum stored outputs (default `1000`).
 - `AXIOM_EXTERNAL_RECOVERABLE_TTL_MS` - stored output lifetime in milliseconds (default `3600000`).
+- `AXIOM_EXTERNAL_RECOVERABLE_MAX_ENTRY_BYTES` - hard per-entry byte cap; oversize outputs are rejected without being stored (default `33554432`, fail-closed).
+- `AXIOM_EXTERNAL_RECOVERABLE_MAX_TOTAL_BYTES` - total stored bytes cap; oldest entries are evicted first (default `268435456`).
 
 ## Security
 

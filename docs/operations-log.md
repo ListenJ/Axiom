@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — docs(ocr): Batch E 增量复核与 triage
+
+- **任务**：用户授权升级 OCR 后，对 `16980d66..HEAD` 做 Batch E diff 增量复核。分级 **T3（复核/文档）**。
+- **工具**：系统级 npm 安装因 `/usr/lib/node_modules` EACCES 拒绝；按最小权限改为隔离安装 `~/.local/share/ocr-latest`，版本 `open-code-review v1.12.12`，使用其 `--output`。
+- **结果（部分）**：14 files reviewed / 2 comments / ~114,831 tokens；13/14 selected items 因 SenseNova `429 rpm exhausted` 未完成，结果明确登记为 partial，不宣称完整覆盖。
+- **Triage**：medium M1（>32MiB tool output 抛错）与冻结契约的“单条超限直接拒绝/降级”一致，Batch E 不改行为，登记后续 graceful-truncation triage；low L1（`mcp/external/SKILL.md` 缺新 env）已在本次补登 `MAX_ENTRY_BYTES`/`MAX_TOTAL_BYTES` 与 fail-closed 语义。
+- **验证**：`git diff --check` rc=0；文档门禁在本条提交前复跑。原始输出：`/tmp/ocr-batch-e-delta.txt`、`/tmp/ocr-batch-e-delta.stdout`。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — test(closeout): OCR src high Batch E 全量收口（Step E5）
 
 - **任务**：Batch E Step 10。对 13 条 OCR high 做最终处置登记与全量回归。分级 **T3（收口）**。

@@ -341,6 +341,16 @@ ocr review --audience agent \
 - 首次全量暴露并修复的收口问题：两个新 recoverable env 未登记、`ARCHITECTURE.md` 统计未同步、审批测试 spy 污染并行 DRE 测试；修复后全量复跑为 0 fail。
 - OCR delta review：见本节执行记录；不把 OCR 原始报告候选直接表述为确认缺陷。
 
+### 10.3 OCR diff 增量复核（2026-10-05）
+
+- 工具：`open-code-review v1.12.12`（用户授权升级；隔离安装于 `~/.local/share/ocr-latest`）。
+- 范围：`16980d66..HEAD`；本次输出：14 files reviewed、2 comments；13/14 selected items 因 SenseNova `429 rpm exhausted` 未完整复核，结果按**部分完成**记录。
+- Finding M1（medium）：`src/mcp/server.ts` 接入 32MiB 单条上限后，超过上限的 tool output 会在 `store.store()` 抛出，工具调用失败；旧行为会存储任意大小。
+  - Triage：按 E2-b 冻结契约“单条超限直接拒绝/降级，不写入 Map”，**Batch E 不改行为**；已将其明确登记为 fail-closed，并保留后续“返回无法取回占位而非抛错”的单独 triage 项。
+- Finding L1（low）：新增的两个 recoverable env 未在 `mcp/external/SKILL.md` 登记（`.env.example` 已在 E5 补登）。
+  - 处置：本次补登 `MAX_ENTRY_BYTES` / `MAX_TOTAL_BYTES` 及超限语义，不再混入 high 修复结论。
+- 本增量复核**不宣称完整覆盖**；剩余项需在 provider 限流恢复后按低并发重跑。
+
 ## 11. 对抗性自检（主代理执行）
 
 - **范围审查**：只修 high；E1 的安全写入 helper 不得演变为 CLI 重构。
