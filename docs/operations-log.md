@@ -24,7 +24,7 @@
 - **并行结论**：`package.json test` 继续使用 `scripts/test-full.ts --parallel=8`，collector 传 `--isolate --timeout 15000`。`--isolate` 已以每文件独立全局对象消除跨文件 mock/单例/env 污染；不引入目录分片作为第二层调度。
 - **验证**：`bun run test` 连续 3 次均 **4509 pass / 0 fail**；`AXIOM_PERF_ASSERT=1 bun run test:perf` = **31 pass / 0 fail**；`bun run test:gate` = **12 pass / 0 fail**。原始日志：`/tmp/step12b-*.log`。
 - **产物**：新增 `docs/reviews/2026-10-06-step12b-test-threshold-parallelization.md`；计划 Step 12 增加执行结果。
-- **Commit**：`<pending>`
+- **Commit**：`b87f8e78`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
