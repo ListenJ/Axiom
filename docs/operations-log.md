@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-05 — fix(laya): 缺失响应按 insufficient（Batch E4-c）
+
+- **任务**：OCR high #13。批响应缺结果/分布被伪造为 `<none>` / margin 0，全部缺失时可误判 stable，strict 也返回 0。分级 **T2（正确性）**。
+- **RED**：新增全部缺失 + 部分缺失套件测试；旧实现报告 `insufficient=0`，全缺失命题 verdict=stable。
+- **GREEN**：`DriftSample` 增加显式 `missing`；`runDrift` 缺 answers/choice/probabilities（空分布）时标 missing，不再伪造 choice/margin；`judgeDrift` 任一样本 missing 即返回 `insufficient`。既有 strict 判据因此对缺失返回 1。
+- **验证**：`bun test tests/decision/laya-drift.test.ts tests/decision/laya-calibrate.test.ts tests/decision/laya-http.test.ts tests/decision/laya-cli-http-check.test.ts` = **34 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`git diff --check` rc=0。
+- **不做项**：不改变 choice 一致/稳定性带判据；不改变 Laya HTTP 契约、分块与重试。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-05 — fix(prompt-pool): 字面替换与 hits 单计（Batch E4-b）
 
 - **任务**：OCR high #6（用户输入含 `$&`/`$$`/`$'` 被 `String.replace` replacement template 展开）与 #7（acquire/release 双计 hits，hitRate 可 >1）。分级 **T2（正确性）**。

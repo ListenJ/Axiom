@@ -187,6 +187,8 @@ export const STABILITY_BAND = 0.15;
 export interface DriftSample {
   choice: string;
   margin: number;
+  /** 服务端响应缺 choice 或可用分布时为 true：该样本不可判定，不得伪造 stable。 */
+  missing?: boolean;
 }
 
 export interface DriftVerdict {
@@ -202,6 +204,9 @@ export interface DriftVerdict {
 export function judgeDrift(samples: DriftSample[]): DriftVerdict {
   if (samples.length < 2) {
     return { verdict: "insufficient", spread: 0, reason: "措辞数 <2，无法判定漂移" };
+  }
+  if (samples.some((s) => s.missing)) {
+    return { verdict: "insufficient", spread: 0, reason: "存在缺失 choice/分布，无法判定漂移" };
   }
   const choices = new Set(samples.map((s) => s.choice));
   const margins = samples.map((s) => s.margin);
@@ -264,7 +269,16 @@ export async function runDrift(argv: string[]): Promise<number> {
     const samples: DriftSample[] = [];
     for (let i = 0; i < c.paraphrases.length; i++) {
       const ans = byId.get(`${c.id}#${i}`)?.answers?.[c.question];
-      samples.push({ choice: ans?.choice ?? "<none>", margin: marginOf(ans?.probabilities) });
+      if (
+        !ans ||
+        typeof ans.choice !== "string" ||
+        !ans.probabilities ||
+        Object.keys(ans.probabilities).length === 0
+      ) {
+        samples.push({ choice: "", margin: 0, missing: true });
+      } else {
+        samples.push({ choice: ans.choice, margin: marginOf(ans.probabilities) });
+      }
     }
     const v = judgeDrift(samples);
     return {

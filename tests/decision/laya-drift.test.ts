@@ -155,3 +155,42 @@ describe("runDrift —— 套件级行为", () => {
     }
   });
 });
+
+describe("runDrift —— 缺失响应边界", () => {
+  test("missing choice/probabilities => insufficient，不得假 stable；strict 返回 1", async () => {
+    const { file, cleanup } = setup([
+      { id: "all-missing", question: "action", criteria: ["auto_fix", "reject"], paraphrases: ["A", "B"] },
+      { id: "partial", question: "action", criteria: ["auto_fix", "reject"], paraphrases: ["C", "D"] },
+    ]);
+    process.env.LAYA_DECISION_URL = "http://laya.test:18081";
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({
+        total: 4,
+        ok: 4,
+        failed: 0,
+        results: [
+          { id: "all-missing#0", ok: true },
+          { id: "all-missing#1", ok: true },
+          {
+            id: "partial#0",
+            ok: true,
+            answers: { action: { type: "choice", choice: "auto_fix", probabilities: { auto_fix: 0.9, reject: 0.1 } } },
+          },
+          { id: "partial#1", ok: true },
+        ],
+      }), { status: 200 })) as unknown as typeof fetch;
+    try {
+      const out = join(file.replace(/\.json$/, "") + ".missing.drift.json");
+      expect(await runDrift(["--drift", file, "--out", out])).toBe(0);
+      const report = JSON.parse(readFileSync(out, "utf8")) as {
+        insufficient: number;
+        propositions: Array<{ id: string; verdict: string }>;
+      };
+      expect(report.insufficient).toBe(2);
+      expect(report.propositions.map((p) => p.verdict)).toEqual(["insufficient", "insufficient"]);
+      expect(await runDrift(["--drift", file, "--out", out, "--strict"])).toBe(1);
+    } finally {
+      cleanup();
+    }
+  });
+});
