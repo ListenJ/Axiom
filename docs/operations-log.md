@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-06 — docs(plan): P2-2 wiki_links 持久化计划
+
+- **任务**：架构路线图 P2-2。新增 Vault wiki-link 的 SQLite 可重建索引、VaultManager 增量同步、KAL 跨存储引用查询；Vault Markdown 仍是事实源。分级 **T3（跨存储接口）**。
+- **产物**：新增 `docs/superpowers/plans/2026-10-06-p2-2-wiki-links-persistence.md`，冻结 5 个可独立验证 Step：schema/API → 引擎出链解析 → Vault 同步/删除 → KAL 查询 → 全量收口。
+- **不做项**：不改 wiki-link 解析/搜索打分、不新增依赖、不做路径重命名迁移、不复制 Markdown 原件。
+- **验证**：计划文件落盘，`git diff --check` rc=0；执行阶段按计划逐 Step RED→GREEN。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — test(perf): Step 12b 阈值双口径与并行化收口
 
 - **任务**：完成 post-unify 计划 Step 12b：确认墙钟阈值转换面、验证连续全量稳定、评估目录分片并行。分级 **T2（测试基础设施）**。
