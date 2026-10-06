@@ -31,7 +31,7 @@
 - **验证**：`runtime-embed` 单测 3/3；`bun test tests/unit/semantic-index.test.ts tests/unit/incremental-index.test.ts tests/unit/semantic-recall-port.test.ts tests/unit/kb-corpus-kal-roundtrip.test.ts` = 33 pass / 0 fail；`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = 45 pass / 0 fail；`bunx tsc --noEmit` rc=0。
 - **不做项/后续**：未写生产 `data/agent.db`（待 systemd 常驻后由用户决定是否全量索引）；未改生产 `.env`/`axiom@listen` 单元（需 sudo 重启）；`scripts/eval-lexical-vs-semantic-recall.ts` 仍硬编码 SiliconFlow 标签，本轮用自定义副本探针替代，未给该脚本加 `local` 模式。
 - **阻塞**：系统级 `axiom-embed@listen.service` 安装需 TTY sudo（`sudo -n` rc=1）。
-- **Commit**：`<pending>`
+- **Commit**：`e4ee1bc2`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
