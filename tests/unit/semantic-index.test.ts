@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from "bun:test";
 import { Database } from "bun:sqlite";
-import { indexNodeEmbeddings, recallBySimilarity } from "../../src/knowledge/semantic-index.js";
+import { indexNodeEmbeddings, recallBySimilarity, MAX_EMBED_TEXT_CHARS } from "../../src/knowledge/semantic-index.js";
 import { EMBEDDING_TABLE, countEmbeddings } from "../../src/knowledge/embedding-store.js";
 
 const MODEL = "test-model";
@@ -96,6 +96,23 @@ describe("语义索引 · 写入腿", () => {
     db.close();
   });
 
+  it("超长内容按 MAX_EMBED_TEXT_CHARS 截断后送嵌入（防止整批顶过服务字符上限）", async () => {
+    const db = freshDb();
+    const seen: number[] = [];
+    const embedder = async (texts: string[]) => {
+      seen.push(...texts.map((t) => t.length));
+      return texts.map(() => [1, 0, 0]);
+    };
+    const long = "x".repeat(MAX_EMBED_TEXT_CHARS + 5000);
+    const s = await indexNodeEmbeddings(
+      { db, embedder, model: MODEL, now: 1 },
+      [{ nodeId: "n1", content: long }],
+    );
+    expect(s.indexed).toBe(1);
+    expect(seen).toEqual([MAX_EMBED_TEXT_CHARS]);
+    db.close();
+  });
+
   it("embedder 抛错 ⇒ 降级为 failed 报数，不向上抛", async () => {
     const db = freshDb();
     const boom = async () => { throw new Error("network down"); };
@@ -110,6 +127,20 @@ describe("语义索引 · 写入腿", () => {
 });
 
 describe("语义索引 · 查询腿", () => {
+  it("查询文本同样按 MAX_EMBED_TEXT_CHARS 截断（写读同口径）", async () => {
+    const db = freshDb();
+    const seen: number[] = [];
+    const embedder = async (texts: string[]) => {
+      seen.push(...texts.map((t) => t.length));
+      return texts.map(() => [1, 0, 0]);
+    };
+    await indexNodeEmbeddings({ db, embedder, model: MODEL, now: 1 }, [{ nodeId: "n1", content: "a" }]);
+    seen.length = 0;
+    await recallBySimilarity({ db, embedder, model: MODEL, query: "q".repeat(MAX_EMBED_TEXT_CHARS + 10) });
+    expect(seen).toEqual([MAX_EMBED_TEXT_CHARS]);
+    db.close();
+  });
+
   /** 按给定顺序逐条写入（每条单独一次调用 ⇒ 显式控制表中的插入顺序） */
   async function seeded(order: string[], vec: Record<string, number[]>) {
     const db = freshDb();

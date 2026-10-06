@@ -60,6 +60,20 @@ export interface RecallOutcome {
 }
 
 /**
+ * 送去嵌入前的**单条文本字符上限**。
+ *
+ * 口径：与 memory 语义层 `EMBED_TEXT_MAX=4000` 及本地服务 `max_seq_length=2048`
+ * 同量级。作用有二：① 超长抓取文档（实测单条 4.7M 字符）会把整批顶过 embedding
+ * 服务的请求字符守卫（`EMBED_MAX_CHARS`），导致**整批 400 丢向量**；按条截断后
+ * 默认批次（32 条）恒 < 上限。② 服务本就按 token 截断，超出部分对向量无贡献。
+ */
+export const MAX_EMBED_TEXT_CHARS = 4000;
+
+function clipEmbedText(text: string): string {
+  return text.length > MAX_EMBED_TEXT_CHARS ? text.slice(0, MAX_EMBED_TEXT_CHARS) : text;
+}
+
+/**
  * 写入腿：把一批节点嵌入并落库（**幂等** —— 同 nodeId 覆盖，重复摄取不产生第二行）。
  */
 export async function indexNodeEmbeddings(
@@ -75,7 +89,7 @@ export async function indexNodeEmbeddings(
 
   let vectors: number[][];
   try {
-    vectors = await deps.embedder(nodes.map((n) => n.content));
+    vectors = await deps.embedder(nodes.map((n) => clipEmbedText(n.content)));
   } catch {
     // embedder 实现本身若抛错（本项目的包装层已兜住，但直接注入的假实现可能抛）
     return { ...empty, failed: nodes.length };
@@ -136,7 +150,7 @@ export async function recallBySimilarity(
 
   let vectors: number[][];
   try {
-    vectors = await deps.embedder([deps.query]);
+    vectors = await deps.embedder([clipEmbedText(deps.query)]);
   } catch {
     return { candidates: [], scanned, malformed: loaded.malformed, used: false };
   }

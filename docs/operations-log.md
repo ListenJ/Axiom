@@ -17,6 +17,24 @@
 
 ---
 
+## 2026-10-07 — fix(embed): Step 7/8 端到端验证 + 单条截断修复
+
+- **任务**：本地 CUDA embedding 计划 Step 7（端到端验证）/ Step 8（文档收口）。在直接服务、边缘设置搜索、知识索引写入腿、KAL 读取腿、降级路径上取实测证据，并修复验证中发现的**整批 400 丢向量**缺陷。分级 **T3（本地推理/运维/跨服务接入）**。
+- **发现（RED）**：知识索引默认 `--batch=32` 与本地服务 `EMBED_MAX_CHARS=200000`（按**整请求字符和**）不一致 —— 语料含抓取型超长文档（实测单条 4,736,003 字符；SQLite `length()` 遇内嵌 NUL 会低估，故此前用 `LENGTH()` 自查被误导），一个批次即超上限 ⇒ 服务返回 400 ⇒ **整批 32 条全部 failed**（实测 152/184）。
+- **修复（GREEN）**：写入腿/查询腿 `src/knowledge/semantic-index.ts` 增加 `MAX_EMBED_TEXT_CHARS = 4000`，送嵌入前按条截断（与 memory 语义层 `EMBED_TEXT_MAX`、本机 `max_seq_length=2048` 同量级）；服务端守卫维持原值 200000（默认 32 条 × 4000 = 128000 < 200000）。新增 2 例单测（写入腿/查询腿各一）。
+- **直接服务**：`/health` 200（`cuda:0`、dim 1024、`max_seq_length` 2048、allocated 1083MB / reserved 1090MB）；`/v1/embeddings` 单条 1024 维、批量 3×1024、2700 字符长文本按 2048 token 截断 → 1024 维。
+- **知识写入腿**：全量语料 184 条（`memory_notes`）→ `attempted=184 indexed=184 failed=0 dim=1024`，`model=local-embed/BAAI/bge-m3`（在 `data/agent.db` 副本上验证，**未写生产库**）。
+- **KAL 读取腿**：对同一副本做真实语义召回（本地服务 embedder）——「literature review of multi-agent debate」首命中对应笔记 0.6676；「security threat modeling platform for AI agents」首命中 ASTRIDE 0.6785；「reinforcement learning for LLM collaboration」首命中 LLM-collab-RL 0.6916；`scanned=184`、`used=true`、`malformed=0`。
+- **降级**：停 9001 后 `getEdgeEmbeddings()` 返回 `null`（确定性回退），Axiom `/health`（18789）仍 200。
+- **GPU**：推理期 `nvidia-smi` 见 python 进程占用 1896 MiB（整卡 1921/4096 MiB）。
+- **文档**：新增 `runtime-embed/README.md`；`docs/LIMITATIONS.md` §6（本地 CUDA embedding 边界）；`docs/ARCHITECTURE.md` §8 增行 + §1 基线棘轮（`bun run arch:stats` = 38 模块 / 442 文件 / 119,994 行）。
+- **验证**：`runtime-embed` 单测 3/3；`bun test tests/unit/semantic-index.test.ts tests/unit/incremental-index.test.ts tests/unit/semantic-recall-port.test.ts tests/unit/kb-corpus-kal-roundtrip.test.ts` = 33 pass / 0 fail；`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = 45 pass / 0 fail；`bunx tsc --noEmit` rc=0。
+- **不做项/后续**：未写生产 `data/agent.db`（待 systemd 常驻后由用户决定是否全量索引）；未改生产 `.env`/`axiom@listen` 单元（需 sudo 重启）；`scripts/eval-lexical-vs-semantic-recall.ts` 仍硬编码 SiliconFlow 标签，本轮用自定义副本探针替代，未给该脚本加 `local` 模式。
+- **阻塞**：系统级 `axiom-embed@listen.service` 安装需 TTY sudo（`sudo -n` rc=1）。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — feat(embed): Step 6 local-embed provider 接线
 
 - **任务**：本地 CUDA embedding 计划 Step 6a/6b。新增 `local-embed` provider/registry，让知识库索引与读取路径使用本地 BGE-M3；登记本地 env。分级 **T2**。

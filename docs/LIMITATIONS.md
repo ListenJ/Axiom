@@ -292,4 +292,31 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 
 ---
 
+---
+
+## 6. 本地 CUDA Embedding 服务边界（2026-10-07）
+
+### 6.1 口径定义
+
+- **本地推理，非外部 API**：语义向量由本机 GPU 上的 `BAAI/bge-m3` 产出。
+  服务实现在 `runtime-embed/`（OpenAI 兼容 `POST /v1/embeddings`，仅绑定 `127.0.0.1:9001`）。
+  ModelScope 在此只作**模型权重下载**来源，不作运行时 provider。
+- **可选能力**：确定性检索（SQLite FTS5 + 关键词加分为主）仍是默认与兜底；
+  向量只作**候选召回**，不决定最终排序（见 §2）。
+
+### 6.2 已知与待校准
+
+| 维度 | 现状 | 影响 | 后续校准 |
+|---|---|---|---|
+| 单条截断 | 送嵌入前按 `MAX_EMBED_TEXT_CHARS`（`src/knowledge/semantic-index.ts`）截断为 4000 字符 | 超长文档只有前 4000 字符参与向量；本轮**不做分块** | 需长文精细召回时引入分块 + nodeId 映射（属新决策） |
+| 请求守卫 | 服务端 `EMBED_MAX_CHARS`（默认 200000）按**整请求字符和**拒绝（400） | 调用侧按**条数**分批时须保证批次总量不越界；截断后默认 32 条 < 上限 | 批次组成与守卫值联动，改动须复跑端到端索引 |
+| VRAM | FP16、`max_seq_length=2048`、`EMBED_BATCH_SIZE=4`；4GB 卡实测峰值约 1.9GB | 与桌面/游戏共用同卡时余量收窄 | 换卡或换模型时重测 `runtime-embed/BENCHMARKS.md` |
+| 模型标签 | 写入腿与读取腿统一用 `local-embed/BAAI/bge-m3` | 换模型/换标签后旧向量不可比 | 换标签时清 `knowledge_embeddings` 中旧 `model` 的行 |
+
+### 6.3 失败与回退
+
+服务不可用 / 超时 / 非 2xx：边缘路径（`src/local-llm/edge-embeddings.ts`）返回 `null`，
+知识语义召回降级为**无候选**，最终一律回落确定性 FTS5/关键词检索；不抛错、不重试风暴。
+`GET /health` 是可用判据；`runtime-embed/README.md` 记录运维与回滚步骤。
+
 *最后更新：2026-09-26（主干归一：ku 线并入 —— §1 VRAM 子系统恢复为现役边界并附归一注、§2.1 补 settings-search 修正披露；此前 2026-08-27 Task8: 澄清 mineru 零LLM 边界：判别式 PP-DocLayoutV2/Unimernet/印章 OCR，依赖 70 包 wheel 3.4.5，零生成式 vs 零神经推理双口径；检索口径 FTS5+关键词为默认、共享 cosineSimilarity 仅可选语义层；工具数以 `src/testing/tool-count.ts` 实测为准（数值不手抄））*
