@@ -5,6 +5,7 @@
 
 export type ModelProvider =
   | "siliconflow"
+  | "local-embed"
   | "ofoxai"
   | "ofoxai-anthropic"
   | "ofoxai-gemini"

@@ -811,6 +811,21 @@ export const UNIFIED_REGISTRY: UnifiedModel[] = [
 
   // ─── Embedding ───
   {
+    id: "local-bge-m3",
+    provider: "local-embed",
+    model: "BAAI/bge-m3",
+    roles: ["embedding"],
+    contextWindow: 8192,
+    isFree: true,
+    tags: ["embedding", "local", "cuda"],
+    rpmLimit: 120,
+    concurrentLimit: 1,
+    description: "Local CUDA BGE-M3 via OpenAI-compatible embedding service",
+    priority: 0,
+    maxRetries: 1,
+    timeout: 60000,
+  },
+  {
     id: "bge-embedding",
     provider: "siliconflow",
     model: "BAAI/bge-m3",

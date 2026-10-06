@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-07 — feat(embed): Step 6 local-embed provider 接线
+
+- **任务**：本地 CUDA embedding 计划 Step 6a/6b。新增 `local-embed` provider/registry，让知识库索引与读取路径使用本地 BGE-M3；登记本地 env。分级 **T2**。
+- **RED**：`tests/unit/local-embedding-provider.test.ts` 首次 3 fail：provider 未注册、embedding 选择链无 `local-bge-m3`。
+- **GREEN**：`api-key-store` 增加 `local-embed`（`LOCAL_EMBED_API_KEY`、默认 `http://127.0.0.1:9001/v1`、支持 `LOCAL_EMBED_BASE_URL` 覆盖）；`ModelProvider`/`ALL_MODEL_PROVIDERS` 同步；registry 增加非 devOnly `local-bge-m3` 并排在 embedding 首位。
+- **回归调整**：release 测试改为“SiliconFlow 仍不泄漏 + 本地路由无 key 时在网络前抛 Missing API key”；usage-category 子进程补本地占位 key。
+- **验证**：`bunx tsc --noEmit` rc=0；定向 22 pass / 0 fail（local provider / release gate / single-model / env completeness / usage-category / provider convergence）。
+- **不做项**：未改 Axiom 生产 `.env`/systemd；未改知识索引脚本本身（复用 ModelRouter）。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(kal): P2-2d 跨存储 wiki 入链查询
 
 - **任务**：P2-2 第 4 步。让 KAL `getReferences` 对 vault node 优先查 `vault_wiki_links`，不再强制依赖注入引擎。分级 **T2**。

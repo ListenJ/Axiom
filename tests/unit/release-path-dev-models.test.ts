@@ -55,9 +55,9 @@ describe("发布面闸门：devOnly 模型默认不可解析", () => {
     const devOnly = UNIFIED_REGISTRY.filter((m) => m.devOnly);
     expect(devOnly.length).toBeGreaterThan(0);
     for (const m of devOnly) expect(m.provider).toBe("siliconflow");
-    // 反向：embedding 角色在 registry 里的条目就是我们标记的那一条
+    // 反向：embedding 角色含本地非 dev 条目 + SiliconFlow dev 条目
     const regEmbedding = UNIFIED_REGISTRY.filter((m) => m.roles.includes("embedding"));
-    expect(regEmbedding.map((m) => m.id)).toEqual(["bge-embedding"]);
+    expect(regEmbedding.map((m) => m.id)).toEqual(["local-bge-m3", "bge-embedding"]);
   });
 
   it(`默认（未设 ${DEV_MODELS_ENV}）→ embedding 角色解析不出 siliconflow 条目`, () => {
@@ -84,7 +84,7 @@ describe("发布面闸门：devOnly 模型默认不可解析", () => {
     process.env[DEV_MODELS_ENV] = "1";
     try {
       expect(areDevModelsAllowed()).toBe(true);
-      expect(findModelsForRole("embedding").map((m) => m.id)).toEqual(["bge-embedding"]);
+      expect(findModelsForRole("embedding").map((m) => m.id)).toEqual(["local-bge-m3", "bge-embedding"]);
     } finally {
       snap.restore();
     }
@@ -126,8 +126,8 @@ describe("发布面闸门：真实 config/model-router.yaml 不得绕过", () =>
   });
 });
 
-describe("发布面闸门：默认下 ModelRouter.embeddings 连请求都构造不出来", () => {
-  it("独立进程实测：抛 'No embedding route configured'，且是**先于网络**的短路", () => {
+describe("发布面闸门：默认 embedding 路由不误选 SiliconFlow", () => {
+  it("独立进程实测：本地路由无 key 时抛 'Missing API key'，且是**先于网络**的短路", () => {
     // 关键：**故意**给一个（假）key。若实现是"先解析路由再取 key"，或"先取 key 再发请求"，
     // 那么这里就会走到 `Missing API key` 或 `Embedding request failed` 而不是"无路由"。
     // 因此断言错误文案 = 短路确实发生在路由解析处（早于 proxyFetch）。
@@ -143,10 +143,10 @@ describe("发布面闸门：默认下 ModelRouter.embeddings 连请求都构造�
     const res = spawnSync(process.execPath, ["-e", script], {
       cwd: ROOT,
       encoding: "utf8",
-      env: { ...process.env, [DEV_MODELS_ENV]: "", SILICONFLOW_API_KEY: "test-placeholder-not-a-real-key" },
+      env: { ...process.env, [DEV_MODELS_ENV]: "", LOCAL_EMBED_API_KEY: "", SILICONFLOW_API_KEY: "test-placeholder-not-a-real-key" },
       timeout: 60_000,
     });
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
-    expect(out).toContain("RESULT=No embedding route configured");
+    expect(out).toContain("RESULT=Missing API key for embedding");
   });
 });

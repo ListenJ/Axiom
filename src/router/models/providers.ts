@@ -24,6 +24,7 @@ import { getProviderConfig, getEffectiveApiKey, listCustomProviders } from "../.
 // 后者会把元素类型**拓宽为** ModelProvider，使下方 Exclude 恒为 never、断言变成恒真。
 const ALL_MODEL_PROVIDERS = [
   "siliconflow",
+  "local-embed",
   "ofoxai",
   "ofoxai-anthropic",
   "ofoxai-gemini",

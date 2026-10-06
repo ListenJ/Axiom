@@ -22,6 +22,7 @@ process.env.TOKEN_USAGE_DB = join(DB_DIR, "token-usage.db");
 // 供 chat/tool 路径取到"已配置"的 provider（假 key，不会真的发请求：下面两个模块都打桩了）
 process.env.DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY ?? "test-key-for-usage-category";
 process.env.SILICONFLOW_API_KEY = process.env.SILICONFLOW_API_KEY ?? "test-key-for-usage-category";
+process.env.LOCAL_EMBED_API_KEY = "test-key-for-usage-category";
 // embedding 角色在发布默认下**无候选**（devOnly 闸门），本用例显式放行以覆盖 dev/test 路径
 process.env.AXIOM_ALLOW_DEV_MODELS = "1";
 

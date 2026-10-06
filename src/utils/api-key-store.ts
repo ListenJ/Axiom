@@ -74,6 +74,13 @@ const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
     region: "domestic",
     displayName: "SiliconFlow",
   },
+  "local-embed": {
+    apiKeyEnv: "LOCAL_EMBED_API_KEY",
+    baseURL: "http://127.0.0.1:9001/v1",
+    adapter: "openai",
+    region: "domestic",
+    displayName: "Local CUDA Embedding",
+  },
   ofoxai: {
     apiKeyEnv: "OFOXAI_API_KEY",
     baseURL: "https://api.ofoxai.com",

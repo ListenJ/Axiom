@@ -50,11 +50,11 @@ describe("单模型接入全功能", () => {
     expect(findModelsForRole("computer-use").length).toBeGreaterThan(0);
   });
 
-  it("嵌入角色**默认无候选** —— siliconflow embedding 已退出发布面（2026-09-20 政策）", () => {
+  it("嵌入角色默认不含 SiliconFlow 候选；本地 local-embed provider 保持可用", () => {
     // 政策：SiliconFlow 仅 dev/test（devOnly，需 AXIOM_ALLOW_DEV_MODELS=1 放行）。
-    // 故发布默认下 embedding **不应**有任何 siliconflow 路由；用户自配 embedding 模型走
-    // user-config-loader 的 EXTENSIONS，不受本断言影响（故按 provider 过滤而非断言为空数组）。
+    // 发布默认下 embedding 不应有任何 SiliconFlow 路由；本地 CUDA provider 不依赖外部 key。
     expect(findModelsForRole("embedding").filter((m) => m.provider === "siliconflow")).toEqual([]);
+    expect(findModelsForRole("embedding").some((m) => m.provider === "local-embed")).toBe(true);
   });
 
   it("仅配置 DEEPSEEK_API_KEY 时，listConfiguredProviders 只返回 deepseek", () => {
