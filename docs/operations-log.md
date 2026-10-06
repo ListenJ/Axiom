@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-06 — feat(embed): Step 2 BGE-M3 下载与 CUDA 加载
+
+- **任务**：本地 CUDA embedding 计划 Step 2。使用 ModelScope SDK 下载 `BAAI/bge-m3`，本地 CUDA 加载并验证维度。分级 **T3（模型供应/GPU 推理）**。
+- **下载**：通过 0600 本地 `modelscope.credentials` 映射 `MODELSCOPE_API_TOKEN`；`modelscope download BAAI/bge-m3` 下载 30 文件到 `runtime-embed/models/bge-m3`，约 4.3G（含 ONNX/PyTorch 两种权重；运行时使用 PyTorch 权重）。token 未写入命令行/日志/仓库。
+- **关键哈希**：`pytorch_model.bin` SHA-256 = `b5e0ce3470abf5ef3831aa1bd5553b486803e83251590ab7ff35a117cf6aad38`；`config.json` = `26159e7ad065073448460117eb24b7a4572f6f4e78eadff65dc0a11c052449fa`；`tokenizer.json` = `21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08`。
+- **CUDA 加载证据**：新增 `runtime-embed/smoke_model.py`；`SentenceTransformer` device=`cuda:0`、FP16、`max_seq_length=512`；两条中英文文本输出 shape `(2,1024)`；向量范数 `1.0000,1.0000`；allocated 1091.2MB / reserved 1110.0MB。
+- **不做项**：未启动 HTTP 服务、未改 systemd/Axiom 配置、未做批处理调参。
+- **验证**：`runtime-embed/.venv/bin/python runtime-embed/smoke_model.py` rc=0；`git diff --check` rc=0。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(embed): Step 1 CUDA 环境与 GPU 冒烟
 
 - **任务**：本地 CUDA embedding 计划 Step 1。建立 `runtime-embed` uv/Python 3.12 隔离环境，安装 PyTorch cu130，确认 GPU 可用。分级 **T3（本地推理环境）**。
