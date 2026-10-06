@@ -8,6 +8,8 @@ User=%i
 WorkingDirectory=/run/media/listen/base/openclaw-fusion/runtime-embed
 Environment="PATH=/run/media/listen/base/openclaw-fusion/runtime-embed/.venv/bin:/usr/local/bin:/usr/bin:/bin"
 EnvironmentFile=-/run/media/listen/base/openclaw-fusion/runtime-embed/.env
+ExecStartPre=-/usr/bin/mkdir -p /run/media/listen/base/openclaw-fusion/runtime-embed/.cache
+ExecStartPre=-/usr/bin/mkdir -p /run/media/listen/base/openclaw-fusion/runtime-embed/.tmp
 ExecStart=/run/media/listen/base/openclaw-fusion/runtime-embed/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 9001
 Restart=always
 RestartSec=5
@@ -17,8 +19,8 @@ SyslogIdentifier=axiom-embed
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=read-only
-ReadWritePaths=/run/media/listen/base/openclaw-fusion/runtime-embed/.cache
-ReadWritePaths=/run/media/listen/base/openclaw-fusion/runtime-embed/.tmp
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/runtime-embed/.cache
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/runtime-embed/.tmp
 
 [Install]
 WantedBy=multi-user.target

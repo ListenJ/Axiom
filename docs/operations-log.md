@@ -17,6 +17,28 @@
 
 ---
 
+## 2026-10-07 — fix(systemd): 重启后 226/NAMESPACE 崩溃循环修复（Step 9 AC-1/AC-3）
+
+- **任务**：Axiom 常驻单元在**机器重启后不可自拉起**的实测事故修复。属计划 Step 9（systemd 常驻）的 AC-1（模板命名）与 AC-3（重启可拉起）。分级 **T3（部署/运维）**。
+- **现场证据（RED）**：本轮作业期间（02:07 发现）`axiom@listen.service` 处于 `activating (auto-restart)`、`/health` 与 `/api/audit/diagnostics` 全 `000`。`journalctl` 故障起点为 **01:44 机器重启**：重启后 `.tmp` 被清理，单元 `ReadWritePaths=/run/…/.tmp` 等路径不存在 ⇒ `Failed to set up mount namespacing: … No such file or directory` ⇒ `status=226/NAMESPACE`；叠加 `Restart=always` 连续重启至 **NRestarts=272**。随后 `.tmp` 恢复、又因 `axiom-memory.db-wal`/`-shm` 不存在继续循环。
+- **即时恢复**：按需补齐 `.tmp`、`axiom-memory.db-wal`、`axiom-memory.db-shm` 后自动重启成功，`/health`=200、`systemctl is-active`=active。
+- **根因**：模板把**运行时才存在/重启后被清理**的路径写进 `ReadWritePaths`，且未加 systemd 的 `-` 前缀（不存在时忽略）。
+- **修复（GREEN）**：`deploy/systemd/axiom.service` → `git mv` 为 **`deploy/systemd/axiom@.service`**（AC-1：模板名必须与实例化一致，否则 `User=%i` 展开为空，`systemd-analyze verify` 直接报 `Invalid user/group name`）；所有 `ReadWritePaths` 加 `-` 前缀；新增 `ExecStartPre=-/usr/bin/mkdir -p …/.tmp/bun`、`…/.tmp/bun-install`。同类缺陷一并修在 `deploy/systemd/axiom-embed@.service`（`.cache`/`.tmp` 加 `-` 前缀 + `ExecStartPre` 建目录）。
+- **防回归**：新增 `tests/unit/systemd-unit-safety.test.ts`，断言两个单元模板的每条 `ReadWritePaths` 均带 `-` 前缀（含"扫到 0 条先红"的覆盖面自证）。
+- **文档**：`deploy/LINUX-SMOKE.md` 更新安装命令为 `axiom@.service` 并加 `-` 前缀事故说明；`docs/ARCHITECTURE.md` §1 同步基线（src 119,994 行；tests 486 文件 / 4,716 用例 / 4,649 pass / 67 skip / 0 fail）。
+- **验证**：`systemd-analyze verify`（实例名 `axiom@listen.service`、`axiom-embed@listen.service`）两者输出为空 = 通过（此前非实例名的 `axiom.service` 报 fatal error）；`bun test tests/unit/systemd-unit-safety.test.ts` = 2 pass / 0 fail；线上 `curl /health`=200。
+- **偏差记录**：修复的是**仓库模板**；线上 `/etc/systemd/system/axiom@.service` 仍是旧版（与模板旧 hash 一致），安装需 TTY sudo。本机当前在跑的是旧单元 + 手工补齐的路径，**重启后仍可能复发**，须执行下方安装命令后才真正闭合。
+- **待用户执行**（TTY sudo）：
+  ```bash
+  sudo install -m 0644 /run/media/listen/base/openclaw-fusion/deploy/systemd/axiom@.service /etc/systemd/system/axiom@.service
+  sudo systemctl daemon-reload && sudo systemctl restart axiom@listen.service
+  sudo bash /run/media/listen/base/openclaw-fusion/runtime-embed/install-systemd.sh
+  ```
+- **不做项**：未改 `ProtectSystem`/`ProtectHome` 等隔离口径；未动应用代码；未把 sudo 密码写入任何文件。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — fix(embed): Step 7/8 端到端验证 + 单条截断修复
 
 - **任务**：本地 CUDA embedding 计划 Step 7（端到端验证）/ Step 8（文档收口）。在直接服务、边缘设置搜索、知识索引写入腿、KAL 读取腿、降级路径上取实测证据，并修复验证中发现的**整批 400 丢向量**缺陷。分级 **T3（本地推理/运维/跨服务接入）**。

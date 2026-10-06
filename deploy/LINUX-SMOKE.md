@@ -51,7 +51,7 @@ Docker 模式说明：容器内以 `HOST=0.0.0.0` 绑定并通过 `-p 18789:1878
 1. 安装单元（模板实例名建议用服务账号）：
 
 ```bash
-sudo cp deploy/systemd/axiom.service /etc/systemd/system/axiom@.service
+sudo cp deploy/systemd/axiom@.service /etc/systemd/system/axiom@.service
 sudo systemctl daemon-reload
 # 实例名对应服务账号（如 axiom 用户）：/opt/openclaw-fusion 部署目录与 .env 就绪
 sudo systemctl enable --now axiom@axiom
@@ -62,6 +62,11 @@ sudo systemctl enable --now axiom@axiom
 ```bash
 ./scripts/smoke-linux.sh --mode=systemd --service=axiom@axiom --repo=/opt/openclaw-fusion
 ```
+
+> **`ReadWritePaths` 必须带 `-` 前缀（2026-10-07 实测）**：模板里列了 `axiom-memory.db-wal` / `-shm`、`.tmp` 等
+> 运行时才存在（或重启后被清理）的路径。不带 `-` 时这些路径缺失会让 systemd 在 `NAMESPACE` 阶段直接失败
+> （`status=226/NAMESPACE`）并进入 `Restart=always` 崩溃循环 —— 本机重启后实测连续重启 256 次、服务全程不可用。
+> 带 `-` 前缀的路径不存在时被忽略，由 `ExecStartPre` 建目录、由应用建库文件。
 
 注意：systemd 模式假设 `/opt/openclaw-fusion` 已部署、`bun` 已安装（单元内 `/usr/local/bin/bun`）、`.env` 已配置。
 
