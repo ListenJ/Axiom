@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-07 — feat(embed): Step 5 systemd 单元与临时实例验证
+
+- **任务**：本地 CUDA embedding 计划 Step 5。准备系统级 systemd 单元、本机 `.env`，并在 user manager 下验证 systemd 环境/GPU/健康检查。分级 **T3（常驻服务）**。
+- **改动**：新增 `deploy/systemd/axiom-embed@.service`、`runtime-embed/.env.example`、`runtime-embed/install-systemd.sh`；创建本机 `runtime-embed/.env`（0600，gitignored）。
+- **验证**：`systemd-analyze verify /tmp/axiom-embed@listen.service` rc=0；`systemd-run --user` 临时实例加载 BGE-M3，health 200（`cuda:0`、1024 维、max_seq_length=2048），停止后端口 9001 释放。
+- **阻塞/待用户执行**：系统级 install/daemon-reload/enable 需要 TTY sudo；本环境 `sudo -n` rc=1。`/tmp/axiom-embed@.service` 与仓库单元 SHA-256 一致：`42a301c01a2e51c852edae735dd67a6b12dedc814dbb98f3bd2b28b776e7ece4`。
+- **安装命令**：`sudo bash runtime-embed/install-systemd.sh`（脚本内执行 install → daemon-reload → enable --now → health 轮询）。
+- **不做项**：未伪装系统级 active/enabled；未改 Axiom 服务配置。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — perf(embed): Step 4 CUDA batch/seq 调参
 
 - **任务**：本地 CUDA embedding 计划 Step 4。在 RTX 3050 Ti 4GB 上测 batch × max_seq_length，选默认服务参数。分级 **T3（本地推理调参）**。

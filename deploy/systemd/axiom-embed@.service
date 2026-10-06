@@ -1,0 +1,24 @@
+[Unit]
+Description=Axiom local CUDA embedding service (instance %i)
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/run/media/listen/base/openclaw-fusion/runtime-embed
+Environment="PATH=/run/media/listen/base/openclaw-fusion/runtime-embed/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=-/run/media/listen/base/openclaw-fusion/runtime-embed/.env
+ExecStart=/run/media/listen/base/openclaw-fusion/runtime-embed/.venv/bin/uvicorn server:app --host 127.0.0.1 --port 9001
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=axiom-embed
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/run/media/listen/base/openclaw-fusion/runtime-embed/.cache
+ReadWritePaths=/run/media/listen/base/openclaw-fusion/runtime-embed/.tmp
+
+[Install]
+WantedBy=multi-user.target
