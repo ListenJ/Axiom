@@ -1,0 +1,23 @@
+[project]
+name = "axiom-embed"
+version = "0.1.0"
+description = "Axiom local CUDA embedding service (BAAI/bge-m3, OpenAI-compatible)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "torch==2.14.1",
+  "sentence-transformers==6.1.0",
+  "transformers==5.18.0",
+  "fastapi",
+  "uvicorn[standard]",
+  "numpy",
+  "modelscope",
+  "huggingface-hub",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }

@@ -188,3 +188,10 @@ tmp-toctou-target/
 
 # Claude Code 本地设置（工具态，不入库）
 .claude/
+
+# runtime-embed local environment and model artifacts
+runtime-embed/.venv/
+runtime-embed/models/
+runtime-embed/.cache/
+runtime-embed/.tmp/
+runtime-embed/.env

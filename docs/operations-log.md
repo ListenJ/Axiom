@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-06 — feat(embed): Step 1 CUDA 环境与 GPU 冒烟
+
+- **任务**：本地 CUDA embedding 计划 Step 1。建立 `runtime-embed` uv/Python 3.12 隔离环境，安装 PyTorch cu130，确认 GPU 可用。分级 **T3（本地推理环境）**。
+- **改动**：新增 `runtime-embed/pyproject.toml`、`runtime-embed/uv.lock`、`runtime-embed/smoke_cuda.py`；`.gitignore` 排除 `.venv`、模型、缓存、`.env`。
+- **安装（实测）**：清华 PyPI 默认索引；PyTorch 专用 cu130 索引。安装 `torch==2.14.1+cu130`、CUDA 13 运行库、`sentence-transformers==6.1.0`、`transformers==5.18.0`、FastAPI/Uvicorn、ModelScope SDK 等共 81 包。
+- **GPU 证据**：`torch.cuda.is_available()=True`；`torch.version.cuda=13.0`；设备 `NVIDIA GeForce RTX 3050 Ti Laptop GPU`；compute capability `(8,6)`；512×512 FP16 GPU 矩阵乘通过；allocated 9.1MB / reserved 22.0MB。
+- **不做项**：未下载模型、未启动服务、未改 systemd/Axiom 配置。
+- **验证**：`runtime-embed/.venv/bin/python runtime-embed/smoke_cuda.py` rc=0；`git diff --check` rc=0。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(plan): 本地 CUDA BGE-M3 embedding 部署计划
 
 - **任务**：用户裁定先本地部署 embedding 模型而非 ModelScope API。分级 **T3（本地推理/部署/跨服务接入）**。
