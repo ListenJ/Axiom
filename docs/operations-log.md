@@ -35,7 +35,7 @@
   sudo bash /run/media/listen/base/openclaw-fusion/runtime-embed/install-systemd.sh
   ```
 - **不做项**：未改 `ProtectSystem`/`ProtectHome` 等隔离口径；未动应用代码；未把 sudo 密码写入任何文件。
-- **Commit**：`<pending>`
+- **Commit**：`228deeeb`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
