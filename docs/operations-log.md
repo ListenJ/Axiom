@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-06 — perf(embed): Step 4 CUDA batch/seq 调参
+
+- **任务**：本地 CUDA embedding 计划 Step 4。在 RTX 3050 Ti 4GB 上测 batch × max_seq_length，选默认服务参数。分级 **T3（本地推理调参）**。
+- **方法**：`runtime-embed/benchmark.py`，每个配置独立进程加载 FP16 BGE-M3；预热后统计 p50/p95、peak allocated/reserved。
+- **终测**：512/1024/2048/4096 序列与 batch 1/2/4/8 均无 OOM；2048×4 p50 410.64ms / p95 414.96ms，peak allocated 1267.3MB / reserved 1378.0MB；4096×2 p50 505.89ms / p95 506.90ms，峰值同量级。
+- **默认选择**：`EMBED_MAX_SEQ_LENGTH=2048`、`EMBED_BATCH_SIZE=4`，原因是在 Axiom 4000 字符截断口径下保留足够上下文，并给 5s edge timeout 留出余量；4096 保留为显式覆盖。
+- **产物**：新增 `runtime-embed/BENCHMARKS.md`；`server.py` 默认值同步为 2048/4。
+- **验证**：Python 服务单测 3 tests OK；`git diff --check` rc=0。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(embed): Step 3 OpenAI 兼容 CUDA 服务
 
 - **任务**：本地 CUDA embedding 计划 Step 3。实现 FastAPI OpenAI 兼容服务、健康检查和输入边界。分级 **T3（本地服务）**。

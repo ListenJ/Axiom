@@ -86,7 +86,7 @@ def _normalize_inputs(raw: str | list[str], max_texts: int, max_chars: int) -> l
 def create_app(encoder: Encoder) -> FastAPI:
     max_texts = int(os.environ.get("EMBED_MAX_TEXTS", "32"))
     max_chars = int(os.environ.get("EMBED_MAX_CHARS", "200000"))
-    batch_size = int(os.environ.get("EMBED_BATCH_SIZE", "2"))
+    batch_size = int(os.environ.get("EMBED_BATCH_SIZE", "4"))
     max_concurrency = max(1, int(os.environ.get("EMBED_MAX_CONCURRENCY", "1")))
     semaphore = asyncio.Semaphore(max_concurrency)
 
@@ -154,7 +154,7 @@ def load_encoder() -> SentenceTransformerEncoder:
     if not torch.cuda.is_available() and not allow_cpu:
         raise RuntimeError("CUDA unavailable; set EMBED_ALLOW_CPU=1 to allow CPU fallback")
     device = os.environ.get("EMBED_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
-    max_seq_length = int(os.environ.get("EMBED_MAX_SEQ_LENGTH", "512"))
+    max_seq_length = int(os.environ.get("EMBED_MAX_SEQ_LENGTH", "2048"))
     print(
         f"[embed] loading model={model_path} device={device} max_seq_length={max_seq_length}",
         flush=True,
