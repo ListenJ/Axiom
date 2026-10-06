@@ -61,6 +61,17 @@
 
 ---
 
+## 2026-10-06 — feat(embed): Step 3 OpenAI 兼容 CUDA 服务
+
+- **任务**：本地 CUDA embedding 计划 Step 3。实现 FastAPI OpenAI 兼容服务、健康检查和输入边界。分级 **T3（本地服务）**。
+- **改动**：新增 `runtime-embed/server.py`、`runtime-embed/tests/test_server.py`。接口：`GET /health`、`GET /v1/models`、`POST /v1/embeddings`；支持 string / string[]，FP16 CUDA，`normalize_embeddings=True`，并发信号量、输入大小/数量限制、显式 CUDA 要求。
+- **单测 RED→GREEN**：FakeEncoder 覆盖 health、单条/批量 embedding、未知模型/空输入拒绝；`python -m unittest discover -s runtime-embed/tests -v` = **3 tests OK**。
+- **live 证据**：真实 BGE-M3 临时启动于 `127.0.0.1:9001`；`/health` 200（device=cuda:0、dim=1024、allocated 1083MB / reserved 1090MB）；`/v1/embeddings` 输入 2 条 → 200、1024 维、usage 13 tokens；`nvidia-smi` 显示 Python 进程占用 1220 MiB。
+- **不做项**：未安装 systemd、未改 Axiom 配置、未做 batch/序列长度调参。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — feat(embed): Step 2 BGE-M3 下载与 CUDA 加载
 
 - **任务**：本地 CUDA embedding 计划 Step 2。使用 ModelScope SDK 下载 `BAAI/bge-m3`，本地 CUDA 加载并验证维度。分级 **T3（模型供应/GPU 推理）**。
