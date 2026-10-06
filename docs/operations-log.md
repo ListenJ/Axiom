@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-06 — docs(knowledge): ModelScope API-Inference 能力收集
+
+- **任务**：用户要求先收集 ModelScope API 信息，判断是否可用于受限任务。分级 **T0/T2（研究/接入前置）**。
+- **鉴权**：`MODELSCOPE_API_KEY` 已从本地 `~/.axiom/axiom-secrets/modelscope.credentials` 读取；最小 chat completion HTTP 200，token 对 API-Inference 有效；未记录 token 值。
+- **结果**：`/v1/models` 35 个模型；chat、SSE streaming、JSON response_format、tool calling 均有 HTTP 200 实测；`/v1/embeddings` 对常见 embedding ID 返回 400 `Invalid model id`，`/v1/rerank` 404；图片编辑路由存在但公开图片抓取超时，未完成输出验证；响应未观察到 rate-limit headers。
+- **结论**：ModelScope 可作为受限 chat/工具任务 provider；当前不能作为 embedding provider。后续需按具体受限任务建立模型能力白名单，并确认控制台额度/合规口径。
+- **产物**：`docs/knowledge/modelscope-api-inference-2026-10-06.md`；未改生产代码、未把 token 写入仓库。
+- **验证**：doc-contract/docs-consistency 将在提交前复跑；仓库工作区不含凭据。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(review): P2-4 codeindex 独立 DB 评估
 
 - **任务**：架构路线图 P2-4。评估 codeindex 产物迁独立 `codegraph.db` 的收益、成本和前置决策。分级 **T3（数据面/架构）**。
