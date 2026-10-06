@@ -69,7 +69,7 @@
 - **结论**：ModelScope 可作为受限 chat/工具任务 provider；当前不能作为 embedding provider。后续需按具体受限任务建立模型能力白名单，并确认控制台额度/合规口径。
 - **产物**：`docs/knowledge/modelscope-api-inference-2026-10-06.md`；未改生产代码、未把 token 写入仓库。
 - **验证**：doc-contract/docs-consistency 将在提交前复跑；仓库工作区不含凭据。
-- **Commit**：`<pending>`
+- **Commit**：`274ee1b4`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
