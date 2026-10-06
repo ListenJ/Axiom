@@ -61,6 +61,18 @@
 
 ---
 
+## 2026-10-06 — docs(plan): 本地 CUDA BGE-M3 embedding 部署计划
+
+- **任务**：用户裁定先本地部署 embedding 模型而非 ModelScope API。分级 **T3（本地推理/部署/跨服务接入）**。
+- **环境实测**：RTX 3050 Laptop GPU 4GB、驱动 615.71.09 / CUDA UMD 13.4；无 nvcc/CUDA toolkit；uv 已有 CPython 3.12.14；无 torch/transformers；Docker 无 NVIDIA runtime；`127.0.0.1:9001` 空闲；仓库盘 515G 可用。
+- **计划**：新增 `docs/superpowers/plans/2026-10-06-local-cuda-embedding-service.md`，采用 venv + PyTorch cu130（失败回退 cu128）+ sentence-transformers + FastAPI/uvicorn + systemd，不在 Docker GPU 路径施工。
+- **模型**：`BAAI/bge-m3` 1024 维，与现有 `EDGE_EMBED_URL`/`EDGE_EMBED_MODEL` 接缝一致；模型权重经 ModelScope 下载，推理完全本地 CUDA。
+- **不做项**：未安装依赖、未下载模型、未改 systemd、未改生产代码；待用户确认推荐决策后执行 Step 1。
+- **验证**：计划文档落盘，`git diff --check` rc=0；执行阶段按 Step 1–8 逐项验证。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-06 — docs(knowledge): ModelScope API-Inference 能力收集
 
 - **任务**：用户要求先收集 ModelScope API 信息，判断是否可用于受限任务。分级 **T0/T2（研究/接入前置）**。
