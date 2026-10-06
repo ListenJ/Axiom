@@ -25,7 +25,7 @@
 - **回归调整**：release 测试改为“SiliconFlow 仍不泄漏 + 本地路由无 key 时在网络前抛 Missing API key”；usage-category 子进程补本地占位 key。
 - **验证**：`bunx tsc --noEmit` rc=0；定向 22 pass / 0 fail（local provider / release gate / single-model / env completeness / usage-category / provider convergence）。
 - **不做项**：未改 Axiom 生产 `.env`/systemd；未改知识索引脚本本身（复用 ModelRouter）。
-- **Commit**：`<pending>`
+- **Commit**：`6bcadf7e`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
@@ -93,7 +93,7 @@
 - **默认选择**：`EMBED_MAX_SEQ_LENGTH=2048`、`EMBED_BATCH_SIZE=4`，原因是在 Axiom 4000 字符截断口径下保留足够上下文，并给 5s edge timeout 留出余量；4096 保留为显式覆盖。
 - **产物**：新增 `runtime-embed/BENCHMARKS.md`；`server.py` 默认值同步为 2048/4。
 - **验证**：Python 服务单测 3 tests OK；`git diff --check` rc=0。
-- **Commit**：`<pending>`
+- **Commit**：`82c0a8d7`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
@@ -104,7 +104,7 @@
 - **单测 RED→GREEN**：FakeEncoder 覆盖 health、单条/批量 embedding、未知模型/空输入拒绝；`python -m unittest discover -s runtime-embed/tests -v` = **3 tests OK**。
 - **live 证据**：真实 BGE-M3 临时启动于 `127.0.0.1:9001`；`/health` 200（device=cuda:0、dim=1024、allocated 1083MB / reserved 1090MB）；`/v1/embeddings` 输入 2 条 → 200、1024 维、usage 13 tokens；`nvidia-smi` 显示 Python 进程占用 1220 MiB。
 - **不做项**：未安装 systemd、未改 Axiom 配置、未做 batch/序列长度调参。
-- **Commit**：`<pending>`
+- **Commit**：`33d07f79`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
@@ -116,7 +116,7 @@
 - **CUDA 加载证据**：新增 `runtime-embed/smoke_model.py`；`SentenceTransformer` device=`cuda:0`、FP16、`max_seq_length=512`；两条中英文文本输出 shape `(2,1024)`；向量范数 `1.0000,1.0000`；allocated 1091.2MB / reserved 1110.0MB。
 - **不做项**：未启动 HTTP 服务、未改 systemd/Axiom 配置、未做批处理调参。
 - **验证**：`runtime-embed/.venv/bin/python runtime-embed/smoke_model.py` rc=0；`git diff --check` rc=0。
-- **Commit**：`<pending>`
+- **Commit**：`3bcfdbcd`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
@@ -128,7 +128,7 @@
 - **GPU 证据**：`torch.cuda.is_available()=True`；`torch.version.cuda=13.0`；设备 `NVIDIA GeForce RTX 3050 Ti Laptop GPU`；compute capability `(8,6)`；512×512 FP16 GPU 矩阵乘通过；allocated 9.1MB / reserved 22.0MB。
 - **不做项**：未下载模型、未启动服务、未改 systemd/Axiom 配置。
 - **验证**：`runtime-embed/.venv/bin/python runtime-embed/smoke_cuda.py` rc=0；`git diff --check` rc=0。
-- **Commit**：`<pending>`
+- **Commit**：`c3d3c9a1`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
