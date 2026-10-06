@@ -69,7 +69,7 @@
 - **阻塞/待用户执行**：系统级 install/daemon-reload/enable 需要 TTY sudo；本环境 `sudo -n` rc=1。`/tmp/axiom-embed@.service` 与仓库单元 SHA-256 一致：`42a301c01a2e51c852edae735dd67a6b12dedc814dbb98f3bd2b28b776e7ece4`。
 - **安装命令**：`sudo bash runtime-embed/install-systemd.sh`（脚本内执行 install → daemon-reload → enable --now → health 轮询）。
 - **不做项**：未伪装系统级 active/enabled；未改 Axiom 服务配置。
-- **Commit**：`<pending>`
+- **Commit**：`e2098413`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
