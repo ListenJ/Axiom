@@ -69,7 +69,7 @@
 - **模型**：`BAAI/bge-m3` 1024 维，与现有 `EDGE_EMBED_URL`/`EDGE_EMBED_MODEL` 接缝一致；模型权重经 ModelScope 下载，推理完全本地 CUDA。
 - **不做项**：未安装依赖、未下载模型、未改 systemd、未改生产代码；待用户确认推荐决策后执行 Step 1。
 - **验证**：计划文档落盘，`git diff --check` rc=0；执行阶段按 Step 1–8 逐项验证。
-- **Commit**：`<pending>`
+- **Commit**：`4c8b5d49`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
