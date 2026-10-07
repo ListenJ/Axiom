@@ -138,6 +138,18 @@ def used_today_by_category() -> dict[str, int]:
     return out
 
 
+# 上游在**积分耗尽**时返回的不是标准 error 字段，而是：
+#   {"text": "账户积分余额不足，无法完成当前操作。请提示用户先进行充值。…"}
+# 实测（2026-10-07）：当天调用约 293 次后开始出现，之后**每次调用都失败**。
+# 若不识别，批处理会一路空跑到上限、把"余额耗尽"记成 N 条普通失败。
+QUOTA_EXHAUSTED_MARK = "积分余额不足"
+
+
+def is_quota_exhausted(out: str) -> bool:
+    """判断上游是否已明确告知积分耗尽（据此**立即熔断**整批，不再空跑）"""
+    return QUOTA_EXHAUSTED_MARK in (out or "")
+
+
 def is_success(out: str) -> bool:
     """判定一次取数是否成功。
 
@@ -280,6 +292,8 @@ def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int,
                 out, err = "", f"{type(e).__name__}: {e}"
             if is_success(out):
                 break
+            if is_quota_exhausted(out):                              # 余额耗尽：不重试
+                break
             if attempt == 0 and "超时" in (out or ""):               # 仅对明确超时重试
                 time.sleep(2)
                 continue
@@ -306,6 +320,12 @@ def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int,
             ok += 1
         else:
             fail += 1
+            if is_quota_exhausted(out):
+                print(
+                    f"[{category}] ⚠️ 上游积分余额不足，已熔断本批（第 {i} 个任务，成功 {ok}）。"
+                    " 请充值或等待次日额度恢复后重跑——轮转进度已保存，不会重复取数。"
+                )
+                break
         if i % 10 == 0 or i == len(batch):
             print(f"  [{category}] {i}/{len(batch)}  成功 {ok} 失败 {fail}  (今日 {used_today()}/{cap})")
 
