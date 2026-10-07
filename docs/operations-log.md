@@ -17,6 +17,25 @@
 
 ---
 
+## 2026-10-07 — fix(runtime): DRE Kernel tick 循环与 shutdown 时序收口
+
+- **任务**：用户指令「把关注点汇聚到 Axiom Runtime 本身，先打磨本体」。对 Runtime 核心（DRE Kernel）做确定性收口。分级 **T2**。
+- **背景（读取发现，均有行号证据）**：
+  1. `src/dre/kernel.ts:150` tick 循环用 `setInterval(() => {}, 1 << 30)` 占位 timer 维持 `_tickTimer` 非空以兼容旧 stop 逻辑，真实驱动是未被追踪的 `while` + `setTimeout`；
+  2. `stopTickLoop()` 不等待循环退出、也不取消睡眠，`shutdown()` 会与**在途 tick** 并发执行 `engine.close()`（同时关 actor/db 与在途任务）；
+  3. `tick()` 的 `finally` 无条件回写状态，`shutdown()` 置 `stopped` 后被在途 tick 复活为 `idle`；
+  4. `worldState.system.kernel.version` 写死 `"3.0.0"`（`APP_VERSION` 实为 `4.0.0`）。
+- **改动（`src/dre/kernel.ts`，最小改动）**：
+  1. 删除占位 `setInterval`，改用可追踪的 `_loopPromise` + 可取消 `sleep()`（`_sleepTimer` / `_sleepResolve`）；
+  2. `stopTickLoop()` 改为 async：置 `_running=false` 后立即唤醒睡眠，再等循环真正退出；
+  3. `tick()` 拆出 `runTick()`，`tick()` 统一登记/注销在途 promise（`_inFlightTicks`）；`shutdown()` 先 `await stopTickLoop()`，再等在途 tick，最后才 `engine.close()`；
+  4. `runTick()` 的 `finally` 经 `isStopped()` 守卫，`stopped` 时不再回写；`version` 改引 `APP_VERSION`。
+- **回归测试（可证伪）**：`tests/dre-core-modules.test.ts` 新增「shutdown 等待在途 tick 结束且状态不回退」，断言 `shutdownResolvedAt >= askResolvedAt` 且终态 `stopped`。**变异验证**：把 shutdown 改回不等待并去掉 finally 守卫，该用例转红（`askResolvedAt=0`）；恢复后转绿。
+- **配套**：`tests/unit/timer-unref-guard.test.ts` 移除已陈旧的 `dre/kernel.ts` 白名单（该文件不再含 `setInterval`，门禁「白名单无陈旧登记」复用为结构性证据）。
+- **验证**：`bun test tests/dre-core-modules.test.ts tests/unit/timer-unref-guard.test.ts tests/dre-host-integration.test.ts tests/dre-scenarios.test.ts` = **108 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` = 16/16。
+- **不做项**：不动 engine/pipeline 语义；未统一 `DRE_VERSION` 与 `engine.healthCheck` 的版本串（留后续批次）；不引入新文件/依赖。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-07 — chore(quant): 定时器上线校验 + 单元口径同步
 
 - **任务**：用户已完成 `deploy/systemd/install-wind-collect.sh` 安装，做上线前校验并同步遗留字段。分级 **T1/T2**。

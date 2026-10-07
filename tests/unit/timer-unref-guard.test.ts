@@ -30,7 +30,6 @@ const ALLOWLIST: Record<string, string> = {
   "main.ts": "常驻服务心跳：该进程本就以常驻为设计目的（HTTP/MCP 监听等），定时器不是唯一存活理由也不需要 unref",
   "tui/app.ts": "TUI 主循环：交互界面靠它驱动刷新，unref 会让界面进程提前退出",
   "knowledge/auto-updater.ts": "知识库自动更新器：以长驻更新为设计目的（显式 start() 启用）",
-  "dre/kernel.ts": "DRE 内核 keep-alive 空 tick（1<<30 ms）：刻意用于维持内核存活",
   "agents/consciousness/index.ts": "意识层轮询循环：以常驻轮询为设计目的",
   "routes/chat.ts": "SSE 心跳：请求作用域内创建，流结束时 clearInterval 清理",
 };

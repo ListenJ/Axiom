@@ -984,6 +984,63 @@ describe("Kernel", () => {
     kernelInstance.stopTickLoop();
     await kernelInstance.shutdown();
   });
+
+  test("shutdown 等待在途 tick 结束且状态不回退（生命周期收口）", async () => {
+    const { Kernel } = await import("../src/dre/kernel.js");
+    const { scheduler } = await import("../src/dre/runtime/scheduler.js");
+    // 单例 scheduler 打桩：让首个 auto tick 拿到一个任务，从而进入 await actor.ask
+    const sched = scheduler as unknown as Record<string, unknown>;
+    const savedSched = { getNext: sched.getNext, complete: sched.complete, fail: sched.fail };
+
+    const kernelInstance = new Kernel({
+      dbPath: ":memory:",
+      mainLLM: { baseUrl: "http://127.0.0.1:8080", model: "test" },
+      tickInterval: 60_000,
+      autoTick: false,
+    });
+    await kernelInstance.init();
+
+    const engine = kernelInstance.engine as unknown as { actors: unknown };
+    const savedActors = engine.actors;
+    let askResolvedAt = 0;
+    let shutdownResolvedAt = 0;
+
+    try {
+      sched.getNext = () => ({ id: "t-block", assignedTo: "knowledge", gen: 0 });
+      sched.complete = () => {};
+      sched.fail = () => {};
+      engine.actors = {
+        size: 1,
+        list: () => [],
+        ask: async () => {
+          await new Promise((r) => setTimeout(r, 60));
+          askResolvedAt = Date.now();
+          return { type: "ok", payload: {}, from: "knowledge" };
+        },
+        shutdown: async () => {},
+      };
+
+      kernelInstance.startTickLoop();
+      // 让首个 auto tick 进入 await ask（挂起中）
+      await new Promise((r) => setTimeout(r, 15));
+      expect(askResolvedAt).toBe(0);
+
+      await kernelInstance.shutdown().then(() => {
+        shutdownResolvedAt = Date.now();
+      });
+
+      // shutdown 必须等在途 tick 结束后才完成（而非与其并发关闭引擎）
+      expect(askResolvedAt).toBeGreaterThan(0);
+      expect(shutdownResolvedAt).toBeGreaterThanOrEqual(askResolvedAt);
+      // 在途 tick 的 finally 不得把 stopped 复活为 idle
+      expect(kernelInstance.getStatus().state).toBe("stopped");
+    } finally {
+      engine.actors = savedActors;
+      sched.getNext = savedSched.getNext;
+      sched.complete = savedSched.complete;
+      sched.fail = savedSched.fail;
+    }
+  });
 });
 
 // ========== ConfigLoader (v3.1) ==========

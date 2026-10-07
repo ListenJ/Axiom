@@ -10,6 +10,7 @@ import { eventBus, type RuntimeEvent } from "./runtime/event-bus.js";
 import { worldState } from "./runtime/world-state.js";
 import { scheduler } from "./runtime/scheduler.js";
 import { logger } from "../utils/logger.js";
+import { APP_VERSION } from "../version.js";
 
 export interface KernelConfig extends DREConfig {
   tickInterval?: number;
@@ -35,7 +36,13 @@ export class Kernel {
   private _tickCount = 0;
   private _lastTickTime = 0;
   private _startTime = 0;
-  private _tickTimer: ReturnType<typeof setInterval> | ReturnType<typeof setTimeout> | null = null;
+  /** 自动 tick 循环体 promise；stopTickLoop 等待它真正退出（含在途 tick） */
+  private _loopPromise: Promise<void> | null = null;
+  /** 当前睡眠的定时器与唤醒句柄；stopTickLoop 用它即时取消睡眠，不必等满 interval */
+  private _sleepTimer: ReturnType<typeof setTimeout> | null = null;
+  private _sleepResolve: (() => void) | null = null;
+  /** 在途 tick（含手动 tick）；shutdown 在关引擎前等待它们全部结束 */
+  private _inFlightTicks = new Set<Promise<void>>();
   private _running = false;
 
   constructor(config: KernelConfig) {
@@ -50,7 +57,7 @@ export class Kernel {
     await this.engine.waitForReady();
 
     worldState.set("system.kernel", {
-      version: "3.0.0",
+      version: APP_VERSION,
       startedAt: this._startTime,
       tickInterval: this.config.tickInterval ?? 5000,
     });
@@ -80,6 +87,17 @@ export class Kernel {
    * 驱动循环 — 所有子系统的驱动点
    */
   async tick(source: string = "manual"): Promise<void> {
+    const run = this.runTick(source);
+    this._inFlightTicks.add(run);
+    try {
+      await run;
+    } finally {
+      this._inFlightTicks.delete(run);
+    }
+  }
+
+  /** tick 实体；拆出以便 tick() 统一登记/注销在途 promise（供 shutdown 等待） */
+  private async runTick(source: string): Promise<void> {
     this._tickCount++;
     this._lastTickTime = Date.now();
     const prevState = this._state;
@@ -139,7 +157,10 @@ export class Kernel {
     } catch (err) {
       logger.error(`[Kernel] Tick #${this._tickCount} error: ${(err as Error).message}`);
     } finally {
-      this._state = prevState === "running" ? "running" : "idle";
+      // shutdown 已把状态置为 stopped 时，在途 tick 的 finally 不得将其复活为 idle
+      if (!this.isStopped()) {
+        this._state = prevState === "running" ? "running" : "idle";
+      }
     }
   }
 
@@ -147,26 +168,57 @@ export class Kernel {
     if (this._running) return;
     this._running = true;
     const interval = this.config.tickInterval ?? 5000;
-    // 占位 timer，保持 _tickTimer 非空以兼容旧的 stop 逻辑；真实驱动为 while 循环
-    this._tickTimer = setInterval(() => {}, 1 << 30) as unknown as ReturnType<typeof setInterval>;
-    const loop = async () => {
+    // 单一驱动：while 循环串行 tick；睡眠用可取消的 sleep（stopTickLoop 即时唤醒）。
+    this._loopPromise = (async () => {
       while (this._running) {
         await this.tick("auto");
         if (!this._running) break;
-        await new Promise<void>((resolve) => setTimeout(resolve, interval));
+        await this.sleep(interval);
       }
-    };
-    loop().catch((err) => logger.error("[Kernel] Tick loop error", err as Error));
+    })()
+      .catch((err) => logger.error("[Kernel] Tick loop error", err as Error))
+      .finally(() => {
+        this._loopPromise = null;
+      });
     logger.info("[Kernel] Tick loop started", { interval });
   }
 
-  stopTickLoop(): void {
+  /** 可取消睡眠：stopTickLoop 通过 _sleepResolve 立即唤醒，不必等满 interval */
+  private sleep(ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const wake = () => {
+        if (this._sleepTimer) {
+          clearTimeout(this._sleepTimer);
+          this._sleepTimer = null;
+        }
+        this._sleepResolve = null;
+        resolve();
+      };
+      this._sleepResolve = wake;
+      this._sleepTimer = setTimeout(wake, ms);
+    });
+  }
+
+  /**
+   * 停止 tick 循环并等待其真正退出（含在途 auto tick）。
+   * 幂等；未启动时立即返回。
+   */
+  async stopTickLoop(): Promise<void> {
     this._running = false;
-    if (this._tickTimer) {
-      clearInterval(this._tickTimer as unknown as NodeJS.Timeout);
-      clearTimeout(this._tickTimer as unknown as NodeJS.Timeout);
-      this._tickTimer = null;
+    // 取消当前睡眠：否则循环要等到 interval 走完才检查 _running
+    if (this._sleepResolve) this._sleepResolve();
+    if (this._loopPromise) {
+      try {
+        await this._loopPromise;
+      } catch {
+        // 循环体错误已在 startTickLoop 的 catch 记录，这里不再抛出
+      }
     }
+  }
+
+  /** 独立读取状态，避免 runTick 内赋值后的控制流收窄把类型钉成 "running" */
+  private isStopped(): boolean {
+    return this._state === "stopped";
   }
 
   getStatus(): KernelStatus {
@@ -184,7 +236,12 @@ export class Kernel {
 
   async shutdown(): Promise<void> {
     this._state = "stopped";
-    this.stopTickLoop();
+    // 先停循环，再等在途 tick（含手动 tick）全部结束，最后才关引擎——
+    // 避免 engine.close() 与在途 tick 并发关闭 actor/db。
+    await this.stopTickLoop();
+    if (this._inFlightTicks.size > 0) {
+      await Promise.allSettled([...this._inFlightTicks]);
+    }
     await this.engine.close();
     logger.info("[Kernel] Shut down", {
       ticks: this._tickCount,
