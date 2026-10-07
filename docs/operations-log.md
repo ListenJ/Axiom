@@ -38,7 +38,7 @@
 - **额度说明**：用户告知 **2000 积分池 + 300/日**（此前理解为 2300 一次性）。本轮入库与调度**0 次调用**；今日用量仍为 279/300（留 21）。
 - **待用户执行**：`sudo bash deploy/systemd/install-wind-collect.sh`（安装定时器；不装则需每日手动跑 `bash mcp-servers/wind-mcp/run_daily.sh`）。
 - **不做项**：未用积分池做一次性补齐（额度策略待用户确认）；公告副本仅存标题摘要。
-- **Commit**：`<pending>`
+- **Commit**：`2872f1cd`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
