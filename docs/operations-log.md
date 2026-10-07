@@ -58,7 +58,7 @@
 - **生产接线（重要）**：本机 Axiom 由 `ExecStart=bun dist/main.js` 启动，而 `dist/` 是 **2026-09-29 的构建产物** —— 实测 grep 确认其中**不含**本日全部修复（`local-embed`/`MAX_EMBED_TEXT_CHARS`/`Redis AUTH rejected`/`waitUntilOpen` 全为 0 命中）。已 `bun run build` 重新生成 `dist/main.js`（11.53MB，四项标记均命中）；**需重启服务后生效**。此"src 改了但 dist 是旧 build"的静默漂移已作为运维风险登记，待评估加装陈旧检测。
 - **待用户执行（TTY sudo）**：`sudo systemctl restart axiom@listen.service`（重启后 Redis/embedding/搜索三项修复一并生效）。
 - **不做项**：未改 `config/web-search.yaml` 的引擎开关（bing-html 仍 enabled，但已不参与并行）；未给 bing/wikipedia/github 等失效引擎做修复（属后续）；未轮换 Redis 口令。
-- **Commit**：`<pending>`
+- **Commit**：`21564686`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
