@@ -45,7 +45,7 @@
 - **待用户执行**：① `bash scripts/set-wind-key.sh`（交互输入真实 key）；② `sudo systemctl restart axiom@listen.service`；
   ③ 验收：journal 出现 `external MCP server 已连接 {"server":"wind","tools":44}`。
 - **不做项**：未调用任何 Wind 计费接口（避免消耗 2300 积分额度）；iFind 保持 optional 占位；未把 akshare 结构化数据批量落库（上游慢，另开批处理）。
-- **Commit**：`<pending>`
+- **Commit**：`f9b1f660`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
