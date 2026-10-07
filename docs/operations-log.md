@@ -38,7 +38,7 @@
 - **归档规模**：`stock_kline` 265 + `get_economic_data` 3 + `get_stock_fundamentals` 3 + `get_company_announcements` 3 = **274 份原件**。
 - **验证**：`ast.parse` 通过；`--plan`（0 调用）逐品类核对任务池与配额；三品类 `--run --max-calls=3` 实跑；轮转迁移后复核 `kline: 265`。
 - **不做项**：① 尚未做每日自动调度（systemd timer 需用户确认，属新增单元）；② 原件**尚未生成副本笔记进知识库**（用户要求"先存原件"，副本批次留待下一步）；③ 未用满 300（留 21 次余量）。
-- **Commit**：`<pending>`
+- **Commit**：`984cfa9e`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
