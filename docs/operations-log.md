@@ -17,6 +17,38 @@
 
 ---
 
+## 2026-10-07 — feat(mcp): Wind 44 工具接入 + AkShare 打通 + 密钥安全录入链路
+
+- **任务**：用户确认可申请 Wind API（2300 积分档），iFind 暂不可得；要求**现在配置该 API，且不要把密钥明文发到对话里**。分级 **T3（外部数据源接入 + 凭据处置）**。
+- **Wind 接入（实测 44 工具握手成功）**：
+  - 形态澄清：Wind 是**远程 MCP**（`https://mcp.wind.com.cn/vserver_<domain>/mcp/`，Bearer 认证，8 个域），
+    仓库内 `mcp-servers/wind-mcp/server.py` 是把它封装成本地 FastMCP 的 **stdio 适配器**。上一轮我在 YAML 里按
+    "remote url"猜测配置（`…/sse`）是**错的**，本轮已按真实形态改为 `command` + `args`。
+  - 把 skill 里的 server（30KB）+ `references/`（tool-contracts / indicators / error-codes / fallback-alice / manifest）
+    纳入仓库 `mcp-servers/wind-mcp/`（96KB），使部署可复现、不再依赖 `~/.agents/skills` 的隐式路径。
+  - **依赖坑（实测）**：skill 原始 `requirements.txt` 写 `mcp>=1.0.0`，而 PyPI 现在给的是 **mcp 2.3.0** ——
+    2.x 把 `FastMCP` 重命名为 `MCPServer`，`from mcp.server.fastmcp import FastMCP` 直接抛
+    `ModuleNotFoundError`（报错信息自带指引）。已在仓库 requirements **固定 `mcp>=1.0.0,<2`**（实装 1.30.0）。
+  - 握手实测（占位 key，仅验证协议层）：`initialize` OK、`tools/list` = **44 个工具**（首个 `wind_search_stocks`）。
+- **AkShare 打通（5 工具握手成功）**：`runtime-data/.venv` 除 `akshare 1.19.1` 外补装 `akshare-mcp 0.1.3`；
+  握手实测 `initialize` OK、`tools/list` = 5 个（`stock_zh_a_spot_em` / `stock_zh_index_spot_em` / `index_global_spot_em` / `stock_yjbb_em` …）。
+- **密钥安全录入链路（新增 `scripts/set-wind-key.sh`）**：满足"不明文进对话"——
+  `read -rs` 不回显（不进 shell 历史）→ 形状校验（`ak_` 前缀 + 长度）→ 先落 `~/.axiom/axiom-secrets/wind.credentials`（0600）
+  → 去重后注入仓库 `.env`（同步收紧 **0600**）→ 只回显"处置结果"（路径/字节数/行数），**绝不回显 key**。
+  已用占位值完整演练该链路（脚本可用），演练后已清理占位行并把 `.env` 权限收到 0600。
+- **纠错（自查发现）**：上一轮 YAML 里给三个数据源写的 `needsKey` / `apiKeyEnv` 字段**并不被
+  `McpServerEntry` 支持**（connector 只认 type/url/command/args/env/optional/timeoutMs）——
+  属于"看起来在门控、实际不生效"。已删除这两个字段，并把注释改为真实口径：
+  **是否可用 = env 里有无 key + `optional` 降级共同决定**（无 key 时连接失败仅记 info，不阻塞启动）。
+- **验证**：`McpServerEntry` 字段核对（`src/mcp/client-connector.ts`）；Wind/AkShare 各自 MCP 协议握手实测；
+  `yaml.safe_load` 解析通过；`bash -n scripts/set-wind-key.sh` 通过；`.env` 权限 0600、`WIND_API_KEY` 占位行 0 条。
+- **待用户执行**：① `bash scripts/set-wind-key.sh`（交互输入真实 key）；② `sudo systemctl restart axiom@listen.service`；
+  ③ 验收：journal 出现 `external MCP server 已连接 {"server":"wind","tools":44}`。
+- **不做项**：未调用任何 Wind 计费接口（避免消耗 2300 积分额度）；iFind 保持 optional 占位；未把 akshare 结构化数据批量落库（上游慢，另开批处理）。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — feat(collect): 多领域知识采集 + 原件归档 + 金融数据接口接入
 
 - **任务**：用户明确"金融主题是为支撑**一整个量化交易模型的构建**"，要求：① 搜罗绝大部分相关数据；② **保留原件**，副本进项目；③ **接入 MCP 与数据接口**；④ 设计/前端原型类知识一并大量采集。分级 **T3（基础设施 + 大批量采集 + 外部接口）**。

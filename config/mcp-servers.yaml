@@ -53,19 +53,27 @@ servers:
     args: ["-m", "akshare_mcp"]
     optional: true
     timeoutMs: "${MCP_AKSHARE_TIMEOUT_MS:-120000}"
-    needsKey: false
     note: "A股/指数/宏观，免费；上游慢，仅适合批处理"
 
-  # Wind（万得）— Tier-0 最全，44 个工具（A股/港美股/基金/指数/债券/宏观/公告/分析）。
-  # 需 WIND_API_KEY（ak_ 开头，https://aifinmarket.wind.com.cn/#/home）。
-  # 未配 key 时保持 optional，不阻塞启动。
+  # Wind（万得）— Tier-0 最全，44 个工具 / 8 个服务域（A股/港美股/基金/指数/债券/
+  # 公司公告/宏观 EDB/通用取数）。**量化建模首选数据源**。
+  #
+  # 形态说明：Wind 是**远程 MCP**（https://mcp.wind.com.cn/vserver_<domain>/mcp/，Bearer 认证），
+  # 仓库内 mcp-servers/wind-mcp/server.py 是把它封装成本地 FastMCP 的**stdio 适配器**，
+  # 故这里配 command 而非 url。认证走 env 占位符 ${WIND_API_KEY}（client-connector 展开）。
+  #
+  # 依赖：runtime-data/.venv 已装 mcp==1.30.0（**必须 <2**，见该目录 requirements.txt 注释）。
+  # 无 WIND_API_KEY 时：optional 使其降级为 info 日志，不影响其他 MCP/启动。
+  # 未配 key 时 optional 跳过，不阻塞启动。
   wind:
-    type: "remote"
-    url: "${WIND_MCP_URL:-https://mcp.wind.com.cn/sse}"
+    command: "/run/media/listen/base/openclaw-fusion/runtime-data/.venv/bin/python"
+    args: ["/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/server.py"]
     optional: true
-    headerTokenEnv: "WIND_API_KEY"
-    needsKey: true
-    note: "付费；覆盖研报与量化分析，量化建模首选"
+    env:
+      WIND_API_KEY: "${WIND_API_KEY}"
+      WIND_CONCURRENCY: "${WIND_CONCURRENCY:-5}"
+    timeoutMs: 60000
+    note: "付费(积分制)；研报+量化分析最全，A股/港美股/基金/指数/债券/宏观/公告"
 
   # 同花顺 iFind — Tier-1，精确财务/一致预期/ESG/债券/港美股/宏观。
   # 需 IFIND_AUTH_TOKEN；并发限制：免费 2/s、个人 5/s、企业 10/s。
@@ -75,5 +83,4 @@ servers:
     optional: true
     env:
       IFIND_AUTH_TOKEN: "${IFIND_AUTH_TOKEN}"
-    needsKey: true
     note: "付费；精确财务与一致预期"

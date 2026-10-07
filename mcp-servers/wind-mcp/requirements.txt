@@ -1,0 +1,8 @@
+# Wind MCP 本地包装器依赖（2026-10-07）
+# 注意：server.py 使用 **MCP SDK 1.x** 的 FastMCP API（mcp.server.fastmcp）。
+# SDK 2.x 把 FastMCP 重命名为 MCPServer 并改了 API —— 实测装 2.3.0 后
+# `from mcp.server.fastmcp import FastMCP` 直接抛 ModuleNotFoundError。
+# 故此处**必须**固定 <2（skill 原始的 `mcp>=1.0.0` 约束过宽，会装到 2.x 而失败）。
+requests>=2.32.4
+mcp>=1.0.0,<2
+urllib3>=1.26.0
