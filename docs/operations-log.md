@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-08 — fix(mcp): 恢复 timeoutMs 的 ${VAR:-default}（obsidian/akshare 重获可配）
+
+- **任务**：修复上一批全量门禁发现的既有红（用户批准的第 4 项）。分级 **T1/T2**。
+- **根因（证据）**：提交 `0e3b7b8b` 为修 Wind 子进程崩溃，把 `config/mcp-servers.yaml` 里 3 处 `${VAR:-default}` 一并改成字面量。其中 `WIND_CONCURRENCY`（**env 值**）改得对；但 `timeoutMs` **不是 env**，走 `client-connector.ts` 的 `resolveEntryTimeout`（显式支持 `${VAR:-default}` 与裸 `${VAR}`）；一刀切改成字面量后 obsidian/akshare 超时不再可配，`tests/unit/mcp-config.test.ts` 的 obsidian 断言随之转红（stash 掉本批改动复跑，在当前 HEAD 仍红——确认为既有、非本批引入）。
+- **改动**：
+  1. `config/mcp-servers.yaml`：obsidian 恢复 `timeoutMs: "${MCP_CONNECT_TIMEOUT_MS:-10000}"`，akshare 恢复 `"${MCP_AKSHARE_TIMEOUT_MS:-120000}"`；
+  2. 头部警示**收窄到 `env:`**（原注释易被误读为"整份 yaml 禁 `${VAR:-default}`"），并注明 `timeoutMs` 走 resolveEntryTimeout、支持该写法；
+  3. `tests/unit/mcp-config.test.ts`：新增 akshare 可配断言 + per-entry `${VAR:-default}` 行为回归（env=60 时 500ms 的 hang 必须在 ~60ms 超时失败）。
+- **验证**：`bun test tests/unit/mcp-config.test.ts` = **10 pass / 0 fail**（原 red 的 obsidian 用例转绿）；`bunx tsc --noEmit` rc=0。
+- **不做项**：未改 wind `timeoutMs: 60000`（无需 env 化）；未改任何 `env:` 值。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — refactor(dre): DRE_VERSION 单一来源（叶子 version.ts）
 
 - **任务**：承接「打磨 Runtime 本体」——消除 DRE 版本串的硬编码/重复（用户批准的第 1 项）。分级 **T1**。

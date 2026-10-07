@@ -36,6 +36,12 @@ describe("mcp config", () => {
     expect(yaml).toMatch(/obsidian:\s*\n[\s\S]*?timeoutMs:/);
     expect(yaml).toContain("MCP_CONNECT_TIMEOUT_MS");
   });
+  test("akshare has timeoutMs configurable via MCP_AKSHARE_TIMEOUT_MS", () => {
+    const yaml = readFileSync("config/mcp-servers.yaml", "utf8");
+    // akshare entry should contain timeoutMs referencing MCP_AKSHARE_TIMEOUT_MS
+    expect(yaml).toMatch(/akshare:\s*\n[\s\S]*?timeoutMs:/);
+    expect(yaml).toContain("MCP_AKSHARE_TIMEOUT_MS");
+  });
 
   test("sqlite server removed entirely", () => {
     const yaml = readFileSync("config/mcp-servers.yaml", "utf8");
@@ -117,5 +123,43 @@ servers:
     if (original === undefined) delete process.env.MCP_CONNECT_TIMEOUT_MS;
     else process.env.MCP_CONNECT_TIMEOUT_MS = original;
     try { await Bun.write(tmpPath, ""); } catch {}
+  });
+
+  test("per-entry timeoutMs 支持 ${VAR:-default}（走 resolveEntryTimeout，非 env 展开）", async () => {
+    // 回归：曾因把 timeoutMs 的 ${VAR:-default} 一刀切改成字面量，导致该条超时不可配、
+    // 且 tests/unit/mcp-config.test.ts 的 obsidian 断言转红（提交 0e3b7b8b 过收）。
+    const tmpPath = ".tmp/mcp-test-entry-timeout.yaml";
+    await Bun.write(tmpPath, `
+servers:
+  slow:
+    command: "bun"
+    args: ["run", "src/mcp/server.ts"]
+    timeoutMs: "\${MCP_ENTRY_TIMEOUT_MS:-5000}"
+`);
+    const original = process.env.MCP_ENTRY_TIMEOUT_MS;
+    process.env.MCP_ENTRY_TIMEOUT_MS = "60";
+    const hangingFactory = async () =>
+      new Promise<any>((resolve) => setTimeout(() => resolve({
+        listTools: async () => ({ tools: [] }),
+        callTool: async () => ({}),
+        close: async () => {},
+      }), 500));
+    const registry = new ToolRegistry({ guard: async () => {} });
+    try {
+      const start = Date.now();
+      const summary = await connectExternalMcpServers(registry as any, {
+        configPath: tmpPath,
+        createClient: hangingFactory as any,
+      });
+      const elapsed = Date.now() - start;
+      // env=60 应生效（而非默认 5000）：500ms 的 hang 必须在 ~60ms 被判超时失败
+      expect(summary.failed.map((f) => f.name)).toContain("slow");
+      expect(summary.connected).not.toContain("slow");
+      expect(elapsed).toBeLessThan(300);
+    } finally {
+      if (original === undefined) delete process.env.MCP_ENTRY_TIMEOUT_MS;
+      else process.env.MCP_ENTRY_TIMEOUT_MS = original;
+      try { await Bun.write(tmpPath, ""); } catch {}
+    }
   });
 });
