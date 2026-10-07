@@ -27,7 +27,7 @@
   3. `tests/unit/mcp-config.test.ts`：新增 akshare 可配断言 + per-entry `${VAR:-default}` 行为回归（env=60 时 500ms 的 hang 必须在 ~60ms 超时失败）。
 - **验证**：`bun test tests/unit/mcp-config.test.ts` = **10 pass / 0 fail**（原 red 的 obsidian 用例转绿）；`bunx tsc --noEmit` rc=0。
 - **不做项**：未改 wind `timeoutMs: 60000`（无需 env 化）；未改任何 `env:` 值。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`02c3cab8`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — refactor(dre): DRE_VERSION 单一来源（叶子 version.ts）
 
@@ -39,7 +39,7 @@
   3. `src/dre/engine.ts` 的 `healthCheck().version` 改引 `DRE_VERSION`，去掉硬编码字面量。
 - **验证**：`bun run arch:stats` = 38 模块 / 443 文件 / 120,117 行（新增 1 文件，已同步 `docs/ARCHITECTURE.md`）；`bun test tests/dre-core-modules.test.ts tests/dre-host-integration.test.ts tests/dre-scenarios.test.ts` = **103 pass / 0 fail**；`tests/architecture-integrity.test.ts` **25/25**（无新增循环导入）；`bunx tsc --noEmit` rc=0；`bun -e` 实测 `DRE_VERSION=3.1.0` 仍可从 barrel 导出。
 - **不做项**：未与 `APP_VERSION` 合并（DRE 子系统版本与应用版本是两个轴，保持分离）；未动上一批已改的 `worldState.system.kernel.version`。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`b3efee43`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-07 — fix(runtime): DRE Kernel tick 循环与 shutdown 时序收口
 
