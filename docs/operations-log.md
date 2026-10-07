@@ -28,7 +28,7 @@
 - **行为不变声明**：本次改动**不改变**明天实际采集量（默认值相同），仅为口径一致性与可读性。
 - **明日预期（自动执行）**：18:30 触发 → 刷新成分股（免费）→ 按配比采集（kline ≈135 只 + fundamentals ≈113 只 + announcements 1 只，合计约 270 积分）→ 原件落盘 → 转知识库副本 → 结束。**宏观默认不跑**（单价 10~300，须显式 `--allow-expensive`）。
 - **待用户执行（可选）**：重跑一次 `sudo bash deploy/systemd/install-wind-collect.sh` 让单元口径生效（不重跑也只影响注释可读性，不影响行为）。
-- **Commit**：`<pending>`
+- **Commit**：`15bb926a`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
