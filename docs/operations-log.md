@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-08 — refactor(dre): DRE_VERSION 单一来源（叶子 version.ts）
+
+- **任务**：承接「打磨 Runtime 本体」——消除 DRE 版本串的硬编码/重复（用户批准的第 1 项）。分级 **T1**。
+- **背景（读取发现）**：`DRE_VERSION = "3.1.0"` 定义在 barrel `src/dre/index.ts`，而 `DREngine.healthCheck()`（`src/dre/engine.ts`）又写死了同一字面量；两处独立维护，且 engine 无法直接引 barrel 常量（会构成 `engine → index → engine` 循环导入，被 architecture-integrity 判红）。
+- **改动**：
+  1. 新增叶子模块 `src/dre/version.ts`（不 import 任何 DRE 子模块）定义 `DRE_VERSION`；
+  2. `src/dre/index.ts` 改为 `export { DRE_VERSION } from "./version.js";`（对外 API 不变）；
+  3. `src/dre/engine.ts` 的 `healthCheck().version` 改引 `DRE_VERSION`，去掉硬编码字面量。
+- **验证**：`bun run arch:stats` = 38 模块 / 443 文件 / 120,117 行（新增 1 文件，已同步 `docs/ARCHITECTURE.md`）；`bun test tests/dre-core-modules.test.ts tests/dre-host-integration.test.ts tests/dre-scenarios.test.ts` = **103 pass / 0 fail**；`tests/architecture-integrity.test.ts` **25/25**（无新增循环导入）；`bunx tsc --noEmit` rc=0；`bun -e` 实测 `DRE_VERSION=3.1.0` 仍可从 barrel 导出。
+- **不做项**：未与 `APP_VERSION` 合并（DRE 子系统版本与应用版本是两个轴，保持分离）；未动上一批已改的 `worldState.system.kernel.version`。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-07 — fix(runtime): DRE Kernel tick 循环与 shutdown 时序收口
 
 - **任务**：用户指令「把关注点汇聚到 Axiom Runtime 本身，先打磨本体」。对 Runtime 核心（DRE Kernel）做确定性收口。分级 **T2**。

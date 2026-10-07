@@ -63,5 +63,5 @@ export { type KnowledgePort, BaseKnowledgePort, LocalKnowledgePort, RemoteKnowle
 export type { PortMethod, PortRequest, PortResponse, PortError, PortErrorCode, WriteParams, WriteResult, ReadParams, SearchParams, DeleteParams, GetRevisionsParams, HealthResult, RetryConfig } from "./port/index.js";
 export { DEFAULT_RETRY_CONFIG, computeBackoff, generateRequestId, okResponse, errorResponse, toPortError } from "./port/index.js";
 
-// 版本
-export const DRE_VERSION = "3.1.0";
+// 版本（单一来源：叶子模块 version.ts，避免 engine 引用 barrel 触发循环导入）
+export { DRE_VERSION } from "./version.js";

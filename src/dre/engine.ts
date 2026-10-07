@@ -28,6 +28,7 @@ import { PersonaLoader } from "./persona/loader.js";
 import type { PersonaMode, LoadedPersona } from "./persona/types.js";
 import { worldState } from "./runtime/world-state.js";
 import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from "./constraints.js";
+import { DRE_VERSION } from "./version.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
 
@@ -395,7 +396,7 @@ export class DREngine {
     const healthy = checks.every((c) => c.ok);
     return {
       healthy,
-      version: "3.1.0",
+      version: DRE_VERSION,
       uptime: Date.now() - this._startTime,
       checks,
     };
