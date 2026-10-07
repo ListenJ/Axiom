@@ -1,6 +1,10 @@
 # MCP服务器注册配置
 # 免费方案：无需 API Key，开箱即用
 # 运行时：统一使用 bun/bunx（非 node/npx）
+# ⚠️ env 占位符只支持**裸 `${VAR}`**（见 src/mcp/client-connector.ts 的 expandEnv，正则 /\$\{(\w+)\}/）。
+# **不要写 shell 风格的 `${VAR:-默认}`** —— 它不匹配正则，会被**原样**传给子进程。
+# 实测事故（2026-10-07）：wind 的 `WIND_CONCURRENCY: "${WIND_CONCURRENCY:-5}"` 原样传入后
+# server.py 执行 int('${WIND_CONCURRENCY:-5}') 抛 ValueError，整个 wind MCP 连接被关闭。
 servers:
   # Context7 — 文档查询（免费，无需 API Key）
   # 提供 7000+ 库的版本化文档
@@ -32,7 +36,7 @@ servers:
     command: "bun"
     args: ["run", "src/mcp/server.ts"]
     env: {}
-    timeoutMs: "${MCP_CONNECT_TIMEOUT_MS:-10000}"
+    timeoutMs: 10000
 
   # OpenCode 编码 Agent（通过 stdio 暴露编码工具）
   opencode:
@@ -52,7 +56,7 @@ servers:
     command: "/run/media/listen/base/openclaw-fusion/runtime-data/.venv/bin/python"
     args: ["-m", "akshare_mcp"]
     optional: true
-    timeoutMs: "${MCP_AKSHARE_TIMEOUT_MS:-120000}"
+    timeoutMs: 120000
     note: "A股/指数/宏观，免费；上游慢，仅适合批处理"
 
   # Wind（万得）— Tier-0 最全，44 个工具 / 8 个服务域（A股/港美股/基金/指数/债券/
@@ -71,7 +75,7 @@ servers:
     optional: true
     env:
       WIND_API_KEY: "${WIND_API_KEY}"
-      WIND_CONCURRENCY: "${WIND_CONCURRENCY:-5}"
+      WIND_CONCURRENCY: "5"
     timeoutMs: 60000
     note: "付费(积分制)；研报+量化分析最全，A股/港美股/基金/指数/债券/宏观/公告"
 

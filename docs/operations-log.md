@@ -17,6 +17,24 @@
 
 ---
 
+## 2026-10-07 — fix(mcp): ${VAR:-default} 语法导致 Wind 子进程崩溃 + 磁盘双挂载事故处置
+
+- **任务**：① 处置 `base` 盘被挂到新路径导致的服务崩溃循环；② 修通 Wind MCP（上轮修完 venv 后**仍然连不上**）。分级 **T3（运维事故 + 外部集成）**。
+- **事故一：磁盘挂载点漂移（非代码问题）**：数据盘 `nvme1n1p1`（ext4, 953.9G）被 udisks 挂到 **`/run/media/listen/base1`**，而 `/run/media/listen/base` 变成 tmpfs 上的空目录 ⇒ 两个服务按硬编码旧路径启动失败：axiom `Module not found "dist/main.js"`、embed `status=203/EXEC`，各自**崩溃循环 139 次**。
+  - **无损证据**：两路径指向**同一 inode `16654728`**（内核按设备去重 superblock，属同一 fs 的两个视图，非两份缓存）；`PRAGMA integrity_check`=ok；dmesg 无 ext4/nvme 报错；仓库 HEAD/资产（dist、venv、模型、agent.db、data/raw 27 份原件）逐项核对在位。
+  - **处置**：用户 `stop` 两服务 → `umount -l /run/media/listen/base1`（惰性卸载：占用者是本 agent 会话自身的 `bash`/`codex` 进程 cwd 在 base1，常规 umount 报 busy）→ 盘回到 `base` → 重启服务恢复。
+  - **防复发**：写入 fstab `UUID=e1c6acac-… /run/media/listen/base ext4 defaults,nofail,x-systemd.device-timeout=10 0 2`（原 fstab **无该盘条目**，全靠 udisks 自动挂载，才会在 `base` 被占时自动改名为 `base1`；`nofail` 保证盘缺失时不卡开机、不再触发今天的崩溃循环）。
+- **事故二：Wind 仍失败的根因（与 venv 无关）**：journal 抓到子进程 traceback ——
+  `File "server.py", line 115 … int(os.environ.get("WIND_CONCURRENCY", "5")) ValueError: invalid literal for int(): '${WIND_CONCURRENCY:-5}'`。
+  即 connector 的 `expandEnv` 正则只有 `/\$\{(\w+)\}/`，**不支持 shell 风格的 `${VAR:-默认}`** —— 不匹配就**原样下发**给子进程。
+- **修复**：`config/mcp-servers.yaml` 三处 `:-` 全部改字面量（wind `WIND_CONCURRENCY: "5"`、akshare `timeoutMs: 120000`、obsidian `timeoutMs: 10000` —— 后两者是**既有同类隐患**，一并清掉），并在文件头写入该语法禁令与本次事故原因，防复发。
+- **验证**：用**与 connector 完全相同的 env**（`WIND_API_KEY=<真实>`、`WIND_CONCURRENCY=5`）跑 stdio 握手 → `initialize` OK、`tools/list` = **44 个工具**、stderr 无错误。`yaml.safe_load` 通过；配置内已无 `:-` 活代码（仅注释中的说明）。
+- **额度纪律**：本轮 **0 次**计费调用（握手不触达 Wind 远端）。
+- **待用户执行**：`sudo systemctl restart axiom@listen.service`；验收 `journalctl -u axiom@listen.service -n 40 | grep -i wind` 应见 `外部 MCP server 已连接 {"server":"wind","tools":44}`。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — fix(mcp): Wind 专属 venv 解依赖冲突 + 真实密钥鉴权通过
 
 - **任务**：用户完成密钥录入后接手：修通 Wind MCP 连接并做**真实**（非占位）鉴权验证。分级 **T2（MCP 接入修复）**。
