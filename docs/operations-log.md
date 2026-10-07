@@ -34,7 +34,7 @@
 - **配套**：`tests/unit/timer-unref-guard.test.ts` 移除已陈旧的 `dre/kernel.ts` 白名单（该文件不再含 `setInterval`，门禁「白名单无陈旧登记」复用为结构性证据）。
 - **验证**：`bun test tests/dre-core-modules.test.ts tests/unit/timer-unref-guard.test.ts tests/dre-host-integration.test.ts tests/dre-scenarios.test.ts` = **108 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`bun run audit:runtime` = 16/16。
 - **不做项**：不动 engine/pipeline 语义；未统一 `DRE_VERSION` 与 `engine.healthCheck` 的版本串（留后续批次）；不引入新文件/依赖。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`7e79af71`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-07 — chore(quant): 定时器上线校验 + 单元口径同步
 
