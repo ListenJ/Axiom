@@ -61,10 +61,11 @@ INDEXES = [("000300", "沪深300"), ("000905", "中证500"), ("000852", "中证1
 #   300 / 300 / 10 / 300 / 300 / 300 / 183.79 / 300 / 300 / 228.43
 # ═══════════════════════════════════════════════════════════════════════════
 TOOL_COST_CREDITS: dict[str, float] = {
-    "stock_data.get_stock_kline": 1.0,          # 实测：270 次 ≈ 270 积分
-    "economic_data.get_economic_data": 300.0,   # 实测：10～300，**按最坏值估**
-    "stock_data.get_stock_fundamentals": 5.0,   # **未校准**（保守估）；待用账单页填真值
-    "financial_docs.get_company_announcements": 5.0,  # **未校准**（保守估）；待用账单页填真值
+    # 校准来源：用户账单页 2026-10-07
+    "stock_data.get_stock_kline": 1.0,                 # 270 次 ≈ 270 积分
+    "stock_data.get_stock_fundamentals": 1.07,         # 账单：0.4 + 0.67 / 次
+    "financial_docs.get_company_announcements": 4.0,   # 账单：4 / 次
+    "economic_data.get_economic_data": 300.0,          # 账单：10～300，**按最坏值估**
 }
 DEFAULT_COST = 10.0          # 未知工具：保守按 10 估
 # 日预算从"次数"改为"积分"：账号 300 积分/日（免费档），脚本留 10% 余量
@@ -76,11 +77,15 @@ EXPENSIVE_TOOLS = {"economic_data.get_economic_data"}
 # 依据：① K 线单价约 1 积分、是量化底座，应拿大头；② 宏观 EDB 单价 10~300，
 # 且**属一次性数据**（历史序列，不需每日增量）——已采 17/20，剩余 3 个按天慢慢补；
 # ③ 财务/公告单价未校准，先给小额配比用于摸价，避免又踩数量级坑。
+# 配比（按**已校准的真实单价**重排，2026-10-07）
+# 单价：kline 1.0 / fundamentals 1.07 / announcements 4.0 / macro 300(最坏)
+# 目标：在一个月内把「沪深300 → 中证500 → 中证1000」的**行情 + 财务**都补齐；
+#       公告单价是财务的 4 倍且信息可后补，故只留象征性额度。
 CATEGORY_BUDGET: dict[str, float] = {
-    "kline": 0.55,          # ≈165 积分/日（单价≈1）→ 剩 1535 只约 9.3 天
-    "fundamentals": 0.30,   # ≈90 积分/日 —— 选股核心；单价待校准（暂按 5 保守估 → 18 只/天）
-    "announcements": 0.05,  # ≈15 积分/日（单价待校准）
-    "macro": 0.10,          # ≈30 积分/日 —— **买不起单次（10~300）**；且属一次性数据，默认跳过
+    "kline": 0.50,          # ≈135 积分 → 135 只/日；剩 1535 只 ≈ 11.4 天
+    "fundamentals": 0.45,   # ≈121 积分 → 113 只/日；剩 1797 只 ≈ 16 天
+    "announcements": 0.02,  # ≈5 积分 → 1 只/日（低优先，够摸底）
+    "macro": 0.03,          # ≈8 积分 → 0 次（买不起单次；属一次性数据，须显式开启）
 }
 CATEGORY_ORDER = ["kline", "fundamentals", "macro", "announcements"]
 
