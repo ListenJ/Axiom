@@ -7,7 +7,8 @@
 #   2) 按配比采集 —— kline 60% / fundamentals 20% / macro 15% / announcements 5%
 #   3) 原件 → 知识库副本（生成笔记并自动嵌入）
 #
-# 额度：脚本上限 WIND_DAILY_CAP（默认 270，账号 300/日）。用量账本 data/wind-usage.jsonl。
+# 预算：WIND_DAILY_CREDITS（默认 270 **积分**，账号免费档 300/日，每日刷新）。
+#       用量账本 data/wind-usage.jsonl（每条含 est_credits）。
 # 原件：data/raw/quant/wind/<tool>/<key>.json（先落盘再记账，落盘失败即判失败）。
 # ============================================================================
 set -uo pipefail
@@ -24,7 +25,7 @@ if ! timeout 600 "$AK_PY" -u "$COLLECT" --refresh-universe; then
   log "成分股刷新失败（沿用上次清单继续）"
 fi
 
-log "② 按配比采集（上限 ${WIND_DAILY_CAP:-270}）"
+log "② 按配比采集（日预算 ${WIND_DAILY_CREDITS:-270} 积分；单价见 daily_collect.py）"
 timeout 5400 "$WIND_PY" -u "$COLLECT" --run
 collect_rc=$?
 log "采集退出码=$collect_rc"

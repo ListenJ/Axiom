@@ -12,8 +12,10 @@ WorkingDirectory=/run/media/listen/base/openclaw-fusion
 Environment="PATH=/home/listen/.bun/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="NODE_ENV=production"
 EnvironmentFile=-/run/media/listen/base/openclaw-fusion/.env
-# 日额度上限：账号 300/日，脚本留 30 次余量应对临时查询
-Environment="WIND_DAILY_CAP=270"
+# 日预算：账号免费档 **300 积分/日**（每日刷新）；脚本留 30 余量应对临时查询。
+# 注意口径是**积分**不是调用次数 —— 各工具单价差数量级（kline 1 / 财务 1.07 / 公告 4 / 宏观 10~300），
+# 详见 daily_collect.py 的 TOOL_COST_CREDITS 与 docs/operations-log.md 2026-10-07 条目。
+Environment="WIND_DAILY_CREDITS=270"
 # 本地 embedding 服务不可用时，副本入库会降级（不阻塞原件采集）
 Environment="AXIOM_EMBEDDING_CONSENT=yes"
 Environment="LOCAL_EMBED_API_KEY=local"

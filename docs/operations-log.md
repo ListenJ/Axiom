@@ -17,6 +17,21 @@
 
 ---
 
+## 2026-10-07 — chore(quant): 定时器上线校验 + 单元口径同步
+
+- **任务**：用户已完成 `deploy/systemd/install-wind-collect.sh` 安装，做上线前校验并同步遗留字段。分级 **T1/T2**。
+- **校验结果（全绿）**：
+  - `wind-collect@listen.timer` **enabled + active**；**下次触发 `2026-10-08 18:32:57 CST`**（含 5 分钟随机延迟）；
+  - `/etc/systemd/system/wind-collect@.{service,timer}` 与仓库模板 **SHA-256 逐字一致**；`systemd-analyze verify` 通过；
+  - `run_daily.sh` 可执行位正常；步骤①（成分股刷新，0 额度）实跑通过：三指数 **1800 只**，快照 2026-09-30。
+- **修掉遗留字段**：单元里仍写 `Environment="WIND_DAILY_CAP=270"`（**次数口径，已废弃**）——预算口径已改为积分（`WIND_DAILY_CREDITS`）。虽因脚本默认值同为 270 而行为无差异，但字段名会误导后人，已改为 `WIND_DAILY_CREDITS=270` 并注明"口径是积分、各工具单价差数量级"；`run_daily.sh` 日志文案同步。
+- **行为不变声明**：本次改动**不改变**明天实际采集量（默认值相同），仅为口径一致性与可读性。
+- **明日预期（自动执行）**：18:30 触发 → 刷新成分股（免费）→ 按配比采集（kline ≈135 只 + fundamentals ≈113 只 + announcements 1 只，合计约 270 积分）→ 原件落盘 → 转知识库副本 → 结束。**宏观默认不跑**（单价 10~300，须显式 `--allow-expensive`）。
+- **待用户执行（可选）**：重跑一次 `sudo bash deploy/systemd/install-wind-collect.sh` 让单元口径生效（不重跑也只影响注释可读性，不影响行为）。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — fix(quant): 预算口径从「次数」改为「积分」（按真实账单校准）
 - **单价校准完成（用户补充账单）**：`get_stock_fundamentals` = **0.4 + 0.67 = 1.07/次**（远低于我的保守估 5）、`get_company_announcements` = **4/次**、`get_stock_kline` = 1/次、`get_economic_data` = 10~300/次。已把真值写回 `TOOL_COST_CREDITS` 并注明来源。
 - **配比按真值重排（270 积分/日，留 30 余量）**：`kline 50% / fundamentals 45% / announcements 2% / macro 3%` ⇒ **kline 135 只/日、fundamentals 113 只/日、announcements 1 只/日、macro 0（须显式开启）**。
