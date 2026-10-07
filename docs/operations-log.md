@@ -17,6 +17,34 @@
 
 ---
 
+## 2026-10-07 — feat(collect): 多领域知识采集 + 原件归档 + 金融数据接口接入
+
+- **任务**：用户明确"金融主题是为支撑**一整个量化交易模型的构建**"，要求：① 搜罗绝大部分相关数据；② **保留原件**，副本进项目；③ **接入 MCP 与数据接口**；④ 设计/前端原型类知识一并大量采集。分级 **T3（基础设施 + 大批量采集 + 外部接口）**。
+- **① 采集脚本升级为多领域**：`scripts/collect-finance-knowledge.ts` → **`scripts/collect-knowledge.ts`**（金融、量化、设计三域），新增 `--domain=<finance|quant|design>`；`tests/unit/finance-collect-ranking.test.ts` → `knowledge-collect-ranking.test.ts`。
+- **② 原件归档（用户硬要求）**：新增落盘链 —— **原件** `data/raw/<domain>/<topic>/<ISO时间戳>.md`（逐字节保存抓取结果，含 source/fetched_at/tier/query 前言）+ **溯源清单** `data/raw/<domain>/manifest.jsonl`（每件一行：topic/url/tier/fetched_at/raw_path/bytes/**sha256**/note_path）；**副本** 为 Vault 派生笔记 `00-Knowledge/<Domain>/…`。`data/raw/` 已在 `.gitignore`，原件留本地不入库。
+- **③ 量化交易知识体系（10 主题，按建模全链路选题）**：市场微观结构/订单簿、多因子与 Alpha、回测偏差（前视/幸存者/数据窥探）、组合优化（均值方差/风险平价/Black-Litterman）、风险管理（VaR/CVaR/回撤/压力测试）、执行算法与实施差额、期权定价与希腊字母、时间序列（协整/状态空间/GARCH）、市场冲击与滑点建模、量化数据口径（复权/停牌/退市/Point-in-Time）。
+- **④ 设计/前端原型知识（10 主题）**：设计系统（tokens/组件/文档）、交互十原则（Nielsen 启发式）、无障碍（WCAG 2.2，w3.org 一手源）、原型方法与工具、界面动效原则、信息架构与导航、响应式栅格、无头组件库（Radix/shadcn）、色彩与排版尺度、可用性测试样本量。
+- **⑤ 金融数据接口接入（`config/mcp-servers.yaml` 新增 3 项，均 optional 不阻塞启动）**：
+  - **akshare**（免费、无需密钥）：`runtime-data/.venv` 装 `akshare 1.19.1`（409 个 `stock_*` 接口）；**实测上游单次请求可达 30s**，故 `timeoutMs` 放宽到 120s 并在配置里注明"仅适合批处理"。
+  - **wind**（万得，Tier-0 最全 44 工具）：remote + `WIND_API_KEY`；**待用户申请密钥**（https://aifinmarket.wind.com.cn/#/home）。
+  - **ifind**（同花顺，Tier-1 精确财务/一致预期）：`IFIND_AUTH_TOKEN`；**待用户提供**。
+- **实测结果**：
+
+  | 领域 | 主题 | 归档原件 | 入库笔记 | 源等级 |
+  |---|---|---|---|---|
+  | finance | 6 | 6 | 6 | 5 一手 + 1 二手 |
+  | quant | 10 | 11 | 10 | — |
+  | design | 10 | 10 | 10 | — |
+  | **合计** | **26** | **27** | **26** | 全部带 sha256 溯源 |
+
+  `knowledge_embeddings` 190 → **222**；语义召回（推送腿自动索引）全部生效。
+- **验证**：`bun test tests/unit/knowledge-collect-ranking.test.ts` = 4 pass / 0 fail（0.19s）；`bunx tsc --noEmit` rc=0；三域 `--list`/`--only`/全量三种模式实测；`data/raw/*/manifest.jsonl` 共 27 行且 sha256 可复核。
+- **服务状态核查（用户报障）**：`axiom@listen` 与 `axiom-embed@listen` **均在运行**（用户 curl 早于启动完成）；**Redis search/crawl 已 True/True**（AUTH 修复+重启生效）。**但 embed 曾因 CUDA OOM 重启 3 次**（journal：`Process 430244 has 2.83 GiB memory in use`，重启窗口内旧进程占卡）——4GB 显存下 embedding 与后续 GPU 任务会互相挤占，已登记为限制。
+- **不做项/后续**：① Wind/iFind 需用户密钥才能接（现为 optional 占位）；② AkShare 结构化时序数据尚未批量落库（上游慢，需另做后台批处理 + CSV 原件归档）；③ `dark` 设计主题尚未覆盖移动端/设计评审类。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — feat(finance): 金融知识采集入库（搜索→权威源→Vault→自动向量）
 
 - **任务**：用户要求"获取更多金融数据进去"。用修好的网络搜索采集金融主题并入库。分级 **T2（新增采集脚本 + 生产数据写入，用户已授权）**。

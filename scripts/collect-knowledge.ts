@@ -19,7 +19,8 @@
  *   bun run scripts/collect-finance-knowledge.ts --list       # 列出主题
  */
 import { Database } from "bun:sqlite";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { DataPipeline } from "../src/crawl/data-pipeline.js";
 import { SearchAggregator } from "../src/crawl/search-engines.js";
 import { VaultManager } from "../src/memory/vault-manager.js";
@@ -45,7 +46,7 @@ interface FinanceTopic {
   tags: string[];
 }
 
-const TOPICS: FinanceTopic[] = [
+const FINANCE_TOPICS: FinanceTopic[] = [
   {
     id: "lpr",
     dir: "货币政策/LPR",
@@ -111,6 +112,54 @@ const TOPICS: FinanceTopic[] = [
   },
 ];
 
+/** 领域 → 主题表。新增领域只需在此追加，脚本/归档/入库链路自动适配。 */
+const DOMAINS: Record<string, { knowledgeDir: string; topics: FinanceTopic[] }> = {
+  /** 金融基础与统计口径（最新官方发布页） */
+  finance: { knowledgeDir: "Finance", topics: [] as FinanceTopic[] },
+  /**
+   * 量化交易知识体系（2026-10-07 按用户目标新增）：
+   * 目标是支撑「一整个量化交易模型的构建」，故按建模全链路选题，
+   * 而非零散概念 —— 数据口径 → 因子 → 回测 → 组合 → 风控 → 执行 → 衍生品 → 统计。
+   */
+  quant: {
+    knowledgeDir: "Finance/Quant",
+    topics: [
+      { id: "microstructure", dir: "市场微观结构", title: "市场微观结构与订单簿", query: "market microstructure limit order book price formation", prefer: ["arxiv.org"], secondary: ["ssrn.com", "sciencedirect.com"], tags: ["quant", "microstructure", "orderbook"] },
+      { id: "factor-model", dir: "因子模型", title: "多因子模型与 Alpha 因子构建", query: "multifactor model alpha factor construction equity returns", prefer: ["arxiv.org", "ssrn.com"], secondary: ["papers.ssrn.com"], tags: ["quant", "factor", "alpha"] },
+      { id: "backtest-bias", dir: "回测方法论", title: "回测偏差：前视/幸存者/数据窥探", query: "backtest overfitting look-ahead bias survivorship bias quantitative trading", prefer: ["arxiv.org", "ssrn.com"], secondary: ["papers.ssrn.com"], tags: ["quant", "backtest", "methodology"] },
+      { id: "portfolio-optimization", dir: "组合优化", title: "组合优化（均值方差/风险平价/Black-Litterman）", query: "portfolio optimization mean variance risk parity Black-Litterman", prefer: ["arxiv.org"], secondary: ["ssrn.com"], tags: ["quant", "portfolio", "optimization"] },
+      { id: "risk-management", dir: "风险管理", title: "风险度量：VaR/CVaR/回撤/压力测试", query: "value at risk CVaR drawdown stress testing portfolio", prefer: ["arxiv.org"], secondary: ["ssrn.com"], tags: ["quant", "risk", "var"] },
+      { id: "execution", dir: "交易执行", title: "执行算法与交易成本（TWAP/VWAP/实施差额）", query: "optimal execution algorithm VWAP TWAP implementation shortfall market impact", prefer: ["arxiv.org", "ssrn.com"], secondary: [], tags: ["quant", "execution", "tca"] },
+      { id: "derivatives", dir: "衍生品定价", title: "期权定价与希腊字母", query: "option pricing Black-Scholes Greeks stochastic volatility", prefer: ["arxiv.org"], secondary: [], tags: ["quant", "derivatives", "options"] },
+      { id: "time-series", dir: "时间序列", title: "时间序列分析：协整/状态空间/GARCH", query: "cointegration state space GARCH financial time series forecasting", prefer: ["arxiv.org"], secondary: [], tags: ["quant", "timeseries", "garch"] },
+      { id: "transaction-cost", dir: "交易成本", title: "市场冲击与滑点建模", query: "market impact model slippage transaction cost square root law", prefer: ["arxiv.org", "ssrn.com"], secondary: [], tags: ["quant", "cost", "impact"] },
+      { id: "data-caliber", dir: "数据口径", title: "量化数据口径：复权/停牌/退市/财报调整", query: "quantitative trading data adjustment survivorship delisting corporate action point in time", prefer: ["arxiv.org", "ssrn.com"], secondary: [], tags: ["quant", "data", "caliber"] },
+    ],
+  },
+  /**
+   * 设计 / 前端原型（2026-10-07 按用户要求新增）：
+   * 覆盖「设计原则 → 设计系统 → 原型工具 → 无障碍 → 动效 → 落地组件」全链。
+   */
+  design: {
+    knowledgeDir: "Design",
+    topics: [
+      { id: "design-system", dir: "设计系统", title: "设计系统（Design System）构建方法", query: "how to build a design system tokens components documentation", prefer: ["nngroup.com", "smashingmagazine.com"], secondary: ["material.io", "m3.material.io"], tags: ["design", "design-system", "tokens"] },
+      { id: "interaction-principles", dir: "交互原则", title: "交互设计十原则与可用性启发式", query: "Nielsen 10 usability heuristics interaction design principles", prefer: ["nngroup.com"], secondary: ["interaction-design.org"], tags: ["design", "ux", "heuristics"] },
+      { id: "accessibility", dir: "无障碍", title: "无障碍设计与 WCAG 2.2", query: "WCAG 2.2 accessibility guidelines practical implementation", prefer: ["w3.org"], secondary: ["nngroup.com", "webaim.org"], tags: ["design", "a11y", "wcag"] },
+      { id: "prototyping", dir: "原型工具", title: "快速原型方法与工具（Figma 等）", query: "prototyping methods low fidelity high fidelity Figma workflow", prefer: ["nngroup.com", "figma.com"], secondary: ["interaction-design.org"], tags: ["design", "prototype", "figma"] },
+      { id: "motion", dir: "动效设计", title: "界面动效与过渡设计原则", query: "UI motion design principles easing duration transitions", prefer: ["material.io", "nngroup.com"], secondary: ["m3.material.io"], tags: ["design", "motion", "animation"] },
+      { id: "information-architecture", dir: "信息架构", title: "信息架构与导航设计", query: "information architecture navigation design card sorting tree testing", prefer: ["nngroup.com"], secondary: [], tags: ["design", "ia", "navigation"] },
+      { id: "layout-responsive", dir: "响应式布局", title: "响应式布局与栅格系统", query: "responsive layout grid system breakpoints spacing scale", prefer: ["web.dev", "nngroup.com"], secondary: ["developer.mozilla.org"], tags: ["design", "layout", "responsive"] },
+      { id: "component-library", dir: "组件库", title: "无头组件库与可访问组件实践（Radix/shadcn）", query: "Radix UI shadcn headless component accessibility composition patterns", prefer: ["radix-ui.com", "ui.shadcn.com"], secondary: ["developer.mozilla.org"], tags: ["design", "components", "radix"] },
+      { id: "color-typography", dir: "色彩与字体", title: "界面配色与排版尺度", query: "UI color system typography scale contrast ratio guidelines", prefer: ["material.io", "web.dev"], secondary: ["nngroup.com"], tags: ["design", "color", "typography"] },
+      { id: "usability-testing", dir: "可用性测试", title: "可用性测试方法与样本量", query: "usability testing methods sample size how many participants", prefer: ["nngroup.com"], secondary: [], tags: ["design", "research", "usability"] },
+    ],
+  },
+};
+// finance 领域复用既有选题（官方数据源，保持 seedUrls 直取）
+DOMAINS.finance.topics = FINANCE_TOPICS;
+
+
 const arg = (name: string): string | undefined =>
   process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3);
 
@@ -167,15 +216,23 @@ export function rankCandidates(
 
 
 async function main(): Promise<void> {
+  const domainId = arg("domain") ?? "finance";
+  const domain = DOMAINS[domainId];
+  if (!domain) {
+    console.error(`未知领域：${domainId}（可选：${Object.keys(DOMAINS).join(" / ")}）`);
+    process.exit(2);
+  }
+
   if (process.argv.includes("--list")) {
-    for (const t of TOPICS) console.log(`${t.id.padEnd(16)} ${t.title}`);
+    console.log(`领域 ${domainId}（入库目录 00-Knowledge/${domain.knowledgeDir}）：`);
+    for (const t of domain.topics) console.log(`  ${t.id.padEnd(22)} ${t.title}`);
     process.exit(0);
   }
 
   const only = arg("only");
-  const topics = only ? TOPICS.filter((t) => t.id === only) : TOPICS;
+  const topics = only ? domain.topics.filter((t) => t.id === only) : domain.topics;
   if (topics.length === 0) {
-    console.error(`未知主题：${only}（用 --list 查看）`);
+    console.error(`未知主题：${only}（用 --domain=${domainId} --list 查看）`);
     process.exit(2);
   }
 
@@ -215,7 +272,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
   }
 }
 
-  console.log(`[finance] db=${dbPath} topics=${topics.length}`);
+  console.log(`[${domainId}] db=${dbPath} topics=${topics.length} raw=data/raw/${domainId}/`);
   let written = 0;
   let skipped = 0;
 
@@ -224,7 +281,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
     try {
       results = await agg.searchMulti({ query: t.query, num: 8 });
     } catch (err) {
-      console.log(`[finance] ${t.id}: SKIP 搜索异常 ${(err as Error).message}`);
+      console.log(`[${domainId}] ${t.id}: SKIP 搜索异常 ${(err as Error).message}`);
       skipped++;
       continue;
     }
@@ -233,7 +290,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
       ...rankCandidates(results, t.prefer, t.secondary),
     ];
     if (candidates.length === 0) {
-      console.log(`[finance] ${t.id}: SKIP 搜索无可用结果（全部命中拒绝表或为空）`);
+      console.log(`[${domainId}] ${t.id}: SKIP 搜索无可用结果（全部命中拒绝表或为空）`);
       skipped++;
       continue;
     }
@@ -251,12 +308,38 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
       tried.push(`${cand.link}(${got?.markdown?.trim().length ?? 0}字符)`);
     }
     if (!picked || !page) {
-      console.log(`[finance] ${t.id}: SKIP 候选均不合格 → ${tried.join(", ")}`);
+      console.log(`[${domainId}] ${t.id}: SKIP 候选均不合格 → ${tried.join(", ")}`);
       skipped++;
       continue;
     }
-    if (tried.length > 0) console.log(`[finance] ${t.id}: 跳过不合格候选 ${tried.length} 个`);
-    const notePath = `00-Knowledge/Finance/${t.dir}/${t.id}.md`;
+    if (tried.length > 0) console.log(`[${domainId}] ${t.id}: 跳过不合格候选 ${tried.length} 个`);
+    // ── 原件归档（用户要求"保留原件，副本进项目"）────────────────────────────
+    // 原件：data/raw/<domain>/<topicId>/<时间戳>-<slug>.md（逐字节保存抓取结果）
+    // 清单：data/raw/<domain>/manifest.jsonl（url / fetched_at / sha256 / bytes，一行一件）
+    // 副本：Vault 派生笔记（下面的 notePath）—— 项目知识库消费的是副本。
+    const rawDir = `data/raw/${domainId}/${t.id}`;
+    mkdirSync(rawDir, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const rawPath = `${rawDir}/${stamp}.md`;
+    const rawBody = `---\nsource: ${picked.link}\nfetched_at: ${new Date().toISOString()}\ntier: ${picked.tier}\nquery: ${t.query}\n---\n\n${page.markdown}`;
+    writeFileSync(rawPath, rawBody, "utf8");
+    appendFileSync(
+      `data/raw/${domainId}/manifest.jsonl`,
+      JSON.stringify({
+        topic: t.id,
+        title: t.title,
+        url: picked.link,
+        tier: picked.tier,
+        fetched_at: new Date().toISOString(),
+        raw_path: rawPath,
+        bytes: Buffer.byteLength(rawBody),
+        sha256: createHash("sha256").update(rawBody).digest("hex"),
+        note_path: `00-Knowledge/${domain.knowledgeDir}/${t.dir}/${t.id}.md`,
+      }) + "\n",
+      "utf8",
+    );
+
+    const notePath = `00-Knowledge/${domain.knowledgeDir}/${t.dir}/${t.id}.md`;
     const content =
       `# ${t.title}\n\n` +
       `> 源等级：${TIER_LABEL[picked.tier]}\n` +
@@ -267,7 +350,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
     // 契约：新源等级**不优于**既有等级时不重写，保住已核实的好来源。
     const existingTier = await readExistingTier(notePath);
     if (existingTier && TIER_RANK[picked.tier] > TIER_RANK[existingTier]) {
-      console.log(`[finance] ${t.id}: KEEP 既有 ${existingTier} 源不被 ${picked.tier} 源覆盖 (${notePath})`);
+      console.log(`[${domainId}] ${t.id}: KEEP 既有 ${existingTier} 源不被 ${picked.tier} 源覆盖 (${notePath})`);
       skipped++;
       continue;
     }
@@ -282,7 +365,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
         overwrite: true,
       });
     } catch (err) {
-      console.log(`[finance] ${t.id}: SKIP 写入失败 ${(err as Error).message}`);
+      console.log(`[${domainId}] ${t.id}: SKIP 写入失败 ${(err as Error).message}`);
       skipped++;
       continue;
     }
@@ -293,7 +376,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
   }
 
   db.close();
-  console.log(`[finance] 完成：写入 ${written}，跳过 ${skipped}`);
+  console.log(`[${domainId}] 完成：写入 ${written}，跳过 ${skipped}`);
   if (written === 0) process.exit(4);
 }
 

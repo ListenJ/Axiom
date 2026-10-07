@@ -41,3 +41,39 @@ servers:
     env:
       OPENCODE_API_KEY: "${OPENCODE_API_KEY}"
       OPENCODE_DEFAULT_MODEL: "opencode/deepseek-v4-flash-free"
+
+  # ── 金融数据接口（量化交易支撑，2026-10-07 接入）────────────────────────
+  # 分级策略见 skill `china-market-data`：Wind(Tier-0 付费) > iFind(Tier-1 付费) > AkShare(Tier-2 免费)
+  #
+  # akShare — **免费、无需密钥**，覆盖 A 股行情/财报/指数/宏观/基金。
+  # 注意（实测 2026-10-07）：上游 eastmoney/sina 单次请求可达 30s，
+  # 故 timeoutMs 放宽到 120s；批量抓取请走 runtime-data/ 的脚本而非交互式调用。
+  akshare:
+    command: "/run/media/listen/base/openclaw-fusion/runtime-data/.venv/bin/python"
+    args: ["-m", "akshare_mcp"]
+    optional: true
+    timeoutMs: "${MCP_AKSHARE_TIMEOUT_MS:-120000}"
+    needsKey: false
+    note: "A股/指数/宏观，免费；上游慢，仅适合批处理"
+
+  # Wind（万得）— Tier-0 最全，44 个工具（A股/港美股/基金/指数/债券/宏观/公告/分析）。
+  # 需 WIND_API_KEY（ak_ 开头，https://aifinmarket.wind.com.cn/#/home）。
+  # 未配 key 时保持 optional，不阻塞启动。
+  wind:
+    type: "remote"
+    url: "${WIND_MCP_URL:-https://mcp.wind.com.cn/sse}"
+    optional: true
+    headerTokenEnv: "WIND_API_KEY"
+    needsKey: true
+    note: "付费；覆盖研报与量化分析，量化建模首选"
+
+  # 同花顺 iFind — Tier-1，精确财务/一致预期/ESG/债券/港美股/宏观。
+  # 需 IFIND_AUTH_TOKEN；并发限制：免费 2/s、个人 5/s、企业 10/s。
+  ifind:
+    command: "bunx"
+    args: ["-y", "ifind-mcp"]
+    optional: true
+    env:
+      IFIND_AUTH_TOKEN: "${IFIND_AUTH_TOKEN}"
+    needsKey: true
+    note: "付费；精确财务与一致预期"
