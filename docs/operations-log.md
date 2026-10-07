@@ -32,7 +32,7 @@
 - **验证**：`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = 45 pass / 0 fail。
 - **待用户裁定**：①唯一 Kernel 拥有者选谁（main / mcp / 独立 daemon）；②MCP 侧 DRE 工具定位（代理/只读/独立库）；③本轮做到哪一步（Step0 / 0+1 / 直冲 2）。
 - **不做项**：本轮只评估，不改运行时代码；不删/不改已推送历史。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`2503a257`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — fix(mcp): 恢复 timeoutMs 的 ${VAR:-default}（obsidian/akshare 重获可配）
 
