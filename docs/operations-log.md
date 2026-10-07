@@ -31,7 +31,7 @@
 - **连带修复验证**：`tests/unit/timer-unref-guard.test.ts` 20s 超时 → **30.9ms 通过**；`tests/local-llm-edge.test.ts`、`tests/unit/release-path-dev-models.test.ts`、`tests/rigorous/mega-pressure.test.ts` 全部由 fail 转 pass（16 pass / 0 fail ×2 批）。
 - **文档棘轮**：`docs/ARCHITECTURE.md` §1 src 行数同步为 `120,024`（`bun run arch:stats` 生成值）。
 - **不做项**：未改动用户的 Docker 容器（未重绑 `0.0.0.0`→`127.0.0.1`、未轮换口令）；未接入 PG/MySQL（代码无驱动）。
-- **Commit**：`<pending>`
+- **Commit**：`0d8994a3`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
