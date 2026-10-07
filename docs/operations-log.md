@@ -42,7 +42,7 @@
 - **源分级口径**（写进笔记正文，可审计）：一手（官方发布方）> 二手（正规财经媒体，结论需交叉核对）> 兜底（未命中白名单，人工复核）。沪深300 的中证指数官网是 SPA（实测直抓仅 132 字符 "Untitled"），故该主题落到二手源并在笔记里显式标注。
 - **验证**：`bun test tests/unit/finance-collect-ranking.test.ts` = 4 pass / 0 fail（0.19s）；`bunx tsc --noEmit` rc=0；`--list`/`--only=<id>` 两种模式实测可用。
 - **不做项**：未做数据结构化抽取（只落原始正文 + provenance）；未部署 Lightpanda（若要抓 csindex 等 SPA 需另开）；未给 6 条以外更多主题（等用户给范围）。
-- **Commit**：`<pending>`
+- **Commit**：`9f431a0c`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
