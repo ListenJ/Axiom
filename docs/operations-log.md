@@ -41,7 +41,7 @@
 - **验证**：`bun test tests/unit/knowledge-collect-ranking.test.ts` = 4 pass / 0 fail（0.19s）；`bunx tsc --noEmit` rc=0；三域 `--list`/`--only`/全量三种模式实测；`data/raw/*/manifest.jsonl` 共 27 行且 sha256 可复核。
 - **服务状态核查（用户报障）**：`axiom@listen` 与 `axiom-embed@listen` **均在运行**（用户 curl 早于启动完成）；**Redis search/crawl 已 True/True**（AUTH 修复+重启生效）。**但 embed 曾因 CUDA OOM 重启 3 次**（journal：`Process 430244 has 2.83 GiB memory in use`，重启窗口内旧进程占卡）——4GB 显存下 embedding 与后续 GPU 任务会互相挤占，已登记为限制。
 - **不做项/后续**：① Wind/iFind 需用户密钥才能接（现为 optional 占位）；② AkShare 结构化时序数据尚未批量落库（上游慢，需另做后台批处理 + CSV 原件归档）；③ `dark` 设计主题尚未覆盖移动端/设计评审类。
-- **Commit**：`<pending>`
+- **Commit**：`7fb1462c`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
