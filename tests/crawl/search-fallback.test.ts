@@ -39,11 +39,14 @@ describe("搜索回退集成（mock fetch 注入）", () => {
     expect(r[0].title).toContain("Bing Fallback Result");
   });
 
-  it("显式引擎列表也会追加 bing-html 兜底（多引擎聚合）", async () => {
+  it("其他引擎**有结果**时不追加 bing-html（防无关结果污染）★2026-10-07 契约变更", async () => {
+    // 旧实现无条件并行追加 bing-html。实测 Bing CN 对长查询只按首词匹配，其无关结果
+    // 会挤掉正确来源（SearXNG 已给出人民银行官网，却被百度百科条目抢占前列）。
+    // 现契约：bing-html 仅在**其他引擎全部无结果**时兜底。
     const agg = new SearchAggregator(topologyFetch);
     const r = await agg.searchMulti({ query: "test", num: 5 }, ["searxng", "duckduckgo"]);
-    expect(r.length).toBeGreaterThan(1);
-    expect(r.some((x) => x.engine.includes("bing-html"))).toBe(true);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r.some((x) => x.engine.includes("bing-html"))).toBe(false);
     expect(r.some((x) => x.engine.includes("searxng"))).toBe(true);
   });
 
@@ -54,9 +57,10 @@ describe("搜索回退集成（mock fetch 注入）", () => {
     expect(r).toEqual([]);
   });
 
-  it("默认引擎含 bing-html（无参数调用也走回退）", async () => {
+  it("默认调用有结果时同样不含 bing-html（它只在空结果时兜底）", async () => {
     const agg = new SearchAggregator(topologyFetch);
     const r = await agg.searchMulti({ query: "test", num: 5 });
-    expect(r.some((x) => x.engine.includes("bing-html"))).toBe(true);
+    expect(r.length).toBeGreaterThan(0);
+    expect(r.some((x) => x.engine.includes("bing-html"))).toBe(false);
   });
 });

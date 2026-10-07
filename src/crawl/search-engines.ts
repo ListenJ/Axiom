@@ -572,7 +572,10 @@ export class SearchAggregator {
           .filter((e) => !e.needs_key || Boolean(resolveEngineKey(e)))
           .filter((e) => this.engines.has(e.id))
           .sort((a, b) => b.weight - a.weight)
-          .map((e) => e.id);
+          .map((e) => e.id)
+          // bing-html 是**兜底引擎**，不参与并行搜索（见下方 fallback 分支说明）：
+          // 若它留在并行集里，实测的"只匹配首词"无关结果仍会污染结果集。
+          .filter((id) => id !== "bing-html");
         if (resolved.length > 0) {
           logger.debug("[SearchAggregator] 引擎来自 web-search.yaml", { engines: resolved });
         }
@@ -585,24 +588,37 @@ export class SearchAggregator {
       engines = resolved.length > 0 ? resolved : ["duckduckgo", "bing-html", "searxng"];
     }
 
-    // bing-html 作为无 key 可靠回退：显式指定引擎时也追加（duckduckgo 反爬挑战/空结果场景兜底）
-    if (!engines.includes("bing-html")) engines = [...engines, "bing-html"];
-    const tasks = engines
-      .map((name) => {
-        const engine = this.engines.get(name);
-        if (!engine) {
-          logger.warn(`[SearchAggregator] Unknown engine: ${name}`);
-          return null;
-        }
-        return engine.search(opts).catch((e) => {
-          logger.warn(`[SearchAggregator] ${name} failed:`, e.message);
-          return [] as SearchEngineResult[];
-        });
-      })
-      .filter(Boolean) as Promise<SearchEngineResult[]>[];
+    const runEngines = async (names: string[]): Promise<SearchEngineResult[]> => {
+      const tasks = names
+        .map((name) => {
+          const engine = this.engines.get(name);
+          if (!engine) {
+            logger.warn(`[SearchAggregator] Unknown engine: ${name}`);
+            return null;
+          }
+          return engine.search(opts).catch((e) => {
+            logger.warn(`[SearchAggregator] ${name} failed:`, e.message);
+            return [] as SearchEngineResult[];
+          });
+        })
+        .filter(Boolean) as Promise<SearchEngineResult[]>[];
+      return (await Promise.all(tasks)).flat();
+    };
 
-    const results = await Promise.all(tasks);
-    const merged = this.mergeAndDeduplicate(results.flat());
+    let merged = this.mergeAndDeduplicate(await runEngines(engines));
+
+    // bing-html 是**兜底**，不是常驻参与者（2026-10-07 实测修正）。
+    // 实测证据：Bing CN 对长查询**只按首个词匹配** —— 查"中国人民银行 贷款市场报价利率"
+    // 返回"中华人民共和国_百度百科"，查"federal reserve interest rate decision"返回
+    // "federal（英语单词）_百度百科"。此前实现无条件并行追加 bing-html，导致这些与主题
+    // 无关的结果混进结果集并抢占前列（真实故障：SearXNG 已返回人民银行官网 LPR 页面，
+    // 却被 bing-html 的百度百科条目挤到后面）。
+    // 改为"仅当其他引擎**全部无结果**时才兜底"，与其原注释声明的
+    // "duckduckgo 反爬挑战/空结果场景兜底"语义一致；同时尊重配置开关（仓库用户可在
+    // config/web-search.yaml 或 GUI 里关掉它）。
+    if (merged.length === 0 && !engines.includes("bing-html") && (await this.isEngineEnabled("bing-html"))) {
+      merged = this.mergeAndDeduplicate(await runEngines(["bing-html"]));
+    }
     // L12b：域名多样性上限（防单域垄断结果页；默认 3/域，SEARCH_MAX_PER_DOMAIN 可配）
     const maxPerDomain = Number(readString("SEARCH_MAX_PER_DOMAIN", "3")) || 3;
     return enforceDomainDiversity(merged, maxPerDomain);
@@ -619,6 +635,17 @@ export class SearchAggregator {
       name: e.name,
       available: this.isEngineAvailable(e.name),
     }));
+  }
+
+  /** 读 web-search.yaml 判断某引擎是否启用；配置不可读时按"启用"处理（保持旧兜底语义） */
+  private async isEngineEnabled(id: string): Promise<boolean> {
+    try {
+      const { loadWebSearchConfig } = await import("./web-search-config.js");
+      const entry = loadWebSearchConfig().engines.find((e) => e.id === id);
+      return entry ? entry.enabled : true;
+    } catch {
+      return true;
+    }
   }
 
   private isEngineAvailable(name: string): boolean {

@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-10-07 — fix(search): 部署 SearXNG + bing-html 降级为真兜底（搜索质量修复）
+
+- **任务**：用户要求「用网络搜索抓金融数据」。开工前的搜索可用性核查发现**结果与查询无关**，先修质量再取数。分级 **T2（搜索链路正确性）+ T3（新增 SearXNG 服务）**。
+- **RED（实测）**：`/web-search?q=中国人民银行 贷款市场报价利率 LPR 公告` 返回「中华人民共和国_百度百科」「中国政府网」；查「国家统计局 2025年国民经济和社会发展统计公报」返回「如何用邮箱注册QQ号」；查「zxqv12345茅台股价」返回「4399游戏盒账号密码」。即**结果与查询主题无关**。
+- **定位（三步隔离）**：① 页面 title 回显了完整查询词（`<title>zxqv12345茅台股价 - 搜索</title>`，查询词出现 7 次）⇒ 查询构造无误；② 直连 `cn.bing.com` 得到的 SERP 本身就是「中国」相关结果 ⇒ **Bing CN 对该客户端只按首词匹配**（英文同样：「federal reserve interest rate decision」→「federal（英语单词）_百度百科」）；③ 绕过 HTTP/缓存直调 `SearchAggregator`，实测 `searxng failed: connect ECONNREFUSED 127.0.0.1:8080`（**从未部署**）、`github 403`、`wikipedia/google-news/openlibrary Request aborted`。
+- **修复 A（部署 SearXNG）**：`docker compose` 插件在本机不可用，改为按 `docker-compose.yml` 定义用 `docker run` 复刻：私有网络 `axiom-searxng-net` + `axiom-searxng-valkey`（valkey 9-alpine）+ `axiom-searxng`（**仅 `127.0.0.1:8080`**），密钥取 `.env` 的 `SEARXNG_SECRET_KEY`（deploy 脚本已生成）。`/healthz`=200；同一查询直连 SearXNG 首条即 **人民银行官网 LPR 页面**。
+- **修复 B（bing-html 降级为真兜底）**：原实现**无条件并行追加** bing-html（注释称"反爬挑战/空结果兜底"），于是它只匹配首词的无关结果混进结果集、抢占前列（真实故障：SearXNG 已给出人民银行官网，却被百度百科挤掉）。改为：① 配置解析出的并行引擎集**剔除 bing-html**；② 仅当其他引擎**全部无结果**且配置启用时才兜底调用。契约变更同步在 `tests/crawl/search-fallback.test.ts` 两条断言（原断言"显式引擎列表也会追加 bing-html"已按新契约改写）。
+- **修复后实测**：查「国家统计局 居民消费价格指数 CPI 最新」→ `[searxng] 财经数据_居民消费价格指数(CPI)_东方财富网`、**`[google-news] 2026年2月份居民消费价格同比上涨1.3% - 国家统计局`**（官方源）；垃圾结果消失。
+- **验证**：`bun test`（15 个搜索相关文件）= **103 pass / 0 fail**；`tests/crawl/` = 30 pass / 0 fail；`bunx tsc --noEmit` rc=0。
+- **生产接线（重要）**：本机 Axiom 由 `ExecStart=bun dist/main.js` 启动，而 `dist/` 是 **2026-09-29 的构建产物** —— 实测 grep 确认其中**不含**本日全部修复（`local-embed`/`MAX_EMBED_TEXT_CHARS`/`Redis AUTH rejected`/`waitUntilOpen` 全为 0 命中）。已 `bun run build` 重新生成 `dist/main.js`（11.53MB，四项标记均命中）；**需重启服务后生效**。此"src 改了但 dist 是旧 build"的静默漂移已作为运维风险登记，待评估加装陈旧检测。
+- **待用户执行（TTY sudo）**：`sudo systemctl restart axiom@listen.service`（重启后 Redis/embedding/搜索三项修复一并生效）。
+- **不做项**：未改 `config/web-search.yaml` 的引擎开关（bing-html 仍 enabled，但已不参与并行）；未给 bing/wikipedia/github 等失效引擎做修复（属后续）；未轮换 Redis 口令。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — fix(redis): 补齐 AUTH/SELECT，带密码 Redis 才能真正接入
 
 - **任务**：按用户许可接入本机 Docker `redis-server`（redis 8.10.2，带 `requirepass`）作为 search/crawl 缓存增强；接入过程中发现并修复客户端缺认证的缺陷。分级 **T2（缓存/连接修复）**。
