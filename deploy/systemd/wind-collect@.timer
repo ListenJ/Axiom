@@ -1,0 +1,14 @@
+[Unit]
+Description=Axiom Wind daily collection timer (instance %i)
+Documentation=file:/run/media/listen/base/openclaw-fusion/docs/operations-log.md
+
+[Timer]
+# 每日 18:30（CST）——A 股收盘且当日行情/公告已结算后再取数
+OnCalendar=*-*-* 18:30:00
+# 若开机时已过点，补跑一次（Persistent=true 依赖 stamp 文件）
+Persistent=true
+AccuracySec=1min
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

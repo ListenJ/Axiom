@@ -17,6 +17,31 @@
 
 ---
 
+## 2026-10-07 — feat(quant): 原件→副本入库 + 每日自动调度单元
+
+- **任务**：用户"根据你的建议继续"，并要求"先处理这些部分"。落实两项：① **原件 → 知识库副本**（此前只有原件、知识库看不到）；② **每日自动调度**。分级 **T2/T3**。
+- **① 副本入库脚本 `scripts/ingest-wind-raw.ts`**（只读 `data/raw/`，不触网、不耗额度）：
+  - **macro**：一指标一笔记（逐月序列表 + 最新值 + 代码/单位/频率/原件路径）；
+  - **fundamentals**：**一指数一笔记**（按标的列关键指标）——不逐只入库，避免 1800 篇碎片；
+  - **kline**：**不逐只入库**（265 标的 × 666 行会淹没知识库），改为出一篇**数据字典 + 覆盖度**笔记（字段口径、`MATCH` 即收盘价、**前复权 aftime=0**、区间、采集约束）；
+  - **announcements**：一指数一笔记，**只留标题与日期**做线索（全文留原件）。
+  - 写入走 `VaultManager.writeNote(overwrite)` → 既有**推送腿自动嵌入**；重跑幂等（覆盖不重复）。
+- **修掉两个自己的 bug（实测证据）**：
+  1. **取值字段错**：Wind EDB 的数值在 `indicatorInfo[0].data`（与 `date` 等长的数组），不是 `value/values` —— 先前取错，导致 80 期序列**全部渲染成 `-`**。修后 PPI 最新（20260831）= **3.80%**（代码 M0001227，单位 %，2020-01→2026-08 共 80 期）。
+  2. **路径未消毒**：Wind 内部指标名含冒号（`中国:PPI:当月同比`）会直接进路径/URL。修：`safeName()` 消毒；并清掉 3 个错误命名的旧笔记（**文件与 DB 行一并清理**，不悬空），另加"取不到数值就拒绝写空表"的显式告警。
+- **② 每日自动调度**（新增 3 个文件，**尚未安装**）：
+  - `mcp-servers/wind-mcp/run_daily.sh`：三步链 —— 刷新成分股（AkShare，0 额度）→ 按配比采集 → 原件转副本；单步失败不阻断后续且如实进 journal；
+  - `deploy/systemd/wind-collect@.service`（oneshot，`WIND_DAILY_CAP=270`）+ `wind-collect@.timer`（**每日 18:30 CST**，`Persistent=true` 支持错点补跑、`RandomizedDelaySec=5min` 防惊群）；
+  - `deploy/systemd/install-wind-collect.sh`（install + daemon-reload + enable timer + 状态验收）。
+  - `systemd-analyze verify` 两个单元均通过（空输出）。
+- **语义召回实测（入库后）**：`工业品出厂价格最近走势` → PPI 笔记 0.6402/0.5518；`K线里的收盘价字段叫什么` → **Wind 日线数据字典** 0.5807；`平安银行的盈利情况` → A股财务快照 0.5296。`knowledge_embeddings` 231 条。
+- **额度说明**：用户告知 **2000 积分池 + 300/日**（此前理解为 2300 一次性）。本轮入库与调度**0 次调用**；今日用量仍为 279/300（留 21）。
+- **待用户执行**：`sudo bash deploy/systemd/install-wind-collect.sh`（安装定时器；不装则需每日手动跑 `bash mcp-servers/wind-mcp/run_daily.sh`）。
+- **不做项**：未用积分池做一次性补齐（额度策略待用户确认）；公告副本仅存标题摘要。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — feat(quant): 采集作业扩展为 4 品类 + 预算配比（原件优先落盘）
 
 - **任务**：用户采纳预算建议（**kline 60% / fundamentals 20% / macro 15% / announcements 5%**）并要求"**现在开始获取信息、先把原始文件保存好**"。分级 **T2/T3**。

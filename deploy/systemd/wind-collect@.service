@@ -1,0 +1,40 @@
+[Unit]
+Description=Axiom Wind daily collection (instance %i)
+Documentation=file:/run/media/listen/base/openclaw-fusion/docs/operations-log.md
+# 数据源与本地依赖都就绪后再跑；本单元是一次性任务，不常驻
+After=network-online.target axiom@listen.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=%i
+WorkingDirectory=/run/media/listen/base/openclaw-fusion
+Environment="PATH=/home/listen/.bun/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="NODE_ENV=production"
+EnvironmentFile=-/run/media/listen/base/openclaw-fusion/.env
+# 日额度上限：账号 300/日，脚本留 30 次余量应对临时查询
+Environment="WIND_DAILY_CAP=270"
+# 本地 embedding 服务不可用时，副本入库会降级（不阻塞原件采集）
+Environment="AXIOM_EMBEDDING_CONSENT=yes"
+Environment="LOCAL_EMBED_API_KEY=local"
+ExecStart=/bin/bash /run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/run_daily.sh
+TimeoutStartSec=9000
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=axiom-wind-collect
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+# 可写路径：原件、账本、轮转状态、SQLite、Vault；- 前缀容忍首次运行时目录尚不存在
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/data
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/axiom-memory
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/.tmp
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/runtime-data
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp
+ReadWritePaths=-/home/listen/.bun
+ReadWritePaths=-/home/listen/.cache
+ReadWritePaths=-/home/listen/.npm
+ReadWritePaths=-/home/listen/.local
+
+[Install]
+WantedBy=multi-user.target
