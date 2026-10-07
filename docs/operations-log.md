@@ -31,7 +31,7 @@
 - **验证**：用**与 connector 完全相同的 env**（`WIND_API_KEY=<真实>`、`WIND_CONCURRENCY=5`）跑 stdio 握手 → `initialize` OK、`tools/list` = **44 个工具**、stderr 无错误。`yaml.safe_load` 通过；配置内已无 `:-` 活代码（仅注释中的说明）。
 - **额度纪律**：本轮 **0 次**计费调用（握手不触达 Wind 远端）。
 - **待用户执行**：`sudo systemctl restart axiom@listen.service`；验收 `journalctl -u axiom@listen.service -n 40 | grep -i wind` 应见 `外部 MCP server 已连接 {"server":"wind","tools":44}`。
-- **Commit**：`<pending>`
+- **Commit**：`0e3b7b8b`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
