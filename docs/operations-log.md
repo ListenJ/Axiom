@@ -17,6 +17,22 @@
 
 ---
 
+## 2026-10-07 — fix(mcp): Wind 专属 venv 解依赖冲突 + 真实密钥鉴权通过
+
+- **任务**：用户完成密钥录入后接手：修通 Wind MCP 连接并做**真实**（非占位）鉴权验证。分级 **T2（MCP 接入修复）**。
+- **现场**：密钥形状校验通过（`ak_` 前缀、35 字符、无空白）；`~/.axiom/axiom-secrets/wind.credentials` 0600；`akshare` MCP **已连上（5 工具）**；但 **wind 连接失败** —— journal 显示 `optional MCP server failed (degraded) {"server":"wind","error":"MCP error -32000: Connection closed"}`，伴 Python traceback 指向 `server.py:39/41`（即 FastMCP 导入两行）。
+- **根因（实测定位）**：`importlib.metadata.version("mcp")` 在 `runtime-data/.venv` 里已是 **2.3.0**（不是我先前验证的 1.30.0）—— **`akshare-mcp` 依赖 `mcp>=2`，装它时把 mcp 升级回去**，并覆盖 `site-packages/mcp/server/fastmcp.py` 为 2.x 的报错垫片，于是 wind 的 `from mcp.server.fastmcp import FastMCP` 抛 `ModuleNotFoundError`。即：**两个 server 对 MCP SDK 大版本的要求互斥**（akshare 要 2.x 的 MCPServer；wind server.py 是 1.x 的 FastMCP API），同一 venv 无论怎么 pin 都必坏其一。
+- **修复**：给 Wind 建**专属 venv** `mcp-servers/wind-mcp/.venv`（`mcp==1.30.0`，按该目录 requirements 的 `<2` 约束），`config/mcp-servers.yaml` 的 wind `command` 指向它；akshare 继续用 `runtime-data/.venv`（mcp 2.x）。配置注释里写明"必须分 venv"及其原因，避免后人再合并。
+- **真实鉴权验证（耗时 1 次额度）**：绕过 MCP 协议层直接调 `_call_wind("index_data","get_index_kline",{windcode:"000300.SH",begin_date:"20260901",end_date:"20261007"})` —— **0.6s 返回 3171 字节真实数据**：沪深300 日线 21 行（9/01–9/30），列 `TIME/OPEN/MATCH/HIGH/LOW/TURNOVER/VOLUME/CHANGEHANDRATE/AVPRICE`，最新收盘 **4357.62**（9/30；10/01 起国庆休市）。原件已归档 `data/raw/quant/wind-probe/index_kline-*.json`。
+- **协议层复核**：用专属 venv 跑 stdio 握手（真实 key）→ `initialize` OK、`tools/list` = **44 个工具**。
+- **验证**：`yaml.safe_load` 通过（wind 指向专属 venv、akshare 保持 runtime-data venv）；上述真实调用与握手均为实跑证据。
+- **待用户执行**：`sudo systemctl restart axiom@listen.service`（加载新 command 路径）；验收 `journalctl -u axiom@listen.service -n 40 | grep -i wind` 应出现 `外部 MCP server 已连接 {"server":"wind","tools":44}`。
+- **额度纪律**：本轮仅用 **1 次**调用做鉴权验证；未做任何批量取数（避免消耗 300/日 与 2300 积分池）。
+- **不做项**：每日采集作业（quota ledger + 计划表）尚未实现；下次以"先探形状、再定计划"推进。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — feat(mcp): Wind 44 工具接入 + AkShare 打通 + 密钥安全录入链路
 
 - **任务**：用户确认可申请 Wind API（2300 积分档），iFind 暂不可得；要求**现在配置该 API，且不要把密钥明文发到对话里**。分级 **T3（外部数据源接入 + 凭据处置）**。

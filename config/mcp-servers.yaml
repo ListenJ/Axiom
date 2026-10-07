@@ -66,7 +66,7 @@ servers:
   # 无 WIND_API_KEY 时：optional 使其降级为 info 日志，不影响其他 MCP/启动。
   # 未配 key 时 optional 跳过，不阻塞启动。
   wind:
-    command: "/run/media/listen/base/openclaw-fusion/runtime-data/.venv/bin/python"
+    command: "/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/.venv/bin/python"
     args: ["/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/server.py"]
     optional: true
     env:
