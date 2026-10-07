@@ -13,8 +13,8 @@ Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 
 | 属性 | 值（生成命令：`bun run scripts/count-arch-stats.mjs`；本节数字禁止手抄） |
 |------|-----|
 | 语言 / 运行时 | TypeScript 5.x / Bun 1.4+ |
-| src/ | **38 模块 / 442 文件 / 119,994 行**（`bun run arch:stats` 生成值，2026-10-07；本地 CUDA embedding provider 与单条截断后同步；数值由 docs-consistency 断言与实测精确相等） |
-| 测试 | **486 个 `*.test.ts`**；串行全套 **4,716 用例（4,649 pass / 67 skip / 0 fail / 124s）**，命令与入口见 §4（2026-10-07 实测；§4 的 09-29 数字为历史基线） |
+| src/ | **38 模块 / 442 文件 / 120,024 行**（`bun run arch:stats` 生成值，2026-10-07；本地 CUDA embedding provider、单条截断、Redis AUTH/unref 修复后同步；数值由 docs-consistency 断言与实测精确相等） |
+| 测试 | **487 个 `*.test.ts`**；串行全套 **4,721 用例（4,654 pass / 67 skip / 0 fail / 108s）**，命令与入口见 §4（2026-10-07 实测；§4 的 09-29 数字为历史基线） |
 | MCP 工具 | **189** 个去重工具（零重复）；单一事实源 `src/testing/tool-count.ts`，生成器 `scripts/count-tools.mjs` |
 | 代码质量门 | `as any` ≤ 25（2026-09-29 实测 8）、每文件 ≤ 5、`: any` ≤ 90、`@ts-expect-error` ≤ 1 |
 | 类型安全 | `tsc --noEmit` 0 errors |

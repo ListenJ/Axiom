@@ -62,6 +62,8 @@ export class RedisClient {
       logger.warn("[Redis] Connection failed, falling back to local cache", {
         error: (err as Error).message,
       });
+      // 认证失败/超时等发生在 socket 已建立之后 ⇒ 主动关闭，避免半开连接泄漏
+      client.disconnect();
       return null;
     }
   }
@@ -104,6 +106,34 @@ export class RedisClient {
     } finally {
       if (timer) clearTimeout(timer);
     }
+
+    // ── 认证与库选择（2026-10-07 修复）──────────────────────────────────────
+    // 此前 `password` 只被解析、从不发送 AUTH：带 requirepass 的实例能建 TCP 连接，
+    // 但每条命令都返回 `-NOAUTH`，而 connect() 仍返回"成功"的客户端 —— 缓存层会静默
+    // 退化成"每次命令都报错"，而不是干净的降级。必须在建连阶段显式认证并校验结果。
+    await this.waitUntilOpen(connectTimeout ?? 5000);
+
+    // Redis 是**后台基础设施**，不能把进程钉住：socket 默认会让事件循环保持存活，
+    // 于是"配置了 REDIS_URL"的 CLI/子进程在活干完后**永不退出**（实测 timer-unref 门禁用例
+    // 从 43ms 变成 20s 超时）。unref 后连接照常收发命令，只是不再单独阻住退出。
+    (this.socket as unknown as { unref?: () => void }).unref?.();
+    if (this.config.password) {
+      const reply = await this.sendCommand("AUTH", this.config.password);
+      if (String(reply) !== "OK") throw new Error("Redis AUTH rejected");
+    }
+    if (this.config.db !== undefined && this.config.db > 0) {
+      const reply = await this.sendCommand("SELECT", String(this.config.db));
+      if (String(reply) !== "OK") throw new Error(`Redis SELECT ${this.config.db} rejected`);
+    }
+  }
+
+  /** 等 open 回调置位 connected（Bun.connect 的 resolve 与 open 之间存在时序竞争） */
+  private async waitUntilOpen(timeoutMs: number): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (!this.connected && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    if (!this.connected) throw new Error(`Redis connection not open after ${timeoutMs}ms`);
   }
 
   // ---------------------------------------------------------------------------

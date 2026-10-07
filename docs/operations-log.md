@@ -17,6 +17,24 @@
 
 ---
 
+## 2026-10-07 — fix(redis): 补齐 AUTH/SELECT，带密码 Redis 才能真正接入
+
+- **任务**：按用户许可接入本机 Docker `redis-server`（redis 8.10.2，带 `requirepass`）作为 search/crawl 缓存增强；接入过程中发现并修复客户端缺认证的缺陷。分级 **T2（缓存/连接修复）**。
+- **RED（实测）**：写入 `REDIS_URL=redis://:口令@127.0.0.1:6379/0` 后，用**应用自己的** `RedisClient.connect()` 探针复验 —— 日志打出 `[Redis] Connected`，但第一条命令即抛 `error: NOAUTH Authentication required`（`src/utils/redis-client.ts` processBuffer）。根因：`parseRedisUrl` 解析出 `password` 字段后**从不发送 AUTH**，且 `connect()` 只在建连阶段判成败 ⇒ 返回"看似成功"的客户端。后果比"连不上"更糟：缓存层不会走干净的降级分支，而是**每条命令都失败**。
+- **GREEN（修复）**：`_connect()` 末尾新增 `waitUntilOpen()`（消除 `Bun.connect` resolve 与 open 回调的时序竞争）→ 有 `password` 时发 `AUTH` 并校验回包为 `OK`，`db>0` 时发 `SELECT`；认证/选择失败即抛错，由 `connect()` 捕获后**主动 `disconnect()`** 关掉半开 socket 并返回 `null`（恢复"干净降级"语义）。另修 tsc：`connectTimeout` 为可选类型，用 `?? 5000` 兜底。
+- **回归测试（新增）**：`tests/unit/redis-auth.test.ts` —— 用 `Bun.listen` 起**本地假 Redis**（强制口令，支持 AUTH/SET/SETEX/GET/DEL/PING），三条语义：口令正确 ⇒ 可用；口令错误 ⇒ `connect()` 返回 `null`（不得返回半死客户端）；无口令实例 ⇒ 不受影响。RED 实测 2 fail → GREEN 3 pass / 0 fail。
+- **真实环境复验**：接入本机 redis 8.10.2（`requirepass`）后，应用层探针 `SETEX/GET/DEL` 全通过，输出 `应用层 Redis 读写: PASS`；`[Redis] Connected {"host":"127.0.0.1","port":6379}`。
+- **回归**：`bun test tests/cache*.test.ts tests/unit/redis-auth.test.ts tests/redis-client.test.ts tests/redis-resilience.test.ts` = **19 pass / 0 fail**；`bunx tsc --noEmit` rc=0。
+- **生产接线**：`REDIS_URL` 已写入生产 `.env`（口令不回显；备份 `~/.axiom/axiom-secrets/env.pre-redis-*.bak`）。**未配也能跑**：`cache.ts` 在 `redisReady=false` 时全程走进程内缓存，`health-checker` 报 `skipped` —— 这是刻意的可选增强，保住跨平台分发（见 `docs/ARCHITECTURE.md` §8 与 `docs/LIMITATIONS.md`）。
+- **阻塞/待用户执行**：`systemctl restart axiom@listen.service` 需 TTY sudo；重启后以 `/health` 的 `cache.search.redisConnected` / `cache.crawl.redisConnected` 转 `true` 作为最终验收。
+- **连带发现（全量回归暴露）**：把 `REDIS_URL` 写入生产 `.env` 后，全量回归出现 **5 fail**（此前 0 fail）——其中 3 例是**子进程永不退出**的超时（`timer-unref` 门禁 20s、`getEdgeClient` 15s、release 闸门 15s），1 例是内存断言。二分实测确认根因：`env REDIS_URL= bun test …` 时该用例 **43ms 通过**，带 `REDIS_URL` 时 **20s 超时** ⇒ Bun socket 默认让事件循环存活，**配置了 Redis 的进程无法自然退出**（生产含义：CLI / 优雅退出会被钉住）。修复：建连后 `socket.unref()`（连接照常收发，只是不再单独阻住退出），并加版本容错调用。
+- **连带修复验证**：`tests/unit/timer-unref-guard.test.ts` 20s 超时 → **30.9ms 通过**；`tests/local-llm-edge.test.ts`、`tests/unit/release-path-dev-models.test.ts`、`tests/rigorous/mega-pressure.test.ts` 全部由 fail 转 pass（16 pass / 0 fail ×2 批）。
+- **文档棘轮**：`docs/ARCHITECTURE.md` §1 src 行数同步为 `120,024`（`bun run arch:stats` 生成值）。
+- **不做项**：未改动用户的 Docker 容器（未重绑 `0.0.0.0`→`127.0.0.1`、未轮换口令）；未接入 PG/MySQL（代码无驱动）。
+- **Commit**：`<pending>`
+
+---
+
 ## 2026-10-07 — fix(systemd): 重启后 226/NAMESPACE 崩溃循环修复（Step 9 AC-1/AC-3）
 
 - **任务**：Axiom 常驻单元在**机器重启后不可自拉起**的实测事故修复。属计划 Step 9（systemd 常驻）的 AC-1（模板命名）与 AC-3（重启可拉起）。分级 **T3（部署/运维）**。
