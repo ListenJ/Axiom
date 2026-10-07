@@ -17,6 +17,23 @@
 
 ---
 
+## 2026-10-08 — docs(plan): 内核收敛评估（T3）
+
+- **任务**：用户指示「评估内核收敛，防止多套程序带来极其严重的问题」。产出 T3 评估/实施计划，**不改代码**。分级 **T3**（评估轮次，仅文档）。
+- **实测基线（要点）**：
+  1. 两套 DRE Kernel 分属**两个进程**：`src/dre/host.ts`（`main.ts` 用）与 `src/mcp/server/dre-tools.ts`（`mcp/server.ts` 用）；**非**同一进程双实例（`main.ts` 不 import `mcp/server`，反之亦然；`launcher.ts` 分开 spawn）；
+  2. 两进程都写同一 `DATABASE_PATH=./data/agent.db`（`.env` 实测，无 `DRE_DB_PATH` 覆盖）；
+  3. `src/dre/runtime/*` 十余个模块级单例（scheduler/eventBus/worldState/atomStore/knowledgeNetwork/capabilityRegistry/...）**每进程各一份**，且都落同一库；
+  4. **busy_timeout 缺口**：`dre/storage/sqlite-backend.ts`、`knowledge/store.ts`、`memory/sqlite-memory.ts`、`mcp/server.ts` 的库连接只有 WAL、**无 busy_timeout**；而 `src/dre/practice-manual.ts:29-30` 早已记录"多进程写会 SQLITE_BUSY、须 busy_timeout"；
+  5. MCP 侧 Kernel **无组合根注入**（缺 `cloudCaller`/`hallucinationGate`/`recordVerdict`，与 host 侧行为不一致）；
+  6. `src/dre/port`（KnowledgePort/Remote）**已定义但全仓未用**，服务端 `POST /api/port` 不存在（只建了客户端一半）。
+- **风险分级**：高 = 多进程写 agent.db 无 busy_timeout（SQLITE_BUSY）；中高 = 运行时内存态分叉；中 = 组合根注入缺失；**澄清（不夸大）**：WAL 下不会数据损坏，真实故障是"写失败/状态不一致"。
+- **产出**：`docs/superpowers/plans/2026-10-08-kernel-consolidation.md`（方案 A 单写者+远程端口 / B 共享内核工厂+止血 / C 同进程合并 对比 + 三步分期：Step0 止血 / Step1 共享工厂 / Step2 单写者）。
+- **验证**：`bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts` = 45 pass / 0 fail。
+- **待用户裁定**：①唯一 Kernel 拥有者选谁（main / mcp / 独立 daemon）；②MCP 侧 DRE 工具定位（代理/只读/独立库）；③本轮做到哪一步（Step0 / 0+1 / 直冲 2）。
+- **不做项**：本轮只评估，不改运行时代码；不删/不改已推送历史。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — fix(mcp): 恢复 timeoutMs 的 ${VAR:-default}（obsidian/akshare 重获可配）
 
 - **任务**：修复上一批全量门禁发现的既有红（用户批准的第 4 项）。分级 **T1/T2**。
