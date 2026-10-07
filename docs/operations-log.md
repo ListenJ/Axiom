@@ -29,7 +29,7 @@
 - **待用户执行**：`sudo systemctl restart axiom@listen.service`（加载新 command 路径）；验收 `journalctl -u axiom@listen.service -n 40 | grep -i wind` 应出现 `外部 MCP server 已连接 {"server":"wind","tools":44}`。
 - **额度纪律**：本轮仅用 **1 次**调用做鉴权验证；未做任何批量取数（避免消耗 300/日 与 2300 积分池）。
 - **不做项**：每日采集作业（quota ledger + 计划表）尚未实现；下次以"先探形状、再定计划"推进。
-- **Commit**：`<pending>`
+- **Commit**：`3e432be7`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ---
 
