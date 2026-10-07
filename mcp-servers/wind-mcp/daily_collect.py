@@ -48,11 +48,39 @@ CST = timezone(timedelta(hours=8))
 DEFAULT_CAP = 270
 INDEXES = [("000300", "沪深300"), ("000905", "中证500"), ("000852", "中证1000")]
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 成本模型（2026-10-07 用真实账单校准 —— **这是本脚本最重要的一节**）
+#
+# 教训：Wind 各工具的**计价差异是数量级的**。我最初按"1 次调用 = 1 积分"做预算，
+# 结果 20 次 `get_economic_data` 就烧掉了整个积分池（账单实测单价 10～300/次），
+# 而同期 270 次 `get_stock_kline` 合计只花约 270。
+# 接口响应里**不含成本字段**，因此只能靠账单页人工校准 —— 故此表是"保守估计"，
+# 宁可高估（少取数）也不能低估（烧额度）。
+#
+# 校准来源：用户账单页 2026-10-07（末 10 条均为 get_economic_data）：
+#   300 / 300 / 10 / 300 / 300 / 300 / 183.79 / 300 / 300 / 228.43
+# ═══════════════════════════════════════════════════════════════════════════
+TOOL_COST_CREDITS: dict[str, float] = {
+    "stock_data.get_stock_kline": 1.0,          # 实测：270 次 ≈ 270 积分
+    "economic_data.get_economic_data": 300.0,   # 实测：10～300，**按最坏值估**
+    "stock_data.get_stock_fundamentals": 5.0,   # **未校准**（保守估）；待用账单页填真值
+    "financial_docs.get_company_announcements": 5.0,  # **未校准**（保守估）；待用账单页填真值
+}
+DEFAULT_COST = 10.0          # 未知工具：保守按 10 估
+# 日预算从"次数"改为"积分"：账号 300 积分/日（免费档），脚本留 10% 余量
+DEFAULT_CREDIT_BUDGET = 270.0
+# 高成本品类默认**关闭**：需要显式 --allow-expensive 才跑（避免再烧池子）
+EXPENSIVE_TOOLS = {"economic_data.get_economic_data"}
+
+# 配比（2026-10-07 用真实账单校准后修订）
+# 依据：① K 线单价约 1 积分、是量化底座，应拿大头；② 宏观 EDB 单价 10~300，
+# 且**属一次性数据**（历史序列，不需每日增量）——已采 17/20，剩余 3 个按天慢慢补；
+# ③ 财务/公告单价未校准，先给小额配比用于摸价，避免又踩数量级坑。
 CATEGORY_BUDGET: dict[str, float] = {
-    "kline": 0.60,
-    "fundamentals": 0.20,
-    "macro": 0.15,
-    "announcements": 0.05,
+    "kline": 0.55,          # ≈165 积分/日（单价≈1）→ 剩 1535 只约 9.3 天
+    "fundamentals": 0.30,   # ≈90 积分/日 —— 选股核心；单价待校准（暂按 5 保守估 → 18 只/天）
+    "announcements": 0.05,  # ≈15 积分/日（单价待校准）
+    "macro": 0.10,          # ≈30 积分/日 —— **买不起单次（10~300）**；且属一次性数据，默认跳过
 }
 CATEGORY_ORDER = ["kline", "fundamentals", "macro", "announcements"]
 
@@ -223,6 +251,54 @@ def stock_list() -> list[dict]:
     return out
 
 
+def tool_cost(st: str, tool: str) -> float:
+    """单次调用的预估积分（保守上界）"""
+    return TOOL_COST_CREDITS.get(f"{st}.{tool}", DEFAULT_COST)
+
+
+def spent_today_credits() -> float:
+    """当日已耗积分（按预估单价回算账本）"""
+    if not USAGE_FILE.exists():
+        return 0.0
+    day, total = today_cst(), 0.0
+    for line in USAGE_FILE.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+            if r.get("date") != day:
+                continue
+            if "est_credits" in r:
+                total += float(r["est_credits"])
+            else:
+                # 兼容历史条目（无 est_credits）：按工具名回算单价
+                total += TOOL_COST_CREDITS.get(str(r.get("tool")), DEFAULT_COST)
+        except Exception:
+            continue
+    return total
+
+
+def spent_today_credits_by_category() -> dict[str, float]:
+    """当日各品类已耗积分（按账本回算；缺 est_credits 的历史条目按单价回算）。
+
+    必须按**当日**切分：若用历次累计，第二天的"该品类已耗"会超过日预算，
+    导致该品类被**永久卡死**（实测发现于 2026-10-07 自检）。
+    """
+    out: dict[str, float] = {}
+    if not USAGE_FILE.exists():
+        return out
+    day = today_cst()
+    for line in USAGE_FILE.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+            if r.get("date") != day:
+                continue
+            cat = r.get("category", "kline")
+            cost = float(r["est_credits"]) if "est_credits" in r else TOOL_COST_CREDITS.get(str(r.get("tool")), DEFAULT_COST)
+            out[cat] = out.get(cat, 0.0) + cost
+        except Exception:
+            continue
+    return out
+
+
 def build_tasks(category: str) -> list[dict]:
     """构造某品类的任务列表（每项 = 1 次调用）"""
     end = datetime.now(CST).strftime("%Y%m%d")
@@ -263,7 +339,7 @@ def archive(tool_name: str, key: str, payload: str) -> Path:
     return p
 
 
-def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int, int]:
+def run_category(category: str, limit: int, credit_budget: float, force: bool) -> tuple[int, int]:
     """执行一个品类，返回 (成功, 失败)。原件先落盘，再记账。"""
     load_api_key()
     import server as wind
@@ -279,10 +355,14 @@ def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int,
 
     ok = fail = 0
     for i, t in enumerate(batch, 1):
-        if used_today() >= cap:
-            print(f"[{category}] 达到日上限 {cap}，停止（本批已完成 {i-1}）")
-            break
         st, tool = t["tool"]
+        cost = tool_cost(st, tool)
+        spent = spent_today_credits()
+        if spent + cost > credit_budget:
+            print(
+                f"[{category}] 积分闸门：已耗 {spent:.0f} + 本次 {cost:.0f} > 预算 {credit_budget:.0f}，停止（本批完成 {i-1}）"
+            )
+            break
         t0, out, err = time.time(), "", None
         for attempt in range(2):
             try:
@@ -312,7 +392,8 @@ def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int,
         append_ledger({
             "date": today_cst(), "ts": datetime.now(CST).isoformat(), "category": category,
             "tool": f"{st}.{tool}", "key": t["key"], "ms": ms, "ok": good,
-            "bytes": len(out or ""), "raw": str(raw_path.relative_to(REPO)) if raw_path else None,
+            "bytes": len(out or ""), "est_credits": tool_cost(st, tool),
+            "raw": str(raw_path.relative_to(REPO)) if raw_path else None,
             "error": err,
         })
         if good:
@@ -327,7 +408,7 @@ def run_category(category: str, limit: int, cap: int, force: bool) -> tuple[int,
                 )
                 break
         if i % 10 == 0 or i == len(batch):
-            print(f"  [{category}] {i}/{len(batch)}  成功 {ok} 失败 {fail}  (今日 {used_today()}/{cap})")
+            print(f"  [{category}] {i}/{len(batch)}  成功 {ok} 失败 {fail}  (今日积分 ≈{spent_today_credits():.0f}/{credit_budget:.0f})")
 
     rot_all[category] = sorted(done)
     rot_all["updatedAt"] = datetime.now(CST).isoformat()
@@ -343,6 +424,9 @@ def main() -> int:
     ap.add_argument("--category", choices=CATEGORY_ORDER)
     ap.add_argument("--max-calls", type=int, default=None)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--allow-expensive", action="store_true",
+                    help="允许跑高成本品类（如宏观 EDB，实测 10~300 积分/次）。默认**关闭**以防烧额度。")
+    ap.add_argument("--credit-budget", type=float, default=None)
     args = ap.parse_args()
 
     if args.refresh_universe:
@@ -353,38 +437,53 @@ def main() -> int:
         ap.print_help()
         return 0
 
-    cap = int(os.environ.get("WIND_DAILY_CAP", DEFAULT_CAP))
+    # 预算单位 = **积分**（不是调用次数）—— 2026-10-07 用真实账单校准后改口径
+    credit_budget = float(os.environ.get("WIND_DAILY_CREDITS", DEFAULT_CREDIT_BUDGET))
+    if args.credit_budget is not None:
+        credit_budget = float(args.credit_budget)
     cats = [args.category] if args.category else CATEGORY_ORDER
-    total_used = used_today()
+    spent = spent_today_credits()
     by_cat = used_today_by_category()
 
-    # 各品类今日配额（按配比切分 cap）
-    quota = {c: (args.max_calls if args.category and args.max_calls else max(0, round(cap * CATEGORY_BUDGET[c]))) for c in cats}
-    print(f"额度: 账号 300/日, 脚本上限 {cap}, 今日已用 {total_used}（{by_cat or '无'}）")
+    print(f"积分预算: {credit_budget:.0f}/日（账号免费档 300/日）, 今日已耗 ≈{spent:.0f}（调用 {sum(by_cat.values())} 次: {by_cat or '无'}）")
     print("预算配比:", ", ".join(f"{c}={int(CATEGORY_BUDGET[c]*100)}%" for c in cats))
+    print("单价（保守上界）:", ", ".join(f"{k.split('.')[-1]}={v:.0f}" for k, v in TOOL_COST_CREDITS.items()))
 
     grand_ok = grand_fail = 0
     for c in cats:
-        remain_total = max(0, cap - used_today())
-        remain_cat = max(0, quota[c] - by_cat.get(c, 0))
-        limit = min(remain_total, remain_cat)
         tasks = build_tasks(c)
+        # 高成本品类门禁：宏观 EDB 单价可达 300，默认不跑
+        if not args.allow_expensive and any(
+            f'{t["tool"][0]}.{t["tool"][1]}' in EXPENSIVE_TOOLS for t in tasks[:1]
+        ):
+            print(f"  {c}: ⛔ 含高成本接口（单价可达 300 积分），默认跳过；"
+                  f"确实要跑请加 --allow-expensive --category={c}")
+            continue
         rot = set(load_json(ROTATION_FILE, {}).get(c, []))
         pending = [t for t in tasks if args.force or t["key"] not in rot]
-        print(f"  {c}: 池 {len(tasks)}, 已采 {len(rot)}, 待采 {len(pending)}, 今日配额 {quota[c]}, 本次可跑 {min(limit, len(pending))}")
+        # 本批可跑条数：受"该品类预算份额"与"全局剩余积分"双重约束
+        per_cat_budget = credit_budget * CATEGORY_BUDGET[c]
+        spent_cat = spent_today_credits_by_category().get(c, 0.0)   # 只用**今日**，避免跨天累计卡死
+        unit_cost = tool_cost(*tasks[0]["tool"]) if tasks else DEFAULT_COST
+        remain_credits = max(0.0, credit_budget - spent)
+        remain_cat_credits = max(0.0, per_cat_budget - spent_cat)
+        limit = int(min(remain_credits, remain_cat_credits) / unit_cost) if unit_cost > 0 else 0
+        if args.max_calls is not None:
+            limit = min(limit, args.max_calls)
+        print(f"  {c}: 池 {len(tasks)}, 已采 {len(rot)}, 待采 {len(pending)}, 单价≈{unit_cost:.0f}, 本次可跑 {min(limit, len(pending))}")
         if args.plan:
             for t in pending[:3]:
                 print(f"      · {t['label']}")
             continue
         if limit <= 0:
-            print(f"      （配额用尽或无待采，跳过）")
+            print("      （积分预算不足或无待采，跳过）")
             continue
-        ok, fail = run_category(c, min(limit, len(pending)), cap, args.force)
+        ok, fail = run_category(c, min(limit, len(pending)), credit_budget, args.force)
         grand_ok += ok
         grand_fail += fail
 
     if args.run:
-        print(f"全部完成：成功 {grand_ok}，失败 {grand_fail}，今日累计 {used_today()}/{cap}")
+        print(f"全部完成：成功 {grand_ok}，失败 {grand_fail}，今日已耗积分 ≈{spent_today_credits():.0f}/{credit_budget:.0f}")
     return 0 if grand_fail == 0 else 1
 
 
