@@ -25,7 +25,7 @@
   2. `tests/outbound-fetch-ratchet.test.ts`：来源分布 env 6→7 同步；
   3. `.env.example`：登记 `AXIOM_DRE_DAEMON_{PORT,URL,TOKEN}`。
 - **验证**：`bun test tests/outbound-fetch-ratchet.test.ts tests/env-example-completeness.test.ts` 全绿；**串行全量 `bun test --timeout 15000 ./tests` = 4673 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`774ae316`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — feat(daemon): DRE Daemon 落地为唯一内核拥有者（内核收敛 Step 2a）
 
