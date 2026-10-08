@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-08 — test(stress): 重负载 Layer 用例补显式超时（消除 5s 默认超时抖动）
+
+- **任务**：内核收敛全量回归时，`tests/stress/high-intensity-load.test.ts` 的 "Layer 0+1+2 — 500 次检索 + GraphRAG 多跳 + Wiki 编译" 报 `timed out after 5000ms`。分级 **T1（测试健壮性）**。
+- **定位**：该用例 500 次无缓存检索 + GraphRAG depth 3，**未声明显式超时**，实测耗时在 **4.95s～5.28s** 之间抖动（连跑 3 次：1 过 2 红），正好压在 bun 默认 5s 上——属**负载敏感的既有抖动**，与本次改动无关（该用例只用 `DeterministicRetrievalEngine`/`KnowledgeWiki`，`git diff` 实测未触碰 `src/dre/retrieval`、`src/knowledge`）。
+- **改动**：给 5 个重负载 `Layer…` 用例补显式 `30_000` 超时（`Layer0 only` / `0+1+2` / `0+1+2+3` / `0-4` / `0-5`）；不改判据、不改阈值。
+- **验证**：`bun test tests/stress/high-intensity-load.test.ts` = **22 pass / 0 fail**（连跑稳定）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — feat(dre): MCP DRE 工具切到 daemon（内核收敛 Step 2b-ii，内核数→1）
 
 - **任务**：完成内核收敛最后一步——**MCP 进程不再自建 Kernel**，35 个 DRE 工具的处理器在唯一内核拥有者（DRE daemon）内执行，MCP 只做薄转发。分级 **T3**。

@@ -364,7 +364,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     console.log(
       `[Stress] Layer0 only x1000: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}`,
     );
-  });
+  }, 30_000);
 
   test("Layer 0+1+2 — 500 次检索 + GraphRAG 多跳 + Wiki 编译", () => {
     const engine = new DeterministicRetrievalEngine({
@@ -402,7 +402,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     console.log(
       `[Stress] Layer0+1+2 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, paths: ${totalPaths}`,
     );
-  });
+  }, 30_000);
 
   test("Layer 0+1+2+3 — 500 次检索 + GraphRAG + Wiki + 验证链", () => {
     const engine = new DeterministicRetrievalEngine({
@@ -438,7 +438,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     console.log(
       `[Stress] Layer0+1+2+3 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, verified: ${totalVerified}`,
     );
-  });
+  }, 30_000);
 
   test("Layer 0-4 — 500 次全融合管道（含验证 + 融合排序）", () => {
     const engine = new DeterministicRetrievalEngine({
@@ -474,7 +474,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     console.log(
       `[Stress] Layer0-4 x500: p50=${pct.p50}ms, p90=${pct.p90}ms, p99=${pct.p99}ms, qps: ${qps}, fused: ${totalFused}`,
     );
-  });
+  }, 30_000);
 
   test("Layer 0-5 — 1000 次完整管道（含可观测性监测）", () => {
     const engine = new DeterministicRetrievalEngine({
@@ -530,7 +530,7 @@ describe("C. 5 层管道端到端压力测试 — End-to-End Pipeline", () => {
     console.log(
       `[Stress] Layer0-5 breakdown: keyword=${breakdown.keywordPhaseRatio.toFixed(2)}, graph=${breakdown.graphPhaseRatio.toFixed(2)}, merge=${breakdown.mergePhaseRatio.toFixed(2)}`,
     );
-  });
+  }, 30_000);
 });
 
 // ═══════════════════════════════════════════════════════════════
