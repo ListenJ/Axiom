@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-08 — feat(dre): MCP DRE 工具切到 daemon（内核收敛 Step 2b-ii，内核数→1）
+
+- **任务**：完成内核收敛最后一步——**MCP 进程不再自建 Kernel**，35 个 DRE 工具的处理器在唯一内核拥有者（DRE daemon）内执行，MCP 只做薄转发。分级 **T3**。
+- **关键突破（避免 mcp↔daemon 导入循环）**：daemon **单向**复用 `src/mcp/server/dre-tools.ts`（daemon→mcp）；MCP 侧用**内联 `fetch`**（`invokeRemoteDreTool`）转发 `{name,args}` 到 `POST /dre/tool`，**不 import `src/daemon`** ⇒ 无导入边、无循环（`architecture-integrity` 循环用例 25/25 实测通过）。
+- **改动**：
+  1. `dre-tools.ts`：`registerDreTools(registry, opts?)` 增 `engineProvider`（daemon 用）/`forward`（MCP 用）两种运行模式；先经 `collector` 收集 35 条规格（**保留 `.add({` 字面量形态**，使 D10 能力声明抽取器仍能识别），再按模式注册；新增 `invokeRemoteDreTool`；
+  2. `dre-daemon.ts`：`new ToolRegistry()`（默认 `defaultToolGuard`，安全不降级）+ `registerDreTools(registry, { engineProvider: () => engine })`，暴露 `POST /dre/tool`；
+  3. `mcp/server.ts`、`mcp/dre-backend.ts`：`registerDreTools(registry, { forward: invokeRemoteDreTool })`——**不再创建本地 Kernel**。
+- **回归**：`tests/unit/dre-daemon.test.ts` 增 `/dre/tool` 端到端（执行 `persona_list` 命中 daemon 引擎）+ 未知工具 404；`tests/unit/dre-tools-behavior.test.ts` 增 forward 模式委托断言。
+- **坑（已修）**：`collector` 的注释里字面写了 `.add({`，被 D10 抽取器的 `indexOf(".add({")` 当成注册点，导致重生成多一行 `dre_constraint_inject`（186→187）——改写注释后重生成与在册**逐字一致**。
+- **验证**：`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25；`doc-contract` 35/0；`outbound-fetch-ratchet`（登记新出网点，env 8）；`dre-daemon`+`dre-tools-behavior` 20/20；`arch:stats` 39 模块 / 449 文件 / 120,553 行已同步。**至此生产内核数 = 1（仅 DRE daemon）**。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — test(dre): DRE MCP 工具行为安全网（Step 2b-ii 前置）
 
 - **任务**：推进 Step 2b-ii（MCP 35 个 DRE 工具切到 daemon）。开工前扫描发现这些工具**几乎无行为测试**（全仓仅 `scene-router.test.ts` 一处字符串命中），若直接做处理器下沉会缺少红绿判据。先补安全网。分级 **T2**。

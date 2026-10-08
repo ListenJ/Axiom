@@ -95,3 +95,23 @@ describe("DRE MCP 工具行为安全网", () => {
     }
   });
 });
+
+describe("DRE MCP 工具 :: forward 模式（MCP 进程薄转发）", () => {
+  test("注册时给 forward，则每个 handler 都委托给 forward(name,args)", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const registry = new ToolRegistry({ guard: async () => {} });
+    registerDreTools(registry, {
+      forward: async (name, args) => {
+        calls.push({ name, args });
+        return { forwarded: name };
+      },
+    });
+    const handlers = registry.buildHttpHandlers() as Record<string, (a: Record<string, unknown>) => Promise<unknown>>;
+    const r1 = await handlers.persona_list({});
+    expect(r1).toEqual({ forwarded: "persona_list" });
+    const r2 = await handlers.dre_status({ x: 1 });
+    expect(r2).toEqual({ forwarded: "dre_status" });
+    expect(calls.map((c) => c.name)).toEqual(["persona_list", "dre_status"]);
+    expect(calls[1].args).toEqual({ x: 1 });
+  });
+});

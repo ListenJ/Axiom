@@ -1,9 +1,10 @@
 import { z } from "zod";
-import type { ToolRegistry } from "../tool-registry.js";
-import { Kernel, CognitivePipeline, TaskGraph, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
+import type { ToolRegistry, ToolDef } from "../tool-registry.js";
+import { Kernel, CognitivePipeline, TaskGraph, type DREngine, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
 import { createDreKernel } from "../../dre/factory.js";
 import { getResourceBudgetManager } from "../../dre/system-resource.js";
 import { logger } from "../../utils/logger.js";
+import { readString } from "../../utils/env.js";
 
 let kernel: Kernel | null = null;
 let kernelReady: Promise<Kernel> | null = null;
@@ -47,8 +48,57 @@ export function getKernelInstance(): Kernel | null {
   return kernel;
 }
 
-export function registerDreTools(registry: ToolRegistry): void {
-  registry.add({
+/** 注入式引擎源：daemon 用它把自己的**唯一**引擎交给这些处理器（默认回落本地 Kernel，仅供未收敛/测试路径） */
+let injectedEngine: (() => Promise<DREngine>) | null = null;
+export function setDreEngineProvider(p: (() => Promise<DREngine>) | null): void {
+  injectedEngine = p;
+}
+async function getEngine(): Promise<DREngine> {
+  if (injectedEngine) return injectedEngine();
+  return (await getKernelAsync()).getEngine();
+}
+
+/**
+ * MCP 进程转发到唯一内核拥有者（DRE daemon）。
+ *
+ * 刻意用**内联 fetch** 而非 import `src/daemon/client.js`：后者会形成 `mcp ↔ daemon`
+ * 顶层目录**导入**循环（架构门禁不允许）。daemon 单向复用本文件（daemon→mcp），
+ * 本进程只经 HTTP 转发（无导入边），循环即被切断。
+ */
+export async function invokeRemoteDreTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  const base = readString("AXIOM_DRE_DAEMON_URL", "http://127.0.0.1:18790").replace(/\/$/, "");
+  const token = readString("AXIOM_DRE_DAEMON_TOKEN", "");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (token) headers["x-axiom-token"] = token;
+  const res = await fetch(`${base}/dre/tool`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ name, args }),
+  });
+  const body = (await res.json()) as { ok?: boolean; result?: unknown; error?: string };
+  if (!res.ok || body.ok === false) throw new Error(body.error ?? `DRE daemon tool "${name}" failed (HTTP ${res.status})`);
+  return body.result;
+}
+
+export interface DreToolRegistrationOptions {
+  /** 本地执行：把引擎直接交给处理器（daemon 用） */
+  engineProvider?: () => Promise<DREngine>;
+  /** 远程转发：把 {name,args} 交给唯一内核拥有者（MCP 进程用） */
+  forward?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
+}
+
+export function registerDreTools(registry: ToolRegistry, opts?: DreToolRegistrationOptions): void {
+  // 先经 collector 收集规格（保留字面量注册形态，供 D10 能力声明抽取器识别），
+  // 再按运行模式注册：本地执行（daemon）或远程转发（MCP）。
+  const collector = {
+    specs: [] as ToolDef[],
+    add(t: ToolDef) {
+      this.specs.push(t);
+      return this;
+    },
+  };
+  if (opts?.engineProvider) injectedEngine = opts.engineProvider;
+  collector.add({
     name: "dre_constraint_inject",
     capability: ["internal"],
     description: "需求4：扫描文本命中实践手册错误记录 → 返回可插入 LLM 输入的 DRE 约束词（可追溯来源 id）；也可直接返回注入后的消息",
@@ -70,7 +120,7 @@ export function registerDreTools(registry: ToolRegistry): void {
   });
 
 
-  registry.add({
+  collector.add({
     name: "dre_write_knowledge",
     capability: ["db.write", "net.outbound", "fs.write"],
     description: "写入知识 (触发三段甄别: 预筛→网络校验→LLM自推理，需要本地 LLM 服务)",
@@ -84,7 +134,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     handler: async (args) => {
       try {
-        const dre = (await getKernelAsync()).getEngine();
+        const dre = (await getEngine());
         const item: KnowledgeItem = {
           id: `kb-${Date.now()}`,
           title: args.title as string,
@@ -117,7 +167,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "dre_read_knowledge",
     capability: ["internal"],
     description: "读取知识条目",
@@ -125,7 +175,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       nodeId: z.string().describe("知识条目 ID"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const node = dre.readKnowledge(args.nodeId as string);
       if (!node) {
         return { success: false, error: "Knowledge node not found" };
@@ -147,7 +197,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "dre_search_knowledge",
     capability: ["internal"],
     description: "搜索知识库",
@@ -159,7 +209,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       limit: z.number().optional().default(10).describe("返回数量"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const results = dre.searchData(args.query as string, {
         domain: args.domain as string,
         paradigm: args.paradigm as string,
@@ -177,7 +227,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "dre_subgraph",
     capability: ["internal"],
     description: "知识图谱子图检索 (BFS)",
@@ -187,7 +237,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       maxNodes: z.number().optional().default(50).describe("最大节点数"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const nodes = dre.subgraph(args.nodeId as string, args.depth as number, args.maxNodes as number);
       return nodes.map((n) => ({
         nodeId: n.nodeId,
@@ -198,7 +248,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "dre_consciousness_step",
     capability: ["db.write", "net.outbound", "fs.write"],
     description: "意识流处理步骤 (三级降级: 本地LLM → 云API → 规则推理)",
@@ -208,7 +258,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     handler: async (args) => {
       try {
-        const dre = (await getKernelAsync()).getEngine();
+        const dre = (await getEngine());
         const result = await dre.consciousnessStep({
           observation: args.observation as string,
           metadata: args.metadata as Record<string, unknown>,
@@ -235,18 +285,18 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "dre_status",
     capability: ["internal"],
     description: "获取 DRE 引擎状态",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.getStatus();
     },
   });
 
-  registry.add({
+  collector.add({
     name: "resource_status",
     capability: ["internal"],
     description: "获取系统资源预算状态 (可用内存、算力、是否可运行本地推理)",
@@ -259,7 +309,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== Persona 工具 (v3.0.0 — 替代 AgentHarness) =====
 
-  registry.add({
+  collector.add({
     name: "persona_switch",
     capability: ["internal"],
     description: "切换 Persona 模式 (plan/code/retrieve/reflect/audit/creative/general)",
@@ -268,7 +318,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       reason: z.string().optional().describe("切换原因 (可选)"),
     },
     handler: async (args) => {
-      const loaded = (await getKernelAsync()).getEngine().switchPersona(args.mode as PersonaMode, args.reason as string);
+      const loaded = (await getEngine()).switchPersona(args.mode as PersonaMode, args.reason as string);
       return {
         mode: loaded.config.mode,
         name: loaded.config.name,
@@ -279,13 +329,13 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "persona_status",
     capability: ["internal"],
     description: "获取当前 Persona 状态和切换历史",
     inputSchema: {},
     handler: async () => {
-      const persona = (await getKernelAsync()).getEngine().persona;
+      const persona = (await getEngine()).persona;
       return {
         ...persona.getContextSummary(),
         temperature: persona.getTemperature(),
@@ -296,23 +346,23 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "persona_list",
     capability: ["internal"],
     description: "列出所有可用 Persona 模式",
     inputSchema: {},
     handler: async () => {
-      return (await getKernelAsync()).getEngine().persona.getAvailableModes();
+      return (await getEngine()).persona.getAvailableModes();
     },
   });
 
-  registry.add({
+  collector.add({
     name: "cognitive_state",
     capability: ["internal"],
     description: "获取统一认知状态 (Persona + 意识流 + 推理 + 约束 + 目标 + 信念 + 资源 + Atom数据)",
     inputSchema: {},
     handler: async () => {
-      const engine = (await getKernelAsync()).getEngine();
+      const engine = (await getEngine());
       const state = engine.getCognitiveState();
       return {
         ...state,
@@ -323,7 +373,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== 认知管道工具 (v3.1) =====
 
-  registry.add({
+  collector.add({
     name: "cognitive_pipeline_run",
     capability: ["db.write", "net.outbound", "fs.write"],
     description: "运行认知管道 (含 LLM 降级链: L1确定→L2本地LLM→L3云→L4规则)",
@@ -331,7 +381,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       input: z.string().describe("输入文本 (问题/任务描述)"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -343,7 +393,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "cognitive_pipeline_run_full",
     capability: ["db.write", "net.outbound", "fs.write"],
     description: "运行认知管道 + TaskGraph 执行 (含 LLM 降级链)",
@@ -351,7 +401,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       input: z.string().describe("输入文本 (问题/任务描述)"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -365,7 +415,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== 统一数据入口工具 (v3.1 DataUnifier) =====
 
-  registry.add({
+  collector.add({
     name: "data_write",
     capability: ["db.write"],
     description: "通过 DataUnifier 统一写入数据 (创建 Atom + 持久化到 KnowledgeStore)",
@@ -377,7 +427,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       sourceType: z.string().optional().describe("来源类型 (manual, web, llm)"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const { atom } = dre.data.write({
         content: args.content as string,
         kind: args.kind as AtomKind,
@@ -389,7 +439,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "data_search",
     capability: ["internal"],
     description: "通过 DataUnifier 统一搜索 (Atom + KnowledgeStore)",
@@ -399,7 +449,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       kind: z.enum(["entity", "fact", "rule", "concept", "procedure", "observation", "insight"]).optional().describe("按数据类型过滤"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const result = dre.data.search(args.query as string, {
         limit: (args.limit as number) ?? 10,
       });
@@ -410,39 +460,39 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "data_stats",
     capability: ["internal"],
     description: "获取 DataUnifier / AtomEngine 统计信息",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return {
         atomStats: dre.data.getAtomStats(),
       };
     },
   });
 
-  registry.add({
+  collector.add({
     name: "data_persist",
     capability: ["db.write"],
     description: "手动持久化所有 Atom 到 SQLite",
     inputSchema: {},
     handler: async () => {
-      (await getKernelAsync()).getEngine().data.persist();
+      (await getEngine()).data.persist();
       return { success: true, timestamp: Date.now() };
     },
   });
 
   // ===== 心智模型工具 (v2.9.0 认知增强) =====
 
-  registry.add({
+  collector.add({
     name: "mental_model_list",
     capability: ["internal"],
     description: "列出所有心智模型 (Git冲突/代码重构等领域模型)",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.mentalModels.list().map((m) => ({
         id: m.id,
         name: m.name,
@@ -456,7 +506,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mental_model_match",
     capability: ["internal"],
     description: "在心智模型中匹配模式 (观察→概念链→状态路径)",
@@ -465,7 +515,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       observations: z.array(z.string()).describe("观察列表"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const result = dre.mentalModels.matchPattern(
         args.modelId as string,
         args.observations as string[]
@@ -475,7 +525,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mental_model_predict",
     capability: ["internal"],
     description: "基于心智模型预测下一步 (状态→触发→预测状态)",
@@ -484,7 +534,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       observation: z.string().describe("当前观察"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const result = dre.mentalModels.predict(
         args.modelId as string,
         args.observation as string
@@ -496,7 +546,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== 推理图工具 (v2.9.0 认知增强) =====
 
-  registry.add({
+  collector.add({
     name: "reasoning_build",
     capability: ["internal"],
     description: "构建推理图 (添加前提→推理→结论，自动检测空洞)",
@@ -505,7 +555,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       conclusion: z.string().optional().describe("结论"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       dre.reasoning.clear();
 
       const premiseNodes = (args.premises as string[]).map((p) =>
@@ -537,13 +587,13 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "reasoning_detect_gaps",
     capability: ["internal"],
     description: "检测推理图中的空洞 (缺失的推理步骤/前提/证据)",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const gaps = dre.reasoning.detectGaps();
       return {
         totalGaps: gaps.length,
@@ -558,7 +608,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "reasoning_fill_gap",
     capability: ["internal"],
     description: "用 LLM 结果填补推理图空洞",
@@ -568,7 +618,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       confidence: z.number().optional().default(0.8).describe("置信度"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const node = dre.reasoning.fillGap(
         args.gapId as string,
         args.response as string,
@@ -585,20 +635,20 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "reasoning_result",
     capability: ["internal"],
     description: "获取推理结果 (结论、推理链、总置信度)",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.reasoning.getResult();
     },
   });
 
   // ===== 过程性知识工具 (v2.9.1 认知增强) =====
 
-  registry.add({
+  collector.add({
     name: "procedure_parse",
     capability: ["internal"],
     description: "从知识节点中解析过程性知识 (步骤序列、条件分支、循环)",
@@ -606,7 +656,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       nodeId: z.string().describe("知识节点 ID"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const node = dre.readKnowledge(args.nodeId as string);
       if (!node) return { success: false, error: "知识节点未找到" };
       const { ProcedureKnowledge } = await import("../../dre/index.js");
@@ -619,7 +669,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== 约束求解器工具 (v2.9.2 认知增强) =====
 
-  registry.add({
+  collector.add({
     name: "constraint_check",
     capability: ["internal"],
     description: "检查动作是否满足所有约束 (逻辑/物理/语义/策略/时间)",
@@ -628,12 +678,12 @@ export function registerDreTools(registry: ToolRegistry): void {
       context: z.record(z.unknown()).optional().describe("额外上下文 (如 gpu_free_vram_mb, environment)"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.constraints.check(args.action as string, args.context as Record<string, unknown>);
     },
   });
 
-  registry.add({
+  collector.add({
     name: "constraint_select_best",
     capability: ["internal"],
     description: "从候选动作中选择满足约束的最佳动作",
@@ -642,12 +692,12 @@ export function registerDreTools(registry: ToolRegistry): void {
       context: z.record(z.unknown()).optional().describe("额外上下文"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.constraints.selectBest(args.candidates as string[], args.context as Record<string, unknown>);
     },
   });
 
-  registry.add({
+  collector.add({
     name: "constraint_list",
     capability: ["internal"],
     description: "列出所有约束 (可按维度过滤)",
@@ -655,38 +705,38 @@ export function registerDreTools(registry: ToolRegistry): void {
       dimension: z.enum(["logical", "physical", "field_match", "policy", "temporal"]).optional().describe("约束维度过滤"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const dimension = args.dimension as string | undefined;
       if (dimension) return dre.constraints.listByDimension(dimension as "logical" | "physical" | "field_match" | "policy" | "temporal");
       return dre.constraints.list();
     },
   });
 
-  registry.add({
+  collector.add({
     name: "constraint_stats",
     capability: ["internal"],
     description: "获取约束求解器统计信息",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.constraints.getStats();
     },
   });
 
   // ===== Actor 系统工具 (v2.9.2 认知增强) =====
 
-  registry.add({
+  collector.add({
     name: "actor_list",
     capability: ["internal"],
     description: "列出所有 Actor (知识/约束/心智模型/推理)",
     inputSchema: {},
     handler: async () => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       return dre.actors.list();
     },
   });
 
-  registry.add({
+  collector.add({
     name: "actor_send",
     capability: ["internal"],
     description: "向 Actor 发送消息 (触发主动响应)",
@@ -696,7 +746,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       payload: z.record(z.unknown()).optional().describe("消息负载"),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       await dre.actors.send("user", args.to as string, "request", args.topic as string, args.payload || {});
       return { sent: true, to: args.to, topic: args.topic };
     },
@@ -704,7 +754,7 @@ export function registerDreTools(registry: ToolRegistry): void {
 
   // ===== 认知闭环 (CognitivePipeline) 工具 =====
 
-  registry.add({
+  collector.add({
     name: "cognitive_loop",
     capability: ["net.outbound"],
     description: "执行完整认知闭环 (Observation→State→Knowledge→Reasoning→Constraint→Action→Reflection), 零LLM确定性管道, 可追踪每一步的中间结果",
@@ -713,7 +763,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     tags: ["cognitive", "reasoning", "deterministic"],
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -725,7 +775,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "cognitive_loop_full",
     capability: ["db.write", "net.outbound", "fs.write"],
     description: "认知闭环 + TaskGraph 执行 (包含认知推理+动作执行+回滚), 基于 runFull()",
@@ -734,7 +784,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
     tags: ["cognitive", "reasoning", "execution", "deterministic"],
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
         const handlers = registry.buildHttpHandlers();
@@ -746,7 +796,7 @@ export function registerDreTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "task_graph_execute",
     capability: ["db.write"],
     description: "创建并执行任务图 (TaskGraph): 任务并行/依赖解析/失败回滚, 支持 Checkpoint/Resume",
@@ -761,7 +811,7 @@ export function registerDreTools(registry: ToolRegistry): void {
       })).min(1),
     },
     handler: async (args) => {
-      const dre = (await getKernelAsync()).getEngine();
+      const dre = (await getEngine());
       const graph = new TaskGraph();
 
       for (const taskDef of (args.tasks as Array<Record<string, unknown>>)) {
@@ -794,5 +844,12 @@ export function registerDreTools(registry: ToolRegistry): void {
       };
     },
   });
-}
 
+  for (const spec of collector.specs) {
+    registry.add(
+      opts?.forward
+        ? { ...spec, handler: (args: Record<string, unknown>) => opts.forward!(spec.name, args) }
+        : spec,
+    );
+  }
+}

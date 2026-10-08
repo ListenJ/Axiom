@@ -89,6 +89,28 @@ describe("DRE Daemon 集成", () => {
     expect(body.ok).toBe(true);
   });
 
+  test("POST /dre/tool 在 daemon 内用唯一引擎执行 DRE 工具", async () => {
+    const res = await fetch(`${base}/dre/tool`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "persona_list", args: {} }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean; result?: unknown };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.result)).toBe(true);
+    expect(body.result as string[]).toContain("general");
+  });
+
+  test("POST /dre/tool 未知工具返回 404", async () => {
+    const res = await fetch(`${base}/dre/tool`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "no_such_tool", args: {} }),
+    });
+    expect(res.status).toBe(404);
+  });
+
   test("POST /dre/run 缺 input 返回 400", async () => {
     const res = await fetch(`${base}/dre/run`, {
       method: "POST",

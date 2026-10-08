@@ -6,7 +6,7 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
+import { registerDreTools, shutdownKernel, invokeRemoteDreTool } from "./server/dre-tools.js";
 import { registerMindTools } from "./server/mind-tools.js";
 import { ToolRegistry } from "./tool-registry.js";
 import { readString, readInt } from "../utils/env.js";
@@ -18,7 +18,7 @@ import { logger } from "../utils/logger.js";
 const mcp = new McpServer({ name: "Axiom DRE MCP Server", version: "0.1.0" });
 const registry = new ToolRegistry();
 // 注册 DRE 全部工具（dre_*/cognitive_*/reasoning_*/constraint_*/actor_*/mental_model_* 等）与突触记忆工具（mind_synapse_*）
-registerDreTools(registry);
+registerDreTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
 registerMindTools(registry);
 registry.registerWithMcp(mcp);
 

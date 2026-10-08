@@ -21,7 +21,7 @@ import { registerVaultTools } from "./server/vault-tools.js";
 import { registerWebTools } from "./server/web-tools.js";
 import { registerSkillTools } from "./server/skill-tools.js";
 import { DEFAULT_SKILL_DIRS } from "../skills/types.js";
-import { registerDreTools, shutdownKernel } from "./server/dre-tools.js";
+import { registerDreTools, shutdownKernel, invokeRemoteDreTool } from "./server/dre-tools.js";
 import { registerKgTools } from "./server/kg-tools.js";
 import { registerCodeAgentTools } from "./server/code-agent-tools.js";
 import { registerHermesTools } from "./server/hermes-tools.js";
@@ -361,7 +361,7 @@ await initializeComponentKernel();
 registerNativeTools(registry);
 
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
-registerDreTools(registry);
+registerDreTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
 registerMindTools(registry);
 registerBrowserTools(registry);
 registerDocumentTools(registry);

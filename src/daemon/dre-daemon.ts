@@ -18,6 +18,8 @@
  */
 import { createDreKernel, CognitivePipeline } from "../dre/index.js";
 import { buildDreCompositionOverrides } from "./overrides.js";
+import { ToolRegistry } from "../mcp/tool-registry.js";
+import { registerDreTools } from "../mcp/server/dre-tools.js";
 import { LocalKnowledgePort } from "../dre/port/index.js";
 import { eventBus, type RuntimeEvent } from "../dre/runtime/event-bus.js";
 import { readInt, readString } from "../utils/env.js";
@@ -65,6 +67,12 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   dbHolder = engine.getDb();
   const port = new LocalKnowledgePort(engine.knowledgeStore, { db: engine.getDb() });
 
+  // DRE MCP 工具面：唯一内核拥有者在本进程用**自己的引擎**执行处理器；
+  // MCP 进程只注册薄转发（POST /dre/tool）。默认 guard = defaultToolGuard，安全不降级。
+  const dreRegistry = new ToolRegistry();
+  registerDreTools(dreRegistry, { engineProvider: async () => engine });
+  const dreToolHandlers = dreRegistry.buildHttpHandlers();
+
   const bindPort = opts?.port ?? readInt("AXIOM_DRE_DAEMON_PORT", 18790);
   const hostname = opts?.hostname ?? "127.0.0.1";
   const token = readString("AXIOM_DRE_DAEMON_TOKEN", "");
@@ -104,6 +112,21 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
         }
         const res = await port.execute(body as Parameters<typeof port.execute>[0]);
         return json(res, res.ok ? 200 : 400);
+      }
+
+      if (url.pathname === "/dre/tool" && req.method === "POST") {
+        let body: { name?: unknown; args?: unknown } = {};
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return json({ ok: false, error: "invalid JSON" }, 400);
+        }
+        const name = typeof body.name === "string" ? body.name : "";
+        const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
+        const handler = dreToolHandlers[name];
+        if (!handler) return json({ ok: false, error: `unknown DRE tool: ${name}` }, 404);
+        const result = await handler(args);
+        return json({ ok: true, result });
       }
 
       if (url.pathname === "/dre/run" && req.method === "POST") {
