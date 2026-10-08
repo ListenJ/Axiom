@@ -27,7 +27,7 @@
 - **棘轮清零**：`config/periphery-core-boundary-baseline.json` **1 文件/4 处 → 0**；`config/outbound-fetch-baseline.json` 的 daemon 转发出网点改指 `src/tool-face/dre-tools.ts`。
 - **验证**：`bunx tsc --noEmit` rc=0；边界/契约/检索/工具行为/架构/文档/出网/env 门禁 **126 pass / 0 fail**；`count-tools` 复归 **189**；D10 能力声明按新路径重生成；`arch:stats` **40 模块 / 451 文件 / 120,728 行**已同步；ADR-012 §7-1 标记完成。
 - **不做项**：未改任何工具行为/能力声明（仅改承载位置与最小接口）；未动 `src/dre` 内部。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`f693f0fd`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(daemon): GET /version capabilities 实况化（ADR-012 §7-2）
 
