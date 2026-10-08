@@ -8,7 +8,7 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import fs from "node:fs";
 import { startDreDaemon, type DreDaemonHandle } from "../../src/daemon/dre-daemon.js";
 import { createDreDaemonClient } from "../../src/daemon/client.js";
-import { DRE_DAEMON_CONTRACT_VERSION, DRE_DAEMON_CAPABILITIES } from "../../src/daemon/contract.js";
+import { DRE_DAEMON_CONTRACT_VERSION, DRE_DAEMON_BASE_CAPABILITIES } from "../../src/daemon/contract.js";
 
 const DB = `.tmp/dre-daemon-test-${process.pid}.db`;
 let handle: DreDaemonHandle;
@@ -40,13 +40,21 @@ describe("DRE Daemon 集成", () => {
     expect(typeof body.state).toBe("string");
   });
 
-  test("GET /version 返回契约版本与能力清单（ADR-012 能力协商）", async () => {
+  test("GET /version 返回契约版本 + 实况能力（ADR-012 §7-2）", async () => {
     const res = await fetch(`${base}/version`);
     expect(res.status).toBe(200);
-    const body = await res.json() as { ok: boolean; contractVersion: string; capabilities: string[] };
+    const body = await res.json() as {
+      ok: boolean; contractVersion: string; capabilities: string[];
+      runtime: { toolsRegistered: number; retrievalReady: boolean };
+    };
     expect(body.ok).toBe(true);
     expect(body.contractVersion).toBe(DRE_DAEMON_CONTRACT_VERSION);
-    for (const c of DRE_DAEMON_CAPABILITIES) expect(body.capabilities).toContain(c);
+    // 恒在端点能力
+    for (const c of DRE_DAEMON_BASE_CAPABILITIES) expect(body.capabilities).toContain(c);
+    // 实况能力：由 runtime 事实推导，且与 runtime 块自洽
+    expect(body.runtime.toolsRegistered).toBeGreaterThan(0);
+    expect(body.capabilities.includes("dre.tool")).toBe(body.runtime.toolsRegistered > 0);
+    expect(body.capabilities.includes("dre.retrieve")).toBe(body.runtime.retrievalReady);
   });
 
   test("GET /dre/status 返回 KernelStatus", async () => {

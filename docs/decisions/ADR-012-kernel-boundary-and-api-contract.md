@@ -67,5 +67,5 @@ Axiom 分为**三层**：**核心（Core）**、**契约（Contract）**、**外
 ## 7. 待办（后续增量）
 
 1. 主服务/MCP 的核心访问收敛：已把 `routes/stats`（调度器状态→`/dre/status`）、`routes/search`（检索→新契约 `/dre/retrieve`，契约 MINOR 1.0.0→1.1.0）改走契约面；`mcp/server/mind-tools`（synapse 引擎→daemon 持有，MCP 薄转发）已于 2026-10-09 收敛；仅余 `mcp/server/dre-tools`（daemon 单向复用的『DRE 工具面』模块，性质不同于普通外围依赖）。
-2. `GET /version` 的 `capabilities` 从"静态清单"升级为按 runtime 实况生成。
+2. ✅ **已完成（2026-10-09）**：`GET /version` 的 `capabilities` 由运行时事实推导（`DRE_DAEMON_BASE_CAPABILITIES` + 工具数>0 才声明 `dre.tool` + 检索依赖加载成功才声明 `dre.retrieve`），并附 `runtime` 块；契约 MINOR 1.1.0→1.2.0。
 3. ✅ **已完成（2026-10-08）**：`tests/unit/periphery-core-boundary.test.ts` + `config/periphery-core-boundary-baseline.json`——扫描外围是否 import 核心内部（棘轮：存量在册 **1 文件 / 4 处**（2026-10-09 由 5/9 → 2/5 → 1/4 收敛；余 `src/mcp/server/dre-tools.ts` 为 daemon 单向复用的『DRE 工具面』已知特例），只拦增量，陈旧在册项亦红；`import type` 运行时擦除故不计）。

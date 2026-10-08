@@ -79,6 +79,17 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   registerMindTools(dreRegistry, { engineProvider: () => synapseEngine });
   const dreToolHandlers = dreRegistry.buildHttpHandlers();
 
+  // ADR-012 §7-2：capabilities 实况化——由运行时事实推导
+  let retrievalReady = false;
+  try {
+    await import("../dre/retrieval/deterministic-retrieval-engine.js");
+    await import("../dre/runtime/knowledge-network.js");
+    retrievalReady = true;
+  } catch {
+    retrievalReady = false;
+  }
+  const runtimeFacts = { toolsRegistered: Object.keys(dreToolHandlers).length, retrievalReady };
+
   const bindPort = opts?.port ?? readInt("AXIOM_DRE_DAEMON_PORT", 18790);
   const hostname = opts?.hostname ?? "127.0.0.1";
   const token = readString("AXIOM_DRE_DAEMON_TOKEN", "");
@@ -96,7 +107,7 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
       const url = new URL(req.url);
 
       if (url.pathname === "/version" && req.method === "GET") {
-        return json({ ok: true, ...dreDaemonVersionInfo() });
+        return json({ ok: true, ...dreDaemonVersionInfo(runtimeFacts) });
       }
 
       if (url.pathname === "/health" && req.method === "GET") {

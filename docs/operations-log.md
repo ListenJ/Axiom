@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-09 — feat(daemon): GET /version capabilities 实况化（ADR-012 §7-2）
+
+- **任务**：ADR-012 §7-2——把 `GET /version` 的 `capabilities` 从"手维护静态清单"升级为**按运行时事实推导**，杜绝"声明了却没实现"的漂移。分级 **T1/T2**。
+- **改动**：
+  1. `src/daemon/contract.ts`：拆出 `DRE_DAEMON_BASE_CAPABILITIES`（恒在端点）；`dreDaemonVersionInfo(rt)` 由 `DreDaemonRuntime { toolsRegistered, retrievalReady }` **推导** `capabilities`——`toolsRegistered>0` 才声明 `dre.tool`、检索依赖加载成功才声明 `dre.retrieve`；响应附 `runtime` 块；契约按 MINOR 升版 `1.1.0 → 1.2.0`。
+  2. `src/daemon/dre-daemon.ts`：启动时探测检索依赖可导入性 + 统计已注册工具数，`/version` 返回实况能力。
+- **验证**：`tests/unit/dre-daemon.test.ts` 的 `/version` 用例改为断言 base 能力恒在、`dre.tool`/`dre.retrieve` 与 `runtime` 块**自洽**（15/15）；`bunx tsc --noEmit` rc=0；契约/边界/文档/架构/出网/env 门禁 **106 pass / 0 fail**；`arch:stats` 39 模块 / 450 文件 / 120,694 行已同步；ADR-012 §7-2 标记完成。
+- **不做项**：未新增端点（复用 `/version`）；未动 `dre-tools` 特例（§7-1 剩项，迁移会与 `src/mcp` 形成目录循环，风险高，另议）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — refactor(arch): mind-tools 收敛到 daemon（基线 2→1）
 
 - **任务**：继续 ADR-012 §7-1 存量收敛——把 `src/mcp/server/mind-tools.ts` 对核心 `src/dre/synapse` 的运行时耦合收敛到契约面。分级 **T2/T3**。
