@@ -30,7 +30,7 @@
   - 行为：父进程 `BEGIN IMMEDIATE` 持写锁，子进程以 busy_timeout 竞争写，**等待锁释放后成功**（`OK`）；**变异验证**：把 `DEFAULT_SQLITE_BUSY_TIMEOUT_MS` 置 0，该用例转红（子进程 `ERR`），恢复后转绿。
 - **验证**：`bun test tests/unit/sqlite-busy-timeout-guard.test.ts` = 3 pass / 0 fail；`tests/dre-core-modules.test.ts tests/unit/mcp-config.test.ts tests/dre-host-integration.test.ts` = 113 pass / 0 fail；`bunx tsc --noEmit` rc=0；`arch:stats` 443→444 文件 / 120147 行已同步。
 - **不做项**：未改 `journal_mode`/`synchronous` 语义（沿用原值）；未加写失败重试（busy_timeout 已把"立即失败"变为"等待"，重试留待观察）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`48734e6f`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — docs(plan): 内核收敛评估（T3）
 
