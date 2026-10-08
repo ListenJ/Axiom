@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-08 — test(dre): DRE MCP 工具行为安全网（Step 2b-ii 前置）
+
+- **任务**：推进 Step 2b-ii（MCP 35 个 DRE 工具切到 daemon）。开工前扫描发现这些工具**几乎无行为测试**（全仓仅 `scene-router.test.ts` 一处字符串命中），若直接做处理器下沉会缺少红绿判据。先补安全网。分级 **T2**。
+- **新增**：`tests/unit/dre-tools-behavior.test.ts`——经 `ToolRegistry` + `registerDreTools` 注册后，用 `buildHttpHandlers()` 直接调代表性工具，固定"名称→输出形状"：`dre_constraint_inject` / `dre_status` / `resource_status` / `persona_list`+`persona_switch` / `data_write→data_search→data_stats` 闭环 / `cognitive_state` / `mental_model_list`+`constraint_list`+`actor_list`。8/8 全绿。
+- **过程留痕**：曾尝试"收集 specs + `forward`/`engineProvider` 注入"的兼容改造（tsc 绿、安全网绿），但**已回退**——因为 daemon 复用 `mcp/server/dre-tools.ts` 会形成 `mcp ↔ daemon` 顶层目录循环（架构门禁），且该改造会留下当前无调用方的 `forward` 选项（规则 8：不引入投机抽象）。回退后仅保留安全网，工作树干净。
+- **2b-ii 的正确路径（已查清，待立契约）**：把这些工具规格/处理器**迁到中立模块**（如 `src/dre/mcp-dre-tools.ts`，用最小 registry 接口、不 import `src/mcp`）→ daemon 用它 + 自己的引擎执行并暴露 `POST /dre/tool` → MCP 进程注册薄转发（`{name,args}` → daemon）。这样 `mcp→dre`、`daemon→dre` 单向，无循环。
+- **当前内核数仍为 2**（daemon + MCP）——2b-ii 未完成；本条目只交付前置安全网。
+- **验证**：`bun test tests/unit/dre-tools-behavior.test.ts` = 8 pass / 0 fail；`bunx tsc --noEmit` rc=0。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — refactor(dre): 主服务切换为 daemon 客户端（内核收敛 Step 2b-i）
 
 - **任务**：内核收敛计划 Step 2b-i——让**主服务不再在进程内构造 Kernel**，改为客户端接入唯一拥有者 DRE daemon。分级 **T3**。
