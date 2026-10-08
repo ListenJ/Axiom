@@ -27,7 +27,7 @@
 - **棘轮下调**：`config/periphery-core-boundary-baseline.json` **5 文件/9 处 → 2 文件/5 处**（余 `mcp/server/dre-tools`（daemon 复用特殊模块）、`mcp/server/mind-tools`（synapse，待契约扩展））。
 - **验证**：`bunx tsc --noEmit` rc=0；合同/边界/检索/文档/架构/出网/env 门禁共 **116 pass / 0 fail**；`tests/unit/dre-daemon.test.ts` 增 `/dre/retrieve` 与 `client.retrieve` 断言；`arch:stats` 39 模块 / 450 文件 / 120,639 行已同步；ADR-012 在册数同步更新。
 - **不做项**：`dre-tools`（daemon 单向复用，非"外围绕核心"）、`mind-tools`（synapse 需专用契约）—— 留后续；未改判据/未放宽门。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`e5d02229`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — test(arch): 外围↔核心边界棘轮门（ADR-012 §7-3 落地）
 
