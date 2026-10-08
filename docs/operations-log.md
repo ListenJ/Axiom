@@ -17,6 +17,15 @@
 
 ---
 
+## 2026-10-08 — docs(adr)+feat(daemon): 内核边界与统一 API 契约（ADR-012）
+
+- **任务**：用户要求「整体做减法：关键部分才进核心、其余作外围；预留后续接口/功能的适配位；对内核与外围的耦合/内聚建立统一 API 管理，防止更新打挂外围」。落为架构决策 + 契约版本种子。分级 **T3（架构）**。
+- **ADR-012**（`docs/decisions/ADR-012-kernel-boundary-and-api-contract.md`）：三层定界 **Core / Contract / Periphery**；准入判据 = "删掉它核心是否不成立"（减法定则：默认进外围，只有核心离不开才升核心）；统一 API 管理 = **唯一契约面**（进程内 `src/dre/port` + 跨进程 daemon HTTP）、**semver**（MINOR 只增、MAJOR 才破坏且保留旧面一个周期）、**向前兼容**（外围忽略未知字段，核心不删字段）、**能力协商**（`GET /version`）；预留扩展位（新数据源/新 Agent/新 MCP 工具/新插件/新能力）逐条给了落点与"不得顺手改核心内部"的约定。
+- **契约版本种子**：新增 `src/daemon/contract.ts`（`DRE_DAEMON_CONTRACT_VERSION="1.0.0"` + `DRE_DAEMON_CAPABILITIES` + `dreDaemonVersionInfo()`）；daemon 增 `GET /version`（免鉴权，供外围能力协商）。
+- **验证**：`tests/unit/dre-daemon.test.ts` 增 `/version` 契约版本与能力清单断言（12/12）；`bunx tsc --noEmit` rc=0；`doc-contract` 35/0（ADR 为规范件、口径干净、无 BOM/CR/C0）；`architecture-integrity` 25/25；`arch:stats` 39 模块 / 450 文件 / 120,599 行已同步。
+- **待办（ADR §7）**：其余模块的核心访问逐步收敛到契约面；`capabilities` 由静态清单升级为按 runtime 实况生成；补"外围不得 import 核心内部符号"的架构门禁。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — test(stress): 重负载 Layer 用例补显式超时（消除 5s 默认超时抖动）
 
 - **任务**：内核收敛全量回归时，`tests/stress/high-intensity-load.test.ts` 的 "Layer 0+1+2 — 500 次检索 + GraphRAG 多跳 + Wiki 编译" 报 `timed out after 5000ms`。分级 **T1（测试健壮性）**。

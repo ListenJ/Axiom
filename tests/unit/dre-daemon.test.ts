@@ -8,6 +8,7 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import fs from "node:fs";
 import { startDreDaemon, type DreDaemonHandle } from "../../src/daemon/dre-daemon.js";
 import { createDreDaemonClient } from "../../src/daemon/client.js";
+import { DRE_DAEMON_CONTRACT_VERSION, DRE_DAEMON_CAPABILITIES } from "../../src/daemon/contract.js";
 
 const DB = `.tmp/dre-daemon-test-${process.pid}.db`;
 let handle: DreDaemonHandle;
@@ -37,6 +38,15 @@ describe("DRE Daemon 集成", () => {
     const body = await res.json() as { ok: boolean; state: string };
     expect(body.ok).toBe(true);
     expect(typeof body.state).toBe("string");
+  });
+
+  test("GET /version 返回契约版本与能力清单（ADR-012 能力协商）", async () => {
+    const res = await fetch(`${base}/version`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean; contractVersion: string; capabilities: string[] };
+    expect(body.ok).toBe(true);
+    expect(body.contractVersion).toBe(DRE_DAEMON_CONTRACT_VERSION);
+    for (const c of DRE_DAEMON_CAPABILITIES) expect(body.capabilities).toContain(c);
   });
 
   test("GET /dre/status 返回 KernelStatus", async () => {

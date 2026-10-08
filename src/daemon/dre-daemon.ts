@@ -18,6 +18,7 @@
  */
 import { createDreKernel, CognitivePipeline } from "../dre/index.js";
 import { buildDreCompositionOverrides } from "./overrides.js";
+import { dreDaemonVersionInfo } from "./contract.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { registerDreTools } from "../mcp/server/dre-tools.js";
 import { LocalKnowledgePort } from "../dre/port/index.js";
@@ -88,6 +89,10 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
     idleTimeout: 255, // SSE 需要长连接（Bun 上限 255s）
     fetch: async (req) => {
       const url = new URL(req.url);
+
+      if (url.pathname === "/version" && req.method === "GET") {
+        return json({ ok: true, ...dreDaemonVersionInfo() });
+      }
 
       if (url.pathname === "/health" && req.method === "GET") {
         const st = kernel.getStatus();
