@@ -12,8 +12,8 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyOn } from "bun:test";
 import fs from "fs";
 import path from "path";
-import { initDreKernel, shutdownDreKernel } from "../src/dre/host.js";
-import { CognitivePipeline } from "../src/dre/index.js";
+import { initDreKernel, shutdownDreKernel } from "../src/daemon/host.js";
+import { CognitivePipeline, createDreKernel } from "../src/dre/index.js";
 import { writeFact, readFact, getGlobalBlackboard } from "../src/memory/blackboard.js";
 
 const DB = ".tmp/dre-scenarios.db";
@@ -43,8 +43,8 @@ describe("A. DRE 宿主集成开关", () => {
 });
 
 describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
+  let kernel: ReturnType<typeof createDreKernel> | null = null;
   beforeAll(async () => {
-    await shutdownDreKernel();
     saveEnv("DRE_DB_PATH");
     saveEnv("DRE_LLM_URL");
     saveEnv("DRE_AUTO_TICK");
@@ -56,9 +56,13 @@ describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
     process.env.DRE_AUTO_TICK = "0";
     process.env.DRE_GAP_FILL_FINE = "0";
     delete process.env.DEEPSEEK_API_KEY;
+    // 引擎级场景：直接经工厂构造 Kernel（不依赖 daemon/host），测的是引擎行为本身。
+    kernel = createDreKernel();
+    await kernel.init();
   });
   afterAll(async () => {
-    await shutdownDreKernel();
+    if (kernel) await kernel.shutdown();
+    kernel = null;
     for (const k of ["DRE_DB_PATH", "DRE_LLM_URL", "DRE_AUTO_TICK", "DRE_GAP_FILL_FINE", "DEEPSEEK_API_KEY"]) restoreEnv(k);
     for (const p of [DB, `${DB}-shm`, `${DB}-wal`]) {
       try { fs.rmSync(p); } catch { /* ignore */ }
@@ -66,9 +70,8 @@ describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
   });
 
   it("B. 低风险知识写入 → 预筛入库 → 检索命中 → 认知状态可查", async () => {
-    const k = await initDreKernel();
-    expect(k).not.toBeNull();
-    const dre = k!.getEngine();
+    expect(kernel).not.toBeNull();
+    const dre = kernel!.getEngine();
     const id = `kb-scenario-${Date.now()}`;
     const write = await dre.writeKnowledge({
       id,
@@ -88,9 +91,8 @@ describe("B+C. DRE 知识闭环与 LLM 降级链", () => {
   });
 
   it("C. 无 LLM 环境下 runWithLLM 降级到 deterministic/rule 且完成 6 阶段", async () => {
-    const k = await initDreKernel();
-    expect(k).not.toBeNull();
-    const pipeline = new CognitivePipeline(k!.getEngine());
+    expect(kernel).not.toBeNull();
+    const pipeline = new CognitivePipeline(kernel!.getEngine());
     // 断言的是**降级语义**（fallbackLevel 与 6 阶段轨迹），不是 TCP 重试要多久。
     // 无 sidecar 的环境里每次 LLM 调用都是"连接层失败 ⇒ 一律可重试 ⇒ 指数退避"，
     // 6 步管道累计要等 >15s ⇒ 本条在 CI（`.ci/run.sh` 用裸 `bun test`）与任何无

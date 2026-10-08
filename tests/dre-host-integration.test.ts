@@ -8,7 +8,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "bun:test";
 import fs from "fs";
 import { ConfigLoader } from "../src/dre/config.js";
-import { initDreKernel, shutdownDreKernel } from "../src/dre/host.js";
+import { initDreKernel, shutdownDreKernel } from "../src/daemon/host.js";
+import { startDreDaemon, type DreDaemonHandle } from "../src/daemon/dre-daemon.js";
 import { handleDreRun } from "../src/routes/dre.js";
 import type { RouteContext } from "../src/routes/types.js";
 
@@ -51,29 +52,37 @@ describe("DRE ConfigLoader apiKey 接线 (P0)", () => {
   });
 });
 
-describe("DRE 主服务宿主集成 (P2)", () => {
-  beforeAll(() => {
+describe("DRE 主服务宿主集成 (P2) — daemon 客户端", () => {
+  let handle: DreDaemonHandle;
+  beforeAll(async () => {
     process.env.AXIOM_DRE_ENABLED = "1";
     process.env.DRE_DB_PATH = DB;
     process.env.DRE_LLM_URL = "http://127.0.0.1:8080";
     process.env.DRE_AUTO_TICK = "0";
+    // 内核收敛：唯一 Kernel 拥有者 = DRE daemon；主服务作为客户端接入。
+    handle = await startDreDaemon({ port: 0, hostname: "127.0.0.1" });
+    process.env.AXIOM_DRE_DAEMON_URL = `http://127.0.0.1:${handle.port}`;
+    process.env.AXIOM_DRE_DAEMON_TOKEN = "";
   });
 
   afterAll(async () => {
     await shutdownDreKernel();
+    if (handle) await handle.stop();
     delete process.env.AXIOM_DRE_ENABLED;
     delete process.env.DRE_DB_PATH;
     delete process.env.DRE_LLM_URL;
     delete process.env.DRE_AUTO_TICK;
+    delete process.env.AXIOM_DRE_DAEMON_URL;
     for (const p of [DB, `${DB}-shm`, `${DB}-wal`]) {
       try { fs.rmSync(p); } catch { /* ignore */ }
     }
   });
 
-  it("initDreKernel 初始化并返回就绪 Kernel", async () => {
+  it("initDreKernel 连接 daemon 并返回就绪客户端", async () => {
     const k = await initDreKernel();
     expect(k).not.toBeNull();
-    expect(k!.getStatus().state).toBe("idle");
+    const h = await k!.health();
+    expect(h.ok).toBe(true);
   });
 
   it("POST /dre/run 返回 200 且跑完 6 阶段确定性管道", async () => {
@@ -101,4 +110,3 @@ describe("DRE 主服务宿主集成 (P2)", () => {
     expect(res!.status).toBe(503);
   });
 });
-

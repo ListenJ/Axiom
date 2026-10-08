@@ -17,6 +17,19 @@
 
 ---
 
+## 2026-10-08 — refactor(dre): 主服务切换为 daemon 客户端（内核收敛 Step 2b-i）
+
+- **任务**：内核收敛计划 Step 2b-i——让**主服务不再在进程内构造 Kernel**，改为客户端接入唯一拥有者 DRE daemon。分级 **T3**。
+- **改动**：
+  1. `src/dre/host.ts` 重写为**接口持有槽**（`DreHostClient` + `setDreHostClient/getDreKernel`），只依赖 `utils/env`，**不 import** `src/daemon`（避免 dre↔daemon 顶层目录循环导入）；
+  2. 新增 `src/daemon/host.ts`——`initDreKernel`/`shutdownDreKernel` 现指"连接/清除 daemon 客户端"（连接经 `health()` 探活，不可达不阻断）；
+  3. 新增 `src/daemon/overrides.ts`——组合根注入（cloudCaller/hallucinationGate/recordVerdict）**迁至 daemon**，`main.ts` 删除本地装配块；
+  4. `main.ts` 改从 `./daemon/host.js` 取客户端；`routes/dre.ts` 改 `client.run()`；`routes/pipeline.ts` 改为代理 daemon `/events`（SSE 契约不变）。
+- **测试改造**：`dre-host-integration` 改为起 daemon 后断言客户端连接 + `/dre/run` 200/6 阶段 + 未连接 503；`dre-scenarios` 的引擎级场景改用 `createDreKernel` 直接构造。
+- **验证**：**串行全量 `bun test --timeout 15000 ./tests` = 4673 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25（循环导入已消除）；`arch:stats` 39 模块 / 449 文件 / 120,473 行已同步。
+- **未做（Step 2b-ii）**：`mcp/server/dre-tools.ts` 的 **35 个工具仍自建 Kernel**（`createDreKernel`）——MCP 侧尚未切换，故当前生产内核数 = daemon + MCP = 2。该步受"同步后处理（如 `mentalModels.list().map()`）"约束，需按域改造并回归，单独立契约。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — chore(gates): 登记 daemon 出网点 + env 模板（Step 2a 配套）
 
 - **任务**：Step 2a（`07a01396`）落地后全量门禁暴露两处登记缺口，按门禁要求补齐。分级 **T1**。

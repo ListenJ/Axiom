@@ -67,7 +67,7 @@ import {
 import { PiCodeToolsAdapter } from "./pi-agent/pi-code-tools.js";
 import { getConsciousness } from "./agents/consciousness/index.js";
 import { initializeComponentKernel } from "./agents/component-bootstrap.js";
-import { initDreKernel, shutdownDreKernel } from "./dre/host.js";
+import { initDreKernel, shutdownDreKernel } from "./daemon/host.js";
 import { startVramProbe } from "./dre/system-resource-probe.js";
 
 // ════════════════════════════════════════════════════════════════
@@ -125,43 +125,8 @@ logger.info("[ComponentKernel] Native Day0 components initialized", {
 // AXIOM_DRE_ENABLED=0 关闭。
 // L1 组合根装配：云降级调用器在此注入（src/dre 不 import 上层 router）。
 // ════════════════════════════════════════════════════════════════
-if (readString("DEEPSEEK_API_KEY", "")) {
-  const { setDreHostOverrides } = await import("./dre/host.js");
-  const { createDreCloudAdapter } = await import("./router/provider-caller.js");
-  const { assessStatement, buildFactBaseFromEvidence } = await import("./memory/hallucination-detector.js");
-  const { recordHallucinationVerdict } = await import("./db/hallucination-verdicts.js");
-  setDreHostOverrides({
-    cloudCaller: createDreCloudAdapter({
-      baseUrl: readString("DEEPSEEK_BASE_URL", ""),
-      apiKey: readString("DEEPSEEK_API_KEY", ""),
-      model: readString("DEEPSEEK_MODEL", "deepseek-v4-flash"),
-    }),
-    // P0-C 缝② 组合根接线：dre 包不直引 memory（架构循环约束），gate 经配置注入
-    hallucinationGate: (statement: string, evidence: unknown) => {
-      const factBase = buildFactBaseFromEvidence(evidence);
-      return factBase.length > 0 ? assessStatement(factBase, statement) : null;
-    },
-    // S5（2026-08-29）缝② verdict 落库接线：dre 包不直引 db（与 gate 同端口模式）。
-    // db 于下方启动段创建，闭包惰性引用（请求期才触发）；recordHallucinationVerdict
-    // 内部吞错，此处 try/catch 兜底 db 尚未初始化的极端时序，绝不阻塞推理链。
-    recordVerdict: (rec) => {
-      try {
-        recordHallucinationVerdict(db, {
-          statement: rec.statement,
-          evidenceTexts: buildFactBaseFromEvidence(rec.evidence).map((f) => f.text),
-          pValue: rec.pValue,
-          verdict: rec.verdict,
-          isAccepted: rec.isAccepted,
-          seam: "dre",
-        });
-      } catch (err) {
-        logger.debug("[S5] dre verdict record skipped", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    },
-  });
-}
+// 组合根注入（cloudCaller / hallucinationGate / recordVerdict）已随内核收敛迁至 DRE daemon
+// （src/daemon/overrides.ts）；主服务只作为客户端接入，不再组装 Kernel。
 const dreKernel = await initDreKernel().catch((err) => {
   logger.error("[DRE] Host integration init failed (continuing without DRE)", err as Error);
   return null;

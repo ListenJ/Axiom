@@ -114,7 +114,8 @@
 > - **Step 0 止血 ✅**（`48734e6f`）：新增 `src/utils/sqlite-pragmas.ts`，四个主库连接统一 WAL+busy_timeout；漂移门禁可证伪。
 > - **Step 1 共享工厂 ✅**（`2e82992e`）：新增 `src/dre/factory.ts`（`createDreKernel`），host/dre-tools 统一装配。
 > - **Step 2a Daemon 落地 ✅**（本次）：`src/daemon/dre-daemon.ts`（唯一 Kernel 拥有者 + HTTP 面：/health、/dre/status、/dre/cognitive-state、/api/port、/dre/run、/events）+ `src/daemon/client.ts` + `deploy/systemd/axiom-dre@.service`；集成测试 9/9。
-> - **Step 2b 客户端切换（待做）**：`main.ts`、`routes/dre.ts`、`routes/pipeline.ts`、`mcp/server/dre-tools.ts` 改为经 daemon 客户端访问，并移除各自的内核构造；此步需回归 `e2e-runtime` / 冒烟，单独提交。
+> - **Step 2b-i 主服务切换 ✅**（`<本次提交>`）：`main.ts`/`routes/dre.ts`/`routes/pipeline.ts` 改经 daemon 客户端；组合根注入迁至 `src/daemon/overrides.ts`；`src/dre/host.ts` 改为接口持有槽（避免 dre↔daemon 循环）。
+> - **Step 2b-ii MCP 切换（待做）**：`mcp/server/dre-tools.ts` 的 35 个工具改经 daemon；因存在 `mentalModels.list().map()` 等同步后处理，需按域做，不能简单代理。
 > - 用户裁定：①唯一拥有者 = DRE daemon；②MCP 侧 DRE 工具 = 代理到 daemon；③做 Step 0+1+2。
 
 

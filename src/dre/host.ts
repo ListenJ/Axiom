@@ -1,70 +1,35 @@
 /**
- * DRE 主服务宿主集成（P2，方案 A：单进程内共用 eventBus）。
+ * DRE 宿主集成 —— **客户端引用持有者（接口在本层，具体实现由组合根注入）**。
  *
- * main.ts 启动时初始化一次 Kernel；/pipeline/stream 与 /dre/run 与 Kernel
- * 处于同一进程、同一 eventBus 单例，观测链路因此天然打通。
- * 开关：AXIOM_DRE_ENABLED=0 关闭（默认开启）。
+ * 内核收敛（2026-10-08）：唯一 Kernel 拥有者 = DRE daemon。主服务 / MCP 作为客户端接入；
+ * 本模块只声明"内核客户端"接口与持有槽，**不 import 具体实现**（避免 src/dre ↔ src/daemon
+ * 顶层目录互相 import 触发架构完整性门的循环判定）。具体连接由 `src/daemon/host.ts` 注入。
  */
-import type { Kernel, KernelConfig } from "./index.js";
-import { createDreKernel } from "./factory.js";
 import { readBool } from "../utils/env.js";
-import { logger } from "../utils/logger.js";
 
-let kernel: Kernel | null = null;
-let startPromise: Promise<Kernel | null> | null = null;
-/** L1 组合根注入项（如 cloudCaller 适配器），initDreKernel 时合并进 config */
-let hostOverrides: Partial<KernelConfig> | null = null;
-
-/** 组合根注入配置覆盖（必须在 initDreKernel 首次调用前设置） */
-export function setDreHostOverrides(overrides: Partial<KernelConfig>): void {
-  hostOverrides = overrides;
+/** 主服务所需的内核客户端最小面（DreDaemonClient 结构上满足） */
+export interface DreHostClient {
+  readonly url: string;
+  health(): Promise<{ ok: boolean; state?: string; uptime?: number }>;
+  status<T = unknown>(): Promise<{ ok: boolean; status: T }>;
+  cognitiveState<T = unknown>(): Promise<{ ok: boolean; state: T }>;
+  run(input: string): Promise<{ ok: boolean; [k: string]: unknown }>;
+  openEvents(): Promise<Response>;
 }
+
+let client: DreHostClient | null = null;
 
 /** 主服务是否启用 DRE 宿主集成（AXIOM_DRE_ENABLED，默认 1） */
 export function isDreHostEnabled(): boolean {
   return readBool("AXIOM_DRE_ENABLED", true);
 }
 
-/**
- * 初始化（或复用）DRE Kernel。幂等：并发调用共享同一次启动。
- * @returns Kernel 实例；宿主被禁用时返回 null。
- */
-export async function initDreKernel(): Promise<Kernel | null> {
-  if (!isDreHostEnabled()) {
-    logger.info("[DRE] Host integration disabled (AXIOM_DRE_ENABLED=0)");
-    return null;
-  }
-  if (kernel) return kernel;  if (!startPromise) {
-    startPromise = (async () => {
-      // L1：组合根注入项（cloudCaller 等）由 main.ts 通过 overrides 传入，
-      // src/dre 包内不 import 上层 router。装配走单一来源工厂（Step 1 内核收敛）。
-      const k = createDreKernel({ overrides: hostOverrides ?? undefined });
-      await k.init();
-      kernel = k;
-      logger.info("[DRE] Kernel ready (host integration)", { state: k.getStatus().state });
-      return k;
-    })().catch((err) => {
-      // 启动失败：复位 promise 与 kernel，允许下次调用重试（而非永久复用失败 promise）
-      startPromise = null;
-      kernel = null;
-      throw err;
-    });
-  }
-  return startPromise;
+/** 注入（或清除）内核客户端；由组合根（src/daemon/host.ts）调用 */
+export function setDreHostClient(c: DreHostClient | null): void {
+  client = c;
 }
 
-/** 当前已就绪的 Kernel（未初始化返回 null） */
-export function getDreKernel(): Kernel | null {
-  return kernel;
+/** 当前已就绪的内核客户端（未就绪返回 null） */
+export function getDreKernel(): DreHostClient | null {
+  return client;
 }
-
-/** 关闭宿主 Kernel（幂等） */
-export async function shutdownDreKernel(): Promise<void> {
-  if (kernel) {
-    await kernel.shutdown();
-    kernel = null;
-  }
-  startPromise = null;
-}
-
-

@@ -17,6 +17,7 @@
  * （设置后所有请求须带 `x-axiom-token`，常量时间比较）。
  */
 import { createDreKernel, CognitivePipeline } from "../dre/index.js";
+import { buildDreCompositionOverrides } from "./overrides.js";
 import { LocalKnowledgePort } from "../dre/port/index.js";
 import { eventBus, type RuntimeEvent } from "../dre/runtime/event-bus.js";
 import { readInt, readString } from "../utils/env.js";
@@ -54,9 +55,14 @@ export interface DreDaemonHandle {
 
 /** 启动 DRE daemon；返回句柄（含实际绑定端口与 stop）。 */
 export async function startDreDaemon(opts?: { port?: number; hostname?: string }): Promise<DreDaemonHandle> {
-  const kernel = createDreKernel();
+  // 组合根注入（cloudCaller / hallucinationGate / recordVerdict）：与旧主服务一致，
+  // 但归属唯一内核拥有者（daemon）。db 惰性解析——init 后才有连接。
+  let dbHolder: import("bun:sqlite").Database | null = null;
+  const overrides = await buildDreCompositionOverrides(() => dbHolder);
+  const kernel = createDreKernel({ overrides });
   await kernel.init();
   const engine = kernel.getEngine();
+  dbHolder = engine.getDb();
   const port = new LocalKnowledgePort(engine.knowledgeStore, { db: engine.getDb() });
 
   const bindPort = opts?.port ?? readInt("AXIOM_DRE_DAEMON_PORT", 18790);

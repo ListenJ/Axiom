@@ -7,15 +7,14 @@
  */
 import type { RouteContext } from "./types.js";
 import { getDreKernel } from "../dre/host.js";
-import { CognitivePipeline } from "../dre/index.js";
 
 export async function handleDreRun(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/dre/run" || ctx.req.method !== "POST") return null;
 
-  const kernel = getDreKernel();
-  if (!kernel) {
+  const client = getDreKernel();
+  if (!client) {
     return ctx.jsonResponse(
-      { ok: false, error: "DRE Engine is not ready or failed to initialize" },
+      { ok: false, error: "DRE daemon is not ready or unreachable" },
       503,
       ctx.baseHeaders,
     );
@@ -35,9 +34,8 @@ export async function handleDreRun(ctx: RouteContext): Promise<Response | null> 
   }
 
   try {
-    const pipeline = new CognitivePipeline(kernel.getEngine());
-    const result = await pipeline.run(input);
-    return ctx.jsonResponse({ ok: true, ...result }, 200, ctx.baseHeaders);
+    const result = await client.run(input);
+    return ctx.jsonResponse(result, 200, ctx.baseHeaders);
   } catch (err) {
     return ctx.jsonResponse(
       { ok: false, error: (err as Error).message },
