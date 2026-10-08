@@ -28,7 +28,7 @@
 - **测试改造**：`dre-host-integration` 改为起 daemon 后断言客户端连接 + `/dre/run` 200/6 阶段 + 未连接 503；`dre-scenarios` 的引擎级场景改用 `createDreKernel` 直接构造。
 - **验证**：**串行全量 `bun test --timeout 15000 ./tests` = 4673 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25（循环导入已消除）；`arch:stats` 39 模块 / 449 文件 / 120,473 行已同步。
 - **未做（Step 2b-ii）**：`mcp/server/dre-tools.ts` 的 **35 个工具仍自建 Kernel**（`createDreKernel`）——MCP 侧尚未切换，故当前生产内核数 = daemon + MCP = 2。该步受"同步后处理（如 `mentalModels.list().map()`）"约束，需按域改造并回归，单独立契约。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`b8a3b8a3`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — chore(gates): 登记 daemon 出网点 + env 模板（Step 2a 配套）
 
