@@ -27,6 +27,7 @@ export { KnowledgeGraph, type KGNode, type KGEdge as KGEdgeType } from "./kg/gra
 export { LLMClient, type LLMConfig, type LLMResponse, type ConstrainedGenerationOptions } from "./llm/client.js";
 export { DREngine, type DREConfig } from "./engine.js";
 export { Kernel, type KernelConfig, type KernelStatus } from "./kernel.js";
+export { createDreKernel, type CreateDreKernelOptions } from "./factory.js";
 export { MentalModelPool, type MentalModel, type ModelPattern, type ModelRule, type Simulation, type SimulationStep } from "./mental-model/pool.js";
 export { ReasoningGraph, type ReasoningNode, type ReasoningGap } from "./reasoning/graph.js";
 export { ConstraintSolver, RESOURCE_CONSTRAINTS, AUDIT_CONSTRAINTS, type Constraint, type ConstraintCheckResult, type ConstraintViolation } from "./constraint/solver.js";

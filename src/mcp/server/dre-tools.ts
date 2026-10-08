@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { ToolRegistry } from "../tool-registry.js";
-import { Kernel, CognitivePipeline, TaskGraph, ConfigLoader, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
+import { Kernel, CognitivePipeline, TaskGraph, type KnowledgeItem, type PersonaMode, type AtomKind } from "../../dre/index.js";
+import { createDreKernel } from "../../dre/factory.js";
 import { getResourceBudgetManager } from "../../dre/system-resource.js";
 import { logger } from "../../utils/logger.js";
 
@@ -19,8 +20,7 @@ let kernelReady: Promise<Kernel> | null = null;
 async function getKernelAsync(): Promise<Kernel> {
   if (kernel) return kernel;
   if (!kernelReady) {
-    const config = new ConfigLoader().toKernelConfig();
-    const k = new Kernel({ ...config, tickInterval: 10000, autoTick: true });
+    const k = createDreKernel({ tickInterval: 10000, autoTick: true });
     kernelReady = k
       .init()
       .then(() => {

@@ -17,6 +17,15 @@
 
 ---
 
+## 2026-10-08 — refactor(dre): 抽 createDreKernel 工厂（内核收敛 Step 1）
+
+- **任务**：内核收敛计划 Step 1——消除 Kernel 装配分叉。分级 **T1**。
+- **根因**：`src/dre/host.ts` 与 `src/mcp/server/dre-tools.ts` 各自写一遍 `new ConfigLoader().toKernelConfig()` + `new Kernel(...)`，参数（tickInterval/autoTick）与组合根注入易漂移。
+- **改动**：新增 `src/dre/factory.ts`（`createDreKernel({overrides, tickInterval, autoTick})`），`dre/index.ts` 导出；`host.ts` 与 `dre-tools.ts` 改为经工厂装配（外部行为不变：host 仍注 overrides，dre-tools 仍 10000/autoTick=true——与 ConfigLoader 默认一致）。
+- **验证**：`bun test tests/dre-host-integration.test.ts tests/dre-core-modules.test.ts tests/dre-scenarios.test.ts tests/components/mcp-native-tools.test.ts` = **105 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 444→445 文件 / 120177 行已同步。
+- **说明**：本步只统一**装配**，不改变**归属**（daemon 化在 Step 2）；工厂即 Step 2 的 daemon 装配入口。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — fix(sqlite): 主库连接统一 busy_timeout（内核收敛 Step 0 止血）
 
 - **任务**：内核收敛评估（用户已裁定唯一 Kernel 拥有者 = DRE daemon）的 **Step 0 止血**。分级 **T1/T2**。

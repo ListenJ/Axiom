@@ -5,7 +5,8 @@
  * 处于同一进程、同一 eventBus 单例，观测链路因此天然打通。
  * 开关：AXIOM_DRE_ENABLED=0 关闭（默认开启）。
  */
-import { Kernel, ConfigLoader, type KernelConfig } from "./index.js";
+import type { Kernel, KernelConfig } from "./index.js";
+import { createDreKernel } from "./factory.js";
 import { readBool } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
@@ -35,11 +36,9 @@ export async function initDreKernel(): Promise<Kernel | null> {
   }
   if (kernel) return kernel;  if (!startPromise) {
     startPromise = (async () => {
-      const config = new ConfigLoader().toKernelConfig() as KernelConfig;
       // L1：组合根注入项（cloudCaller 等）由 main.ts 通过 overrides 传入，
-      // src/dre 包内不 import 上层 router。
-      if (hostOverrides) Object.assign(config, hostOverrides);
-      const k = new Kernel(config);
+      // src/dre 包内不 import 上层 router。装配走单一来源工厂（Step 1 内核收敛）。
+      const k = createDreKernel({ overrides: hostOverrides ?? undefined });
       await k.init();
       kernel = k;
       logger.info("[DRE] Kernel ready (host integration)", { state: k.getStatus().state });
