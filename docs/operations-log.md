@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — feat(dre): 运行时自扩展能力 + fail-closed 门（ADR-014）
+
+- **任务**：Runtime 需按场景自加功能（自进化，**不依赖 MCP/skill**），并**对高危/未授权操作 fail-closed**。落为 ADR-014 + 能力注册表扩展 + 安全门。分级 **T2/T3**。
+- **设计（ADR-014）**：扩展单位 = **能力**（`CapabilityContract` × `CapabilityProvider`），由既有 `capabilityRegistry` 承载；分域沿用 ADR-013——**外围 provider 可热加；内核能力只能 `proposeCapability` 提案，不得自动落核**；生命周期 `Observe→Gap→Propose→Validate→Register/Promote→Retire`。
+- **代码**：
+  1. `src/dre/runtime/capability-registry.ts`：`CapabilityProvider` 增 `placement`/`isolation`/`sideEffects`/`source`；新增 **`registerDynamicProvider(provider, {authorized})`**（fail-closed）与 **`proposeCapability()`**/`listKernelProposals()`；新增 `CapabilityRegistrationError`。
+  2. `src/utils/permissions.ts`：导出 `HIGH_RISK_CAPABILITIES`（`proc.exec/fs.write/fs.delete/cfg.write/db.write/net.outbound/mcp.external`）；`src/agents/risk-monitor.ts` 改为**复用**它（消除"多一份高危清单"的 G1 类缺陷）。
+- **fail-closed 规则（registerDynamicProvider）**：① `placement="kernel-proposal"` → 拒（内核不自动注册）；② 未声明 `sideEffects` → 拒；③ 命中高危能力且未 `authorized` → 拒；④ 含高危能力仍 `in-process` → 拒（须 worker/sandbox）。拒绝一律抛 `CapabilityRegistrationError`。
+- **验证**：`tests/unit/capability-self-extension.test.ts` 7 条断言全绿（外围可热加 / 内核不自动注册 / 未声明拒 / 高危未授权拒 / 高危未隔离拒 / 授权+sandbox 通过 / 提案不落核）；risk 相关 4 文件 **98 pass / 0 fail**（单源化无回归）；doc-contract+D2+arch-integrity **77 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 451 文件 / 120,832 行已同步。
+- **不做项**：worker/sandbox **执行器**尚未接线（当前只校验隔离级别声明，运行期强制隔离列入 ADR-014 §7-2）；未接 `Observe→Gap` 自动报告（§7-1）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — docs(adr)+test(arch): 内核/外围分域准则（ADR-013，性能取向入核）
 
 - **任务**：用户要求扩大范围——按**使用场景与调用密度**把功能分域：性能取向入内核，其余可用外围构建则入外围；把握耦合与内聚。分级 **T3**。

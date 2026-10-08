@@ -75,6 +75,18 @@ export type Capability =
   | "db.write"
   | "mcp.external";
 
+/** 高危能力（须审批；运行时自扩展**不得自动注册**）。唯一权威：risk-monitor 与
+ *  能力注册表都从这里取，避免"多一份清单"的历史缺陷（G1）。 */
+export const HIGH_RISK_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  "proc.exec",
+  "fs.write",
+  "fs.delete",
+  "cfg.write",
+  "db.write",
+  "net.outbound",
+  "mcp.external",
+]);
+
 // ─── 能力 → 参数负载取法（判定与复核的唯一一份表）───────────────────────────
 //
 // 这张表原本存在两份：permission-middleware 按**工具名**查表挑字段

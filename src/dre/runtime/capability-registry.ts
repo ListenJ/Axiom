@@ -19,6 +19,7 @@
 
 import { logger } from "../../utils/logger.js";
 import { eventBus } from "./event-bus.js";
+import { HIGH_RISK_CAPABILITIES, type Capability as PermissionCapability } from "../../utils/permissions.js";
 
 // ─── Abstract Capability Contracts ─────────────────────────────────────────
 
@@ -44,6 +45,11 @@ export type CapabilityContract =
 
 // ─── Provider Types ────────────────────────────────────────────────────────
 
+/** 自扩展归属：外围可运行时热加；`kernel-proposal` 只能"提案"，不得自动注册 */
+export type CapabilityPlacement = "periphery" | "kernel-proposal";
+/** 隔离级别：含高危能力的 provider 必须 worker/sandbox，不得 in-process */
+export type CapabilityIsolation = "in-process" | "worker" | "sandbox";
+
 export interface CapabilityProvider {
   id: string
   name: string
@@ -54,6 +60,33 @@ export interface CapabilityProvider {
   reliability: number       // 0-1
   maxConcurrency: number
   metadata: Record<string, unknown>
+  // ── 自扩展元数据（内置 provider 可缺省；动态注册 provider 必须显式声明）──
+  /** 归属：外围可热加；kernel-proposal 只可提案 */
+  placement?: CapabilityPlacement;
+  /** 隔离级别 */
+  isolation?: CapabilityIsolation;
+  /** 副作用能力声明（唯一权威词表见 utils/permissions.ts；动态注册必须显式声明） */
+  sideEffects?: PermissionCapability[];
+  /** 来源：内置 或 运行时自扩展 */
+  source?: "builtin" | "dynamic";
+}
+
+/** 内核能力提案（不注册、不执行；内核变更走门禁） */
+export interface KernelCapabilityProposal {
+  id: string;
+  contract: CapabilityContract;
+  rationale: string;
+  estimate?: Record<string, unknown>;
+  proposedAt: number;
+  status: "pending";
+}
+
+/** 自扩展注册被拒（fail-closed）时抛出 */
+export class CapabilityRegistrationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CapabilityRegistrationError";
+  }
 }
 
 export interface Capability {
@@ -86,6 +119,7 @@ class CapabilityRegistryImpl {
   /** Reverse index: contract → capability ids (avoids O(n) scan in search()) */
   private capabilitiesByContract = new Map<CapabilityContract, Set<string>>();
   private stats = { searches: 0, selections: 0, fallbacks: 0 };
+  private kernelProposals: KernelCapabilityProposal[] = [];
 
   /**
    * Register a provider.
@@ -123,6 +157,70 @@ class CapabilityRegistryImpl {
       id: provider.id,
       capabilities: provider.capabilities.length,
     });
+  }
+
+  /**
+   * 注册**自扩展** provider（运行时按场景新增的能力）。**fail-closed**：
+   *  - `placement="kernel-proposal"` → 拒绝（内核只能经 proposeCapability 提案，不得自动落核）；
+   *  - 未声明 `sideEffects` → 拒绝（无声明即不可信）；
+   *  - 命中高危能力（`HIGH_RISK_CAPABILITIES`）→ 须显式授权，且须 worker/sandbox 隔离。
+   */
+  registerDynamicProvider(provider: CapabilityProvider, ctx?: { authorized?: boolean }): void {
+    if (provider.placement === "kernel-proposal") {
+      throw new CapabilityRegistrationError(
+        `provider '${provider.id}' 归属内核：不得自动注册，请走 proposeCapability 内核门禁`,
+      );
+    }
+    const effects = provider.sideEffects;
+    if (!Array.isArray(effects) || effects.length === 0) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 未声明 sideEffects（无声明即拒绝）`);
+    }
+    const highRisk = effects.filter((c) => HIGH_RISK_CAPABILITIES.has(c));
+    if (highRisk.length > 0) {
+      if (ctx?.authorized !== true) {
+        throw new CapabilityRegistrationError(
+          `provider '${provider.id}' 声明高危能力 [${highRisk.join(", ")}] 但未获授权，拒绝注册`,
+        );
+      }
+      if (provider.isolation !== "worker" && provider.isolation !== "sandbox") {
+        throw new CapabilityRegistrationError(
+          `provider '${provider.id}' 含高危能力，须 worker/sandbox 隔离，不能 in-process`,
+        );
+      }
+    }
+    this.registerProvider({ ...provider, source: "dynamic" });
+  }
+
+  /**
+   * 记录一条**内核能力提案**（不注册、不执行）。内核变更须走门禁，运行时无权自动落核。
+   */
+  proposeCapability(input: {
+    contract: CapabilityContract;
+    rationale: string;
+    estimate?: Record<string, unknown>;
+  }): KernelCapabilityProposal {
+    const proposal: KernelCapabilityProposal = {
+      id: `kprop-${Date.now()}-${this.kernelProposals.length + 1}`,
+      contract: input.contract,
+      rationale: input.rationale,
+      estimate: input.estimate,
+      proposedAt: Date.now(),
+      status: "pending",
+    };
+    this.kernelProposals.push(proposal);
+    eventBus.publish({
+      type: "capability.kernel_proposed",
+      source: "capability-registry",
+      data: { id: proposal.id, contract: proposal.contract },
+      priority: "normal",
+    });
+    logger.info("[CapabilityRegistry] Kernel capability proposed", { id: proposal.id, contract: proposal.contract });
+    return proposal;
+  }
+
+  /** 列出所有内核能力提案（只读快照） */
+  listKernelProposals(): KernelCapabilityProposal[] {
+    return [...this.kernelProposals];
   }
 
   /**
@@ -272,6 +370,7 @@ class CapabilityRegistryImpl {
     this.providers.clear();
     this.capabilities.clear();
     this.capabilitiesByContract.clear();
+    this.kernelProposals = [];
     this.stats = { searches: 0, selections: 0, fallbacks: 0 };
   }
 

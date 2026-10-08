@@ -35,6 +35,7 @@ import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 import {
   CAPABILITY_PAYLOAD as PERMISSION_CAPABILITY_PAYLOAD,
+  HIGH_RISK_CAPABILITIES,
   payloadForCapability,
   type Capability,
   type PayloadFields,
@@ -77,15 +78,7 @@ function isFailClosedEnabled(): boolean {
  * 实测缺陷：改名/包装（`mcp_${server}_${tool}`）即脱离名单，且未登记的名字一律 fail-open；
  * 按能力判定后同一结论自动覆盖全部 183 个注册点，名单不再需要维护。
  */
-const DEGRADED_MUST_APPROVE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
-  "proc.exec",
-  "fs.write",
-  "fs.delete",
-  "cfg.write",
-  "db.write",
-  "net.outbound",
-  "mcp.external",
-]);
+const DEGRADED_MUST_APPROVE_CAPABILITIES: ReadonlySet<Capability> = HIGH_RISK_CAPABILITIES;
 
 /** 初筛不可用（降级或抛异常）时的处置：持有高危能力者恒需审批，其余取决于 EDGE_RISK_FAIL_CLOSED */
 function degradedPolicy(capabilities: readonly Capability[]): {
