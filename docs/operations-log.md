@@ -25,7 +25,7 @@
 - **2b-ii 的正确路径（已查清，待立契约）**：把这些工具规格/处理器**迁到中立模块**（如 `src/dre/mcp-dre-tools.ts`，用最小 registry 接口、不 import `src/mcp`）→ daemon 用它 + 自己的引擎执行并暴露 `POST /dre/tool` → MCP 进程注册薄转发（`{name,args}` → daemon）。这样 `mcp→dre`、`daemon→dre` 单向，无循环。
 - **当前内核数仍为 2**（daemon + MCP）——2b-ii 未完成；本条目只交付前置安全网。
 - **验证**：`bun test tests/unit/dre-tools-behavior.test.ts` = 8 pass / 0 fail；`bunx tsc --noEmit` rc=0。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`0077d288`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — refactor(dre): 主服务切换为 daemon 客户端（内核收敛 Step 2b-i）
 
