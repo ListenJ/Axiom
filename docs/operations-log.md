@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-08 — feat(daemon): DRE Daemon 落地为唯一内核拥有者（内核收敛 Step 2a）
+
+- **任务**：用户裁定唯一 Kernel 拥有者 = **DRE daemon**。本步落地 daemon 进程与客户端（**加法式**，尚不切换调用方，不破坏现有路径）。分级 **T3**。
+- **改动**：
+  1. 新增 `src/daemon/dre-daemon.ts`——经 `createDreKernel` 构造**唯一** Kernel；`Bun.serve`（默认 `127.0.0.1:18790`，`AXIOM_DRE_DAEMON_PORT`）暴露：`GET /health`、`GET /dre/status`、`GET /dre/cognitive-state`、`POST /api/port`（复用 `LocalKnowledgePort`）、`POST /dre/run`（CognitivePipeline）、`GET /events`（cognitive.* 事件 SSE）；可选 `AXIOM_DRE_DAEMON_TOKEN`（常量时间比较）；SIGINT/SIGTERM 优雅关闭。
+  2. 新增 `src/daemon/client.ts`——`DreDaemonClient`（health/status/cognitiveState/port/run/openEvents），env `AXIOM_DRE_DAEMON_URL`；不可达抛 `DreDaemonUnavailableError`。
+  3. `src/dre/engine.ts` 增 `getDb()` 公开访问器（供端口装配；不改内部语义）。
+  4. 新增 `deploy/systemd/axiom-dre@.service`（`systemd-analyze verify` 通过）。
+- **验证**：`tests/unit/dre-daemon.test.ts` = **9 pass / 0 fail**（daemon 端到端：health/status/cognitive-state/port write+read/run/400 + 客户端四项）；`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25（新增 src 模块未触 L1 依赖违规）；`arch:stats` 38→**39 模块** / 447 文件 / 120,478 行已同步。
+- **不做项（Step 2b，待做）**：本步**未**切换 `main.ts` / `routes/dre.ts` / `routes/pipeline.ts` / `dre-tools.ts` 到客户端——加法先行，切换单独立契约并回归 e2e/冒烟。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — refactor(dre): 抽 createDreKernel 工厂（内核收敛 Step 1）
 
 - **任务**：内核收敛计划 Step 1——消除 Kernel 装配分叉。分级 **T1**。

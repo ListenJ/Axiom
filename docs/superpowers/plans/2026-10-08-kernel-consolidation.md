@@ -110,6 +110,15 @@
 
 ## 五、推荐分期（每 Step 单独立契约）
 
+> **执行进度（2026-10-08）**：
+> - **Step 0 止血 ✅**（`48734e6f`）：新增 `src/utils/sqlite-pragmas.ts`，四个主库连接统一 WAL+busy_timeout；漂移门禁可证伪。
+> - **Step 1 共享工厂 ✅**（`2e82992e`）：新增 `src/dre/factory.ts`（`createDreKernel`），host/dre-tools 统一装配。
+> - **Step 2a Daemon 落地 ✅**（本次）：`src/daemon/dre-daemon.ts`（唯一 Kernel 拥有者 + HTTP 面：/health、/dre/status、/dre/cognitive-state、/api/port、/dre/run、/events）+ `src/daemon/client.ts` + `deploy/systemd/axiom-dre@.service`；集成测试 9/9。
+> - **Step 2b 客户端切换（待做）**：`main.ts`、`routes/dre.ts`、`routes/pipeline.ts`、`mcp/server/dre-tools.ts` 改为经 daemon 客户端访问，并移除各自的内核构造；此步需回归 `e2e-runtime` / 冒烟，单独提交。
+> - 用户裁定：①唯一拥有者 = DRE daemon；②MCP 侧 DRE 工具 = 代理到 daemon；③做 Step 0+1+2。
+
+
+
 - **Step 0 — 止血（P0，可先行）**：给 `sqlite-backend.ts` / `knowledge/store.ts` / `sqlite-memory.ts` / `mcp/server.ts` 的库连接补 `PRAGMA busy_timeout=5000`；写路径遇 `SQLITE_BUSY` 重试。**不改语义**，只加防线。验收：定向测试 + 两进程并发写冒烟无 SQLITE_BUSY。
 - **Step 1 — 消装配分叉（P1）**：抽共享 `createDreKernel(opts)`，`host.ts` 与 `dre-tools.ts` 都走它；明确 MCP 侧是否需要 `cloudCaller` 等注入（需要则补，不需要则文档点名）。
 - **Step 2 — 单写者（P1/T3，目标态）**：选定唯一 Kernel 拥有者，落地 `POST /api/port` 服务端，MCP 侧 DRE 工具改为经端口访问；`src/dre/port` 从"备而未用"转正。

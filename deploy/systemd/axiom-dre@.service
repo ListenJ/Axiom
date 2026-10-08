@@ -1,0 +1,48 @@
+# Axiom DRE Daemon — Axiom Runtime 内核的**唯一拥有者**（内核收敛 Step 2）
+#
+# 安装（把 %i 换成运行用户，如 listen）：
+#   sudo install -m 0644 deploy/systemd/axiom-dre@.service /etc/systemd/system/axiom-dre@.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now axiom-dre@listen.service
+#
+# 依赖关系：本服务须先于 axiom@（主服务）与 MCP 进程就绪；主服务/MCP 经
+# AXIOM_DRE_DAEMON_URL（默认 http://127.0.0.1:18790）访问。
+[Unit]
+Description=Axiom DRE Daemon (kernel owner, instance %i)
+After=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/run/media/listen/base/openclaw-fusion
+Environment="PATH=/home/listen/.bun/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="NODE_ENV=production"
+Environment="AXIOM_DRE_DAEMON_PORT=18790"
+Environment="AXIOM_DRE_DAEMON_URL=http://127.0.0.1:18790"
+Environment="BUN_TMPDIR=/run/media/listen/base/openclaw-fusion/.tmp/bun"
+Environment="BUN_INSTALL=/run/media/listen/base/openclaw-fusion/.tmp/bun-install"
+EnvironmentFile=-/run/media/listen/base/openclaw-fusion/.env
+ExecStartPre=-/usr/bin/mkdir -p /run/media/listen/base/openclaw-fusion/.tmp/bun
+ExecStartPre=-/usr/bin/mkdir -p /run/media/listen/base/openclaw-fusion/.tmp/bun-install
+ExecStart=/home/listen/.bun/bin/bun run src/daemon/dre-daemon.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=axiom-dre
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/data
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/axiom-memory
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/openclaw-memory
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/.tmp
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/axiom-memory.db
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/axiom-memory.db-wal
+ReadWritePaths=-/run/media/listen/base/openclaw-fusion/axiom-memory.db-shm
+ReadWritePaths=-/home/listen/.bun
+ReadWritePaths=-/home/listen/.cache
+ReadWritePaths=-/home/listen/.npm
+
+[Install]
+WantedBy=multi-user.target
