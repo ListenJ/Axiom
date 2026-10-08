@@ -24,7 +24,7 @@
 - **契约版本种子**：新增 `src/daemon/contract.ts`（`DRE_DAEMON_CONTRACT_VERSION="1.0.0"` + `DRE_DAEMON_CAPABILITIES` + `dreDaemonVersionInfo()`）；daemon 增 `GET /version`（免鉴权，供外围能力协商）。
 - **验证**：`tests/unit/dre-daemon.test.ts` 增 `/version` 契约版本与能力清单断言（12/12）；`bunx tsc --noEmit` rc=0；`doc-contract` 35/0（ADR 为规范件、口径干净、无 BOM/CR/C0）；`architecture-integrity` 25/25；`arch:stats` 39 模块 / 450 文件 / 120,599 行已同步。
 - **待办（ADR §7）**：其余模块的核心访问逐步收敛到契约面；`capabilities` 由静态清单升级为按 runtime 实况生成；补"外围不得 import 核心内部符号"的架构门禁。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`d36edf64`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — test(stress): 重负载 Layer 用例补显式超时（消除 5s 默认超时抖动）
 
