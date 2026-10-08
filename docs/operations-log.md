@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-08 — test(arch): 外围↔核心边界棘轮门（ADR-012 §7-3 落地）
+
+- **任务**：把 ADR-012 §3.1「外围不得直连核心内部、只经契约面访问」从约定变成**会说话的测试**（防核心更新打挂外围）。分级 **T2**。
+- **规则**：外围目录（`src/mcp`/`routes`/`cli`/`tui`/`agents`/`plugins`/`services`/`workers`/`cron`/`computer-use`/`pi-agent`）**只允许** import 契约面 `src/dre/port/**` 与 `src/dre/host.ts`；其余 `src/dre/**`（engine/kernel/runtime 单例/桶 index/factory/…）均判为"直连核心内部"。
+- **棘轮**（仿 outbound-fetch-ratchet）：`config/periphery-core-boundary-baseline.json` 冻结存量 5 文件 / 9 处；**新增即红**、**陈旧在册项亦红**（收敛后须同步下调）。AST 抽取 `from "..."` 与动态 `import("...")`，相对路径解析到仓库相对 `.ts`。
+- **存量在册（9 处）**：`agents/intent-enhancer`（llm/client）、`mcp/server/dre-tools`（constraint-injection/factory/index/system-resource）、`mcp/server/mind-tools`（synapse/index）、`routes/search`（retrieval/…、runtime/knowledge-network）、`routes/stats`（runtime/scheduler）。
+- **可证伪**：临时新增 `src/mcp/__probe.ts`（import `runtime/scheduler`）→ 用例转红（"扫描文件集 == 在册文件集"）；删除后转绿。
+- **验证**：`bun test tests/unit/periphery-core-boundary.test.ts` = 3 pass / 0 fail；连同 `doc-contract`/`docs-consistency`/`architecture-integrity`/`outbound-fetch-ratchet` 共 **89 pass / 0 fail**；`arch:stats` src 面未变（450 文件 / 120,599 行）。
+- **属性**：本门只"拦增量"——不阻塞 B 端存量收敛，但把"新耦合"暴露在合并前，符合 AGENTS 规则 12（最简方案交付价值）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — docs(adr)+feat(daemon): 内核边界与统一 API 契约（ADR-012）
 
 - **任务**：用户要求「整体做减法：关键部分才进核心、其余作外围；预留后续接口/功能的适配位；对内核与外围的耦合/内聚建立统一 API 管理，防止更新打挂外围」。落为架构决策 + 契约版本种子。分级 **T3（架构）**。

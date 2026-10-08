@@ -1,0 +1,56 @@
+{
+  "comment": "ADR-012 §3.1 存量在册：外围组件直连『核心内部』的既有耦合。只拦增量（新增即红）；收敛后须同步下调（陈旧在册项也红）。",
+  "allowedCoreSurfaces": [
+    "src/dre/port/",
+    "src/dre/host.ts"
+  ],
+  "peripheryDirs": [
+    "src/mcp",
+    "src/routes",
+    "src/cli",
+    "src/tui",
+    "src/agents",
+    "src/plugins",
+    "src/services",
+    "src/workers",
+    "src/cron",
+    "src/computer-use",
+    "src/pi-agent"
+  ],
+  "sites": [
+    {
+      "file": "src/agents/intent-enhancer.ts",
+      "imports": [
+        "src/dre/llm/client.ts"
+      ]
+    },
+    {
+      "file": "src/mcp/server/dre-tools.ts",
+      "imports": [
+        "src/dre/constraint-injection.ts",
+        "src/dre/factory.ts",
+        "src/dre/index.ts",
+        "src/dre/system-resource.ts"
+      ]
+    },
+    {
+      "file": "src/mcp/server/mind-tools.ts",
+      "imports": [
+        "src/dre/synapse/index.ts"
+      ]
+    },
+    {
+      "file": "src/routes/search.ts",
+      "imports": [
+        "src/dre/retrieval/deterministic-retrieval-engine.ts",
+        "src/dre/runtime/knowledge-network.ts"
+      ]
+    },
+    {
+      "file": "src/routes/stats.ts",
+      "imports": [
+        "src/dre/runtime/scheduler.ts"
+      ]
+    }
+  ]
+}

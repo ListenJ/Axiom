@@ -56,6 +56,7 @@ Axiom 分为**三层**：**核心（Core）**、**契约（Contract）**、**外
 - `tests/architecture-integrity.test.ts`：顶层目录不得互相 import（循环）；`src/dre` 不得引用上层 `router`/`crawl`。
 - `tests/unit/docs-consistency.test.ts` 的 L1 依赖方向门 + 本 ADR 的分层口径。
 - 契约版本一致性：`src/daemon/contract.ts` 的常量与 `GET /version` 实测一致（见 `tests/unit/dre-daemon.test.ts`）。
+- **§3.1 边界门禁**：`tests/unit/periphery-core-boundary.test.ts`（棘轮）+ `config/periphery-core-boundary-baseline.json`——扫描外围目录是否 import 核心内部（仅放行契约面 `src/dre/port/**`、`src/dre/host.ts`）；存量在册、新增即红、陈旧在册项亦红（可下调）。
 
 ## 6. 后果
 
@@ -67,4 +68,4 @@ Axiom 分为**三层**：**核心（Core）**、**契约（Contract）**、**外
 
 1. 把主服务/MCP 的其余核心访问逐步收敛到契约面（当前 DRE 已收敛；其余模块渐进）。
 2. `GET /version` 的 `capabilities` 从"静态清单"升级为按 runtime 实况生成。
-3. 为"外围只依赖契约"补一条**架构门禁**（扫描外围是否 import 核心内部符号）。
+3. ✅ **已完成（2026-10-08）**：`tests/unit/periphery-core-boundary.test.ts` + `config/periphery-core-boundary-baseline.json`——扫描外围是否 import 核心内部（棘轮：存量在册 5 文件 / 9 处，只拦增量，陈旧在册项亦红）。
