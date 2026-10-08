@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — docs(adr)+test(arch): 内核/外围分域准则（ADR-013，性能取向入核）
+
+- **任务**：用户要求扩大范围——按**使用场景与调用密度**把功能分域：性能取向入内核，其余可用外围构建则入外围；把握耦合与内聚。分级 **T3**。
+- **证据（实测）**：最热在线操作 = **模型调用**（`data/token-usage.db` 12,022 行；gpt-5.4-pro 6,943 / claude-opus 3,880）；最大规模 = **代码索引**（`agent.db` `code_calls` 75,479 / `code_symbols` 16,615）；记忆/知识面 memory_notes 242、knowledge_embeddings 245、knowledge_sources 280；代码扇入 utils 238 / memory 35 / router 26 / dre 21；在线 chat 主路径 = router + components/context-assembler + agents + memory + services/tool-loop。
+- **产出 ADR-013**（`docs/decisions/ADR-013-kernel-periphery-partition.md`）：三维判据（频率×规模×延迟）+ 分域矩阵（12 类能力逐条归属）+ **内聚原则**（"一半热一半冷"按运行时接缝切开：热段入核、冷段外移）+ 依赖方向（外围→内核经契约；内核→外围禁止）。
+- **强制**：新增 `tests/unit/kernel-periphery-boundary.test.ts` + `config/kernel-periphery-baseline.json`——**内核不得依赖外围**（依赖倒置）的棘轮门；内核集 dre/memory/router/kal/kg/components，外围集 ocr/crawl/plugins/tui/cli/computer-use/pi-agent/self-evolve/codeindex/eval；存量在册 **4 处**，只拦增量、陈旧亦红；`import type` 不计。
+- **可证伪**：临时在 `src/dre/` 加一处对外围的 import → 用例转红（"扫描文件集 == 在册文件集"）；删除后转绿。
+- **在册 4 处（待收敛 3 + 1 例外）**：`dre/pipeline/search-port`→crawl（已知例外）、`memory/codegraph-index`→codeindex、`router/dynamic-model-assigner`→eval、`router/code-retrieval-router`→pi-agent。
+- **验证**：`bun test`（新门+边界+doc-contract+docs-consistency+architecture-integrity）= 75 pass / 0 fail；`arch:stats` src 面未变（451 文件 / 120,728 行）。
+- **不做项**：本轮为**分域裁决 + 门禁**，未强改 4 处在册（避免无证据的搬迁）；未改运行时代码。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — refactor(arch): dre-tools 迁中立层，边界基线清零到 0（ADR-012 §7-1）
 
 - **任务**：完成 ADR-012 §7-1——把最后一处"外围直连核心内部"（`src/mcp/server/dre-tools.ts`）收敛，边界棘轮**清零到 0**。分级 **T3**。

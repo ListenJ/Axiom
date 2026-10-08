@@ -1,0 +1,11 @@
+{
+  "comment": "ADR-013 内核/外围分域：**内核不得依赖外围**（依赖倒置）。存量在册、只拦增量；收敛后须同步下调（陈旧在册项也红）。",
+  "kernelDirs": ["dre", "memory", "router", "kal", "kg", "components"],
+  "peripheryDirs": ["ocr", "crawl", "plugins", "tui", "cli", "computer-use", "pi-agent", "self-evolve", "codeindex", "eval"],
+  "sites": [
+    { "file": "src/dre/pipeline/search-port.ts", "imports": ["src/crawl/search-engines.ts"] },
+    { "file": "src/memory/codegraph-index.ts", "imports": ["src/codeindex/local-index.ts"] },
+    { "file": "src/router/dynamic-model-assigner.ts", "imports": ["src/eval/model-eval-service.ts"] },
+    { "file": "src/router/code-retrieval-router.ts", "imports": ["src/pi-agent/pi-agent-adapter.ts"] }
+  ]
+}
