@@ -27,7 +27,7 @@
 - **棘轮下调**：`config/periphery-core-boundary-baseline.json` **2 文件/5 处 → 1 文件/4 处**（仅余 `src/mcp/server/dre-tools.ts`——daemon 单向复用的「DRE 工具面」已知特例，性质不同于普通外围依赖）。
 - **验证**：`tests/unit/dre-daemon.test.ts` 增 `mind_synapse_create → mind_synapse_verify` 经 `/dre/tool` 的端到端闭环（18/18）；`bunx tsc --noEmit` rc=0；契约/边界/文档/架构重生成等门禁 **88 pass / 0 fail**；D10 能力声明重生成与在册**逐字一致**；`arch:stats` 39 模块 / 450 文件 / 120,671 行已同步。
 - **不做项**：未为 synapse 单开端点（复用 `/dre/tool`）；未动 `dre-tools`（特例，留口径澄清）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`69f09b02`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — refactor(arch): 存量耦合收敛（stats/search 改走契约面，基线 5→2）
 
