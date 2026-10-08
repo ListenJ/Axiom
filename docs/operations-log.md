@@ -27,7 +27,7 @@
 - **在册 4 处（待收敛 3 + 1 例外）**：`dre/pipeline/search-port`→crawl（已知例外）、`memory/codegraph-index`→codeindex、`router/dynamic-model-assigner`→eval、`router/code-retrieval-router`→pi-agent。
 - **验证**：`bun test`（新门+边界+doc-contract+docs-consistency+architecture-integrity）= 75 pass / 0 fail；`arch:stats` src 面未变（451 文件 / 120,728 行）。
 - **不做项**：本轮为**分域裁决 + 门禁**，未强改 4 处在册（避免无证据的搬迁）；未改运行时代码。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`56387b23`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — refactor(arch): dre-tools 迁中立层，边界基线清零到 0（ADR-012 §7-1）
 
