@@ -26,7 +26,7 @@
 - **可证伪**：临时新增 `src/mcp/__probe.ts`（import `runtime/scheduler`）→ 用例转红（"扫描文件集 == 在册文件集"）；删除后转绿。
 - **验证**：`bun test tests/unit/periphery-core-boundary.test.ts` = 3 pass / 0 fail；连同 `doc-contract`/`docs-consistency`/`architecture-integrity`/`outbound-fetch-ratchet` 共 **89 pass / 0 fail**；`arch:stats` src 面未变（450 文件 / 120,599 行）。
 - **属性**：本门只"拦增量"——不阻塞 B 端存量收敛，但把"新耦合"暴露在合并前，符合 AGENTS 规则 12（最简方案交付价值）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`ce5d9f0b`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — docs(adr)+feat(daemon): 内核边界与统一 API 契约（ADR-012）
 
