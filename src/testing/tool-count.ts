@@ -3,7 +3,7 @@
  *
  * 背景：docs 多处宣称的工具数（历史 133/150/173/172）与实际注册不符，
  * 且旧验证测试为硬编码同义反复。本模块按 README 权威口径扫描：
- *   - src/mcp/server/*.ts + src/mcp/register-external-tools.ts 的 registry.add 字面名
+ *   - src/mcp/server/*.ts + src/tool-face/*.ts + src/mcp/register-external-tools.ts 的 registry.add 字面名
  *   - src/mcp/server.ts 内联注册 + 经 adaptTool 注册的 3 个基础工具（read/write/query）
  * 输出去重总数、重复名与分文件明细，供文档一致性测试与 CI 使用。
  * 生成器：`bun run scripts/count-tools.mjs` 直接调用本模块输出权威片段（防止数字漂移）。
@@ -49,6 +49,8 @@ export function countMcpTools(rootDir: string = process.cwd()): ToolCountResult 
   const mcpDir = join(rootDir, "src", "mcp");
   const files = [
     ...listTsFiles(join(mcpDir, "server")),
+    // 内核工具面已迁中立层 src/tool-face（ADR-012）；仍计入工具总数
+    ...listTsFiles(join(rootDir, "src", "tool-face")),
     join(mcpDir, "server.ts"),
     join(mcpDir, "register-external-tools.ts"),
     // adaptTool 注册的三个基础工具

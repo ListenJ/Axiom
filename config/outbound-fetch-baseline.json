@@ -307,7 +307,7 @@
       "note": "DRE daemon 客户端；主机由 operator 经 AXIOM_DRE_DAEMON_URL 配置（默认 loopback），path 固定（/api/port、/dre/run、/events 等）"
     },
     {
-      "file": "src/mcp/server/dre-tools.ts",
+      "file": "src/tool-face/dre-tools.ts",
       "direct": 1,
       "aliased": 0,
       "urlSource": "env",
@@ -315,7 +315,7 @@
       "redirectPerHop": false,
       "reachable": true,
       "endpoint": "intranet-service",
-      "note": "DRE MCP 工具薄转发：把 {name,args} POST 到唯一内核拥有者 daemon（AXIOM_DRE_DAEMON_URL，默认 loopback）；刻意内联 fetch 以避开 mcp<->daemon 导入循环"
+      "note": "DRE MCP 工具薄转发（已迁中立层 src/tool-face）：POST {name,args} 到唯一内核拥有者 daemon（AXIOM_DRE_DAEMON_URL，默认 loopback）；内联 fetch 以避开 mcp<->tool-face 循环"
     }
   ]
 }

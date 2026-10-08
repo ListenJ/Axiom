@@ -14,6 +14,7 @@ Axiom 分为**三层**：**核心（Core）**、**契约（Contract）**、**外
 |---|---|---|
 | **Core 核心** | DRE Kernel/Engine、各 runtime 单例（scheduler/eventBus/worldState/…）、KnowledgeStore/真相存储、约束/验证/推理引擎 | 删掉它，**确定性推理与真相存储**是否不成立？是→入核心 |
 | **Contract 契约** | `src/dre/port`（KnowledgePort）、DRE daemon HTTP 面（`/api/port`、`/dre/run`、`/dre/tool`、`/dre/status`、`/events`、`/version`）、`RuntimeHost`/`AgentAdapter` | 是"核心↔外围"的**唯一**穿越面；核心内部符号不得直接暴露给外围 |
+| **Core-side 工具面** | `src/tool-face/`（内核工具暴露面：DRE 工具规格/处理器，由内核拥有者 daemon 执行） | 是内核的'对外工具面'，非外围；与核心同侧 |
 | **Periphery 外围** | MCP 工具（`src/mcp`）、数据采集（Wind/AkShare/OCR/crawl）、CLI/TUI、前端、插件（`src/plugins`、`plugins/`）、agents/self-evolve | 删掉它，核心**仍可独立运行**（有降级路径） |
 
 **减法定则**：候选内容默认进**外围**；只有在"删掉它核心不成立"时才升入核心。升核心需本 ADR 的修订或新 ADR。
@@ -66,6 +67,6 @@ Axiom 分为**三层**：**核心（Core）**、**契约（Contract）**、**外
 
 ## 7. 待办（后续增量）
 
-1. 主服务/MCP 的核心访问收敛：已把 `routes/stats`（调度器状态→`/dre/status`）、`routes/search`（检索→新契约 `/dre/retrieve`，契约 MINOR 1.0.0→1.1.0）改走契约面；`mcp/server/mind-tools`（synapse 引擎→daemon 持有，MCP 薄转发）已于 2026-10-09 收敛；仅余 `mcp/server/dre-tools`（daemon 单向复用的『DRE 工具面』模块，性质不同于普通外围依赖）。
+1. ✅ **已完成（2026-10-09，基线清零到 0）**：主服务/MCP 的核心访问收敛——已把 `routes/stats`（调度器状态→`/dre/status`）、`routes/search`（检索→新契约 `/dre/retrieve`，契约 MINOR 1.0.0→1.1.0）改走契约面；`mcp/server/mind-tools`（synapse 引擎→daemon 持有，MCP 薄转发）已于 2026-10-09 收敛；最后把 `dre-tools` 迁到中立层 `src/tool-face/`（用最小注册接口避免 `mcp ↔ tool-face` 循环），外围直连核心内部**归零**。
 2. ✅ **已完成（2026-10-09）**：`GET /version` 的 `capabilities` 由运行时事实推导（`DRE_DAEMON_BASE_CAPABILITIES` + 工具数>0 才声明 `dre.tool` + 检索依赖加载成功才声明 `dre.retrieve`），并附 `runtime` 块；契约 MINOR 1.1.0→1.2.0。
-3. ✅ **已完成（2026-10-08）**：`tests/unit/periphery-core-boundary.test.ts` + `config/periphery-core-boundary-baseline.json`——扫描外围是否 import 核心内部（棘轮：存量在册 **1 文件 / 4 处**（2026-10-09 由 5/9 → 2/5 → 1/4 收敛；余 `src/mcp/server/dre-tools.ts` 为 daemon 单向复用的『DRE 工具面』已知特例），只拦增量，陈旧在册项亦红；`import type` 运行时擦除故不计）。
+3. ✅ **已完成（2026-10-08）**：`tests/unit/periphery-core-boundary.test.ts` + `config/periphery-core-boundary-baseline.json`——扫描外围是否 import 核心内部（棘轮：存量在册 **0**（2026-10-09 清零；5/9 → 2/5 → 1/4 → 0），只拦增量，陈旧在册项亦红；`import type` 运行时擦除故不计）。

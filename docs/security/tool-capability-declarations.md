@@ -114,46 +114,6 @@
 |---|---|---|---|---|
  | `knowledge_ingest_document` | `fs.read` `net.outbound` | — | 4 | fs.read：入参可裁决（file ⇒ 完整裁决）；net.outbound：入参可裁决（url ⇒ 完整裁决） | 
 
-## src/mcp/server/dre-tools.ts
-
-| 工具 | 声明能力 | 目标入参声明 | 入参数 | 派发前裁决分档 |
-|---|---|---|---|---|
- | `dre_constraint_inject` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `dre_write_knowledge` | `db.write` `net.outbound` `fs.write` | — | 6 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `dre_read_knowledge` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
- | `dre_search_knowledge` | `internal` | — | 5 | internal：无外部副作用，不进入裁决 | 
- | `dre_subgraph` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
- | `dre_consciousness_step` | `db.write` `net.outbound` `fs.write` | — | 2 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `dre_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `resource_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `persona_switch` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `persona_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `persona_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `cognitive_state` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `cognitive_pipeline_run` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `cognitive_pipeline_run_full` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `data_write` | `db.write` | — | 5 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
- | `data_search` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
- | `data_stats` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `data_persist` | `db.write` | — | 0 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
- | `mental_model_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `mental_model_match` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `mental_model_predict` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `reasoning_build` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `reasoning_detect_gaps` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `reasoning_fill_gap` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
- | `reasoning_result` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `procedure_parse` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
- | `constraint_check` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `constraint_select_best` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
- | `constraint_list` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
- | `constraint_stats` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `actor_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
- | `actor_send` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
- | `cognitive_loop` | `net.outbound` | — | 1 | net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `cognitive_loop_full` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
- | `task_graph_execute` | `db.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
-
 ## src/mcp/server/github-tools.ts
 
 | 工具 | 声明能力 | 目标入参声明 | 入参数 | 派发前裁决分档 |
@@ -328,6 +288,46 @@
  | `web_fetch` | `fs.write` `net.outbound` | — | 1 | fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；net.outbound：入参可裁决（url ⇒ 完整裁决） | 
  | `web_search` | `net.outbound` | — | 3 | net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
  | `search_engines_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+
+## src/tool-face/dre-tools.ts
+
+| 工具 | 声明能力 | 目标入参声明 | 入参数 | 派发前裁决分档 |
+|---|---|---|---|---|
+ | `dre_constraint_inject` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `dre_write_knowledge` | `db.write` `net.outbound` `fs.write` | — | 6 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `dre_read_knowledge` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
+ | `dre_search_knowledge` | `internal` | — | 5 | internal：无外部副作用，不进入裁决 | 
+ | `dre_subgraph` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
+ | `dre_consciousness_step` | `db.write` `net.outbound` `fs.write` | — | 2 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `dre_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `resource_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `persona_switch` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `persona_status` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `persona_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `cognitive_state` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `cognitive_pipeline_run` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `cognitive_pipeline_run_full` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `data_write` | `db.write` | — | 5 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
+ | `data_search` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
+ | `data_stats` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `data_persist` | `db.write` | — | 0 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
+ | `mental_model_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `mental_model_match` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `mental_model_predict` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `reasoning_build` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `reasoning_detect_gaps` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `reasoning_fill_gap` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
+ | `reasoning_result` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `procedure_parse` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
+ | `constraint_check` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `constraint_select_best` | `internal` | — | 2 | internal：无外部副作用，不进入裁决 | 
+ | `constraint_list` | `internal` | — | 1 | internal：无外部副作用，不进入裁决 | 
+ | `constraint_stats` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `actor_list` | `internal` | — | 0 | internal：无外部副作用，不进入裁决 | 
+ | `actor_send` | `internal` | — | 3 | internal：无外部副作用，不进入裁决 | 
+ | `cognitive_loop` | `net.outbound` | — | 1 | net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `cognitive_loop_full` | `db.write` `net.outbound` `fs.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底；net.outbound：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁；fs.write：仅形态认领 ⇒ 只裁锚点，越界由实际 I/O 点裁 | 
+ | `task_graph_execute` | `db.write` | — | 1 | db.write：入参里没有可裁决对象 ⇒ 由执行点与 I4 序列复核兜底 | 
 
 ## 不可静态核的注册（动态名 / 远端形状）
 

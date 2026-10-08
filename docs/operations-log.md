@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — refactor(arch): dre-tools 迁中立层，边界基线清零到 0（ADR-012 §7-1）
+
+- **任务**：完成 ADR-012 §7-1——把最后一处"外围直连核心内部"（`src/mcp/server/dre-tools.ts`）收敛，边界棘轮**清零到 0**。分级 **T3**。
+- **改动**：
+  1. 新增中立层 `src/tool-face/dre-tools.ts`：DRE 工具**规格 + 处理器**迁此；为避开 `tool-face ↔ mcp` 目录循环（门禁统计 `import type`），定义**最小注册接口** `DreToolSpec`/`DreToolRegistryLike`（`add(spec: unknown)` 结构桥），**不 import `src/mcp`**；对核心仅经 `../dre/*`。
+  2. `src/mcp/server/dre-tools.ts` 改为**兼容 shim**（`export *` + 转发式 `registerDreTools` 函数声明，满足 `mcp/server/*-tools.ts` 结构门禁）。
+  3. `src/testing/tool-count.ts`：工具清单加入 `src/tool-face/*`（否则 35 个 DRE 工具漏计，189→154）。
+- **棘轮清零**：`config/periphery-core-boundary-baseline.json` **1 文件/4 处 → 0**；`config/outbound-fetch-baseline.json` 的 daemon 转发出网点改指 `src/tool-face/dre-tools.ts`。
+- **验证**：`bunx tsc --noEmit` rc=0；边界/契约/检索/工具行为/架构/文档/出网/env 门禁 **126 pass / 0 fail**；`count-tools` 复归 **189**；D10 能力声明按新路径重生成；`arch:stats` **40 模块 / 451 文件 / 120,728 行**已同步；ADR-012 §7-1 标记完成。
+- **不做项**：未改任何工具行为/能力声明（仅改承载位置与最小接口）；未动 `src/dre` 内部。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(daemon): GET /version capabilities 实况化（ADR-012 §7-2）
 
 - **任务**：ADR-012 §7-2——把 `GET /version` 的 `capabilities` 从"手维护静态清单"升级为**按运行时事实推导**，杜绝"声明了却没实现"的漂移。分级 **T1/T2**。
