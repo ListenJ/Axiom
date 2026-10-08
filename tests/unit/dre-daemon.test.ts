@@ -99,6 +99,24 @@ describe("DRE Daemon 集成", () => {
     expect(body.ok).toBe(true);
   });
 
+  test("POST /dre/retrieve 在 daemon 内跑确定性检索（契约面 /dre/retrieve）", async () => {
+    const res = await fetch(`${base}/dre/retrieve`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ query: "anything", limit: 3 }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean; result?: { results?: unknown[] } };
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.result?.results)).toBe(true);
+  });
+
+  test("client.retrieve 走契约面并返回结果或 null", async () => {
+    const client = createDreDaemonClient({ baseUrl: base });
+    const r = await client.retrieve<{ results: unknown[] }>("anything", 3);
+    expect(r === null || Array.isArray(r.results)).toBe(true);
+  });
+
   test("POST /dre/tool 在 daemon 内用唯一引擎执行 DRE 工具", async () => {
     const res = await fetch(`${base}/dre/tool`, {
       method: "POST",

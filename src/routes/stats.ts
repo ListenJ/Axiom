@@ -2,7 +2,7 @@ import type { RouteContext } from "./types.js";
 import { getGlobalVault } from "../memory/vault-manager.js";
 import { getTokenTracker } from "../router/token-tracker.js";
 import { costUsdToCny } from "../router/rate-tier.js";
-import { scheduler } from "../dre/runtime/scheduler.js";
+import { getDreKernel } from "../dre/host.js";
 
 export async function handleStats(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname !== "/api/stats" || ctx.req.method !== "GET") return null;
@@ -12,9 +12,21 @@ export async function handleStats(ctx: RouteContext): Promise<Response | null> {
     const vaultStats = vault.stats();
     const tokenTracker = getTokenTracker();
 
+    // 内核收敛：调度器状态由唯一内核拥有者（DRE daemon）持有，经契约面 `src/dre/host.ts`
+    // 的客户端读取；本进程不再 import `dre/runtime/scheduler` 单例（那在本进程里恒为空）。
+    let activeTasks = 0;
+    const dreClient = getDreKernel();
+    if (dreClient) {
+      try {
+        const st = await dreClient.status<{ schedulerStatus?: { running?: number } }>();
+        activeTasks = st.status?.schedulerStatus?.running ?? 0;
+      } catch {
+        activeTasks = 0; // daemon 不可达 → 降级为 0，不阻断 stats
+      }
+    }
+
     const stats = {
-      // 审计 K-3（2026-08-24）：此前为 Math.random 伪造值；现接调度器真实运行数
-      activeTasks: scheduler.getStatus().running,
+      activeTasks,
       agents: 4,
       completed: vaultStats.totalNotes,
       tokensUsed: tokenTracker.getOverallStats().totalTokens,

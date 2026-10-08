@@ -4,6 +4,7 @@
 import { logger } from "../utils/logger.js";
 import { isSafeUrl } from "../utils/url-safety.js";
 import type { RouteContext } from "./types.js";
+import { getDreKernel } from "../dre/host.js";
 import { withTimeout } from "../utils/resilience.js";
 import { sanitizeSearchResultsForContext } from "../crawl/search-engines.js";
 import type { SearchEngineResult } from "../crawl/search-engines.js";
@@ -45,16 +46,12 @@ export async function withDreTimeout<T>(p: T | Promise<T>, ms: number = DRE_RETR
   }
 }
 
-let dreEngine: DeterministicRetrievalEngine | null = null;
-let dreEngineVault: unknown;
-
 /**
  * 收集 DRE 检索段：注入优先；默认引擎注入 knowledgeNetwork 单例（dre/runtime/knowledge-network.ts）
  * + vault 确定性索引作关键词腿（engine.search，非 vault.search，避免回退链递归）。任何异常静默返回 null。
  */
 async function collectDreSegment(
   query: string,
-  vault: RouteContext["vault"],
   limit: number,
 ): Promise<RetrievalResponse | null> {
   const dreLimit = Math.min(limit, 5);
@@ -62,15 +59,11 @@ async function collectDreSegment(
     if (dreRetrieverOverride !== undefined) {
       return await withDreTimeout(Promise.resolve().then(() => dreRetrieverOverride!(query, { limit: dreLimit })));
     }
-    let engine = dreEngine && dreEngineVault === vault ? dreEngine : null;
-    if (!engine) {
-      const { DeterministicRetrievalEngine: DreEngine } = await import("../dre/retrieval/deterministic-retrieval-engine.js");
-      const { knowledgeNetwork } = await import("../dre/runtime/knowledge-network.js");
-      engine = new DreEngine({ keywordSearcher: vault ? vault.getEngine() : null, graph: knowledgeNetwork });
-      dreEngine = engine;
-      dreEngineVault = vault;
-    }
-    return await withDreTimeout(Promise.resolve(engine.retrieve(query, { limit: dreLimit })));
+    // 内核收敛：检索在唯一内核拥有者（DRE daemon）内计算，经契约面 `src/dre/host.ts` 的客户端
+    // 调用（本进程不再 import 检索引擎/知识网络单例——那在本进程里是空的）。
+    const client = getDreKernel();
+    if (!client) return null;
+    return await withDreTimeout(client.retrieve<RetrievalResponse>(query, dreLimit));
   } catch {
     return null;
   }
@@ -95,7 +88,7 @@ export async function handleVaultSearch(ctx: RouteContext): Promise<Response | n
     const results = ctx.vault.search(query, { types, tags, paraCategory: para, limit });
     const payload: Record<string, unknown> = { query, strategy: "deterministic", results };
     // S1 缝①：响应并入 DRE 检索段（仅在有结果时包含；异常/超时/未启用静默跳过）
-    const dre = await collectDreSegment(query, ctx.vault, limit);
+    const dre = await collectDreSegment(query, limit);
     if (dre && dre.results.length > 0) {
       payload.dre = { results: dre.results, source: "dre-retrieval" };
     }

@@ -92,6 +92,16 @@ export class DreDaemonClient {
     return this.postJson("/dre/run", { input });
   }
 
+  /** DRE 确定性检索（知识图谱段）；失败返回 null（调用方静默降级） */
+  async retrieve<T = unknown>(query: string, limit?: number): Promise<T | null> {
+    try {
+      const res = await this.postJson<{ ok: boolean; result?: T }>("/dre/retrieve", { query, limit });
+      return res.ok ? (res.result ?? null) : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** 事件流（SSE）——返回上游 Response，调用方负责转发 body */
   async openEvents(): Promise<Response> {
     try {

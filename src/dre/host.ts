@@ -14,6 +14,8 @@ export interface DreHostClient {
   status<T = unknown>(): Promise<{ ok: boolean; status: T }>;
   cognitiveState<T = unknown>(): Promise<{ ok: boolean; state: T }>;
   run(input: string): Promise<{ ok: boolean; [k: string]: unknown }>;
+  /** DRE 检索段（确定性检索 + 知识图谱）：结果在唯一内核拥有者（daemon）内计算 */
+  retrieve<T = unknown>(query: string, limit?: number): Promise<T | null>;
   openEvents(): Promise<Response>;
 }
 

@@ -119,6 +119,28 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
         return json(res, res.ok ? 200 : 400);
       }
 
+      if (url.pathname === "/dre/retrieve" && req.method === "POST") {
+        let body: { query?: unknown; limit?: unknown } = {};
+        try {
+          body = (await req.json()) as typeof body;
+        } catch {
+          return json({ ok: false, error: "invalid JSON" }, 400);
+        }
+        const q = typeof body.query === "string" ? body.query : "";
+        if (!q.trim()) return json({ ok: false, error: "query required" }, 400);
+        const lim = typeof body.limit === "number" && body.limit > 0 ? Math.min(body.limit, 100) : 20;
+        try {
+          const { DeterministicRetrievalEngine } = await import("../dre/retrieval/deterministic-retrieval-engine.js");
+          const { knowledgeNetwork } = await import("../dre/runtime/knowledge-network.js");
+          const { getGlobalVault } = await import("../memory/vault-manager.js");
+          const vault = getGlobalVault();
+          const eng = new DeterministicRetrievalEngine({ keywordSearcher: vault.getEngine(), graph: knowledgeNetwork });
+          return json({ ok: true, result: eng.retrieve(q, { limit: lim }) });
+        } catch (err) {
+          return json({ ok: false, error: (err as Error).message }, 500);
+        }
+      }
+
       if (url.pathname === "/dre/tool" && req.method === "POST") {
         let body: { name?: unknown; args?: unknown } = {};
         try {

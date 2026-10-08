@@ -40,7 +40,8 @@ function importSpecifiers(src: string): string[] {
   const sf = ts.createSourceFile("probe.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const visit = (node: ts.Node): void => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
-      out.push(node.moduleSpecifier.text);
+      // `import type { … }` 运行时被擦除，不构成"更新打挂外围"的**运行期**耦合，故不计。
+      if (!node.importClause?.isTypeOnly) out.push(node.moduleSpecifier.text);
     } else if (
       ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword
       && node.arguments.length >= 1 && ts.isStringLiteral(node.arguments[0])

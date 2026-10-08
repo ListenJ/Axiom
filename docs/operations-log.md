@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-08 — refactor(arch): 存量耦合收敛（stats/search 改走契约面，基线 5→2）
+
+- **任务**：ADR-012 §7-1——收敛外围直连核心内部的存量耦合，并下调棘轮基线。分级 **T2/T3**。
+- **收敛（2 处）**：
+  1. `src/routes/stats.ts`：`activeTasks` 由本地 `dre/runtime/scheduler` 单例改经契约面 `getDreKernel().status()` 读 daemon 的 `schedulerStatus`——**同时修正正确性**（内核已迁 daemon，本进程单例恒为空）。
+  2. `src/routes/search.ts`：DRE 检索段由本地构造 `DeterministicRetrievalEngine`+`knowledgeNetwork` 单例改为经**新契约端点** `POST /dre/retrieve`（daemon 内用其唯一引擎/知识网络计算）。契约按 ADR §3.2 **MINOR** 升版 `1.0.0 → 1.1.0`，`capabilities` 增 `dre.retrieve`。
+- **门禁细化**：边界门跳过 `import type`（类型导入运行时擦除，不构成"更新打挂外围"的**运行期**耦合）——`agents/intent-enhancer`（仅 `type LLMClient`）随之不在册。
+- **棘轮下调**：`config/periphery-core-boundary-baseline.json` **5 文件/9 处 → 2 文件/5 处**（余 `mcp/server/dre-tools`（daemon 复用特殊模块）、`mcp/server/mind-tools`（synapse，待契约扩展））。
+- **验证**：`bunx tsc --noEmit` rc=0；合同/边界/检索/文档/架构/出网/env 门禁共 **116 pass / 0 fail**；`tests/unit/dre-daemon.test.ts` 增 `/dre/retrieve` 与 `client.retrieve` 断言；`arch:stats` 39 模块 / 450 文件 / 120,639 行已同步；ADR-012 在册数同步更新。
+- **不做项**：`dre-tools`（daemon 单向复用，非"外围绕核心"）、`mind-tools`（synapse 需专用契约）—— 留后续；未改判据/未放宽门。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — test(arch): 外围↔核心边界棘轮门（ADR-012 §7-3 落地）
 
 - **任务**：把 ADR-012 §3.1「外围不得直连核心内部、只经契约面访问」从约定变成**会说话的测试**（防核心更新打挂外围）。分级 **T2**。

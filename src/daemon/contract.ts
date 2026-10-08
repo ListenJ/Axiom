@@ -12,13 +12,14 @@
 import { APP_VERSION } from "../version.js";
 
 /** 契约面版本（新增端点/字段时 +MINOR；破坏性变更才 +MAJOR） */
-export const DRE_DAEMON_CONTRACT_VERSION = "1.0.0";
+export const DRE_DAEMON_CONTRACT_VERSION = "1.1.0";
 
 /** 本 daemon 提供的契约能力（机器可读的能力发现） */
 export const DRE_DAEMON_CAPABILITIES = [
   "port.knowledge",
   "dre.run",
   "dre.tool",
+  "dre.retrieve",
   "dre.status",
   "dre.cognitive_state",
   "events",

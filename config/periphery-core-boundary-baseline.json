@@ -19,12 +19,6 @@
   ],
   "sites": [
     {
-      "file": "src/agents/intent-enhancer.ts",
-      "imports": [
-        "src/dre/llm/client.ts"
-      ]
-    },
-    {
       "file": "src/mcp/server/dre-tools.ts",
       "imports": [
         "src/dre/constraint-injection.ts",
@@ -37,19 +31,6 @@
       "file": "src/mcp/server/mind-tools.ts",
       "imports": [
         "src/dre/synapse/index.ts"
-      ]
-    },
-    {
-      "file": "src/routes/search.ts",
-      "imports": [
-        "src/dre/retrieval/deterministic-retrieval-engine.ts",
-        "src/dre/runtime/knowledge-network.ts"
-      ]
-    },
-    {
-      "file": "src/routes/stats.ts",
-      "imports": [
-        "src/dre/runtime/scheduler.ts"
       ]
     }
   ]
