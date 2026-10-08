@@ -21,6 +21,8 @@ import { buildDreCompositionOverrides } from "./overrides.js";
 import { dreDaemonVersionInfo } from "./contract.js";
 import { ToolRegistry } from "../mcp/tool-registry.js";
 import { registerDreTools } from "../mcp/server/dre-tools.js";
+import { registerMindTools } from "../mcp/server/mind-tools.js";
+import { createSynapseEngine } from "../dre/synapse/index.js";
 import { LocalKnowledgePort } from "../dre/port/index.js";
 import { eventBus, type RuntimeEvent } from "../dre/runtime/event-bus.js";
 import { readInt, readString } from "../utils/env.js";
@@ -72,6 +74,9 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   // MCP 进程只注册薄转发（POST /dre/tool）。默认 guard = defaultToolGuard，安全不降级。
   const dreRegistry = new ToolRegistry();
   registerDreTools(dreRegistry, { engineProvider: async () => engine });
+  // 心智突触引擎同属核心：由唯一拥有者 daemon 持有（独立 DB），MCP 只转发。
+  const synapseEngine = createSynapseEngine(readString("AXIOM_SYNAPSE_DB", "./data/synapse.db"));
+  registerMindTools(dreRegistry, { engineProvider: () => synapseEngine });
   const dreToolHandlers = dreRegistry.buildHttpHandlers();
 
   const bindPort = opts?.port ?? readInt("AXIOM_DRE_DAEMON_PORT", 18790);

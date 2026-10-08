@@ -19,7 +19,7 @@ const mcp = new McpServer({ name: "Axiom DRE MCP Server", version: "0.1.0" });
 const registry = new ToolRegistry();
 // 注册 DRE 全部工具（dre_*/cognitive_*/reasoning_*/constraint_*/actor_*/mental_model_* 等）与突触记忆工具（mind_synapse_*）
 registerDreTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
-registerMindTools(registry);
+registerMindTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
 registry.registerWithMcp(mcp);
 
 // 数据目录：默认当前工作目录（插件会以可写 data 目录作为 cwd 启动）；

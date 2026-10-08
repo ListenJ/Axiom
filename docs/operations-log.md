@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — refactor(arch): mind-tools 收敛到 daemon（基线 2→1）
+
+- **任务**：继续 ADR-012 §7-1 存量收敛——把 `src/mcp/server/mind-tools.ts` 对核心 `src/dre/synapse` 的运行时耦合收敛到契约面。分级 **T2/T3**。
+- **收敛**：突触（synapse）引擎属核心，改由**唯一内核拥有者 daemon 持有**（其独立 DB `AXIOM_SYNAPSE_DB`）；`mind-tools.ts` 只保留**工具规格**——
+  - daemon 侧：`registerMindTools(dreRegistry, { engineProvider: () => synapseEngine })`，注册进 daemon 同一工具注册表，故现有 `POST /dre/tool` 即覆盖 `mind_synapse_*`（无需新端点）；
+  - MCP 侧：`registerMindTools(registry, { forward: invokeRemoteDreTool })` 薄转发。
+  - 结果：`mind-tools.ts` 对 `src/dre/synapse` 仅 **type-only** 引用（运行时零耦合），默认本地引擎创建从外围移除。
+- **棘轮下调**：`config/periphery-core-boundary-baseline.json` **2 文件/5 处 → 1 文件/4 处**（仅余 `src/mcp/server/dre-tools.ts`——daemon 单向复用的「DRE 工具面」已知特例，性质不同于普通外围依赖）。
+- **验证**：`tests/unit/dre-daemon.test.ts` 增 `mind_synapse_create → mind_synapse_verify` 经 `/dre/tool` 的端到端闭环（18/18）；`bunx tsc --noEmit` rc=0；契约/边界/文档/架构重生成等门禁 **88 pass / 0 fail**；D10 能力声明重生成与在册**逐字一致**；`arch:stats` 39 模块 / 450 文件 / 120,671 行已同步。
+- **不做项**：未为 synapse 单开端点（复用 `/dre/tool`）；未动 `dre-tools`（特例，留口径澄清）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — refactor(arch): 存量耦合收敛（stats/search 改走契约面，基线 5→2）
 
 - **任务**：ADR-012 §7-1——收敛外围直连核心内部的存量耦合，并下调棘轮基线。分级 **T2/T3**。

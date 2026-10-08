@@ -1,5 +1,5 @@
 {
-  "comment": "ADR-012 §3.1 存量在册：外围组件直连『核心内部』的既有耦合。只拦增量（新增即红）；收敛后须同步下调（陈旧在册项也红）。",
+  "comment": "ADR-012 §3.1 存量在册：外围组件直连『核心内部』的既有耦合。只拦增量（新增即红）；收敛后须同步下调（陈旧在册项也红）。注：src/mcp/server/dre-tools.ts 是 daemon 单向复用的『DRE 工具面』模块（内核拥有者执行工具），性质与普通外围不同，保留在册为已知特例。",
   "allowedCoreSurfaces": [
     "src/dre/port/",
     "src/dre/host.ts"
@@ -25,12 +25,6 @@
         "src/dre/factory.ts",
         "src/dre/index.ts",
         "src/dre/system-resource.ts"
-      ]
-    },
-    {
-      "file": "src/mcp/server/mind-tools.ts",
-      "imports": [
-        "src/dre/synapse/index.ts"
       ]
     }
   ]

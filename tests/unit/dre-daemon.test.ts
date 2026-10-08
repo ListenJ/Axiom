@@ -99,6 +99,27 @@ describe("DRE Daemon 集成", () => {
     expect(body.ok).toBe(true);
   });
 
+  test("POST /dre/tool 覆盖 mind_synapse_*（daemon 持有 synapse 引擎）", async () => {
+    const create = await fetch(`${base}/dre/tool`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "mind_synapse_create", args: { sourceId: "concept:a", targetId: "skill:b", weight: 0.5 } }),
+    });
+    expect(create.status).toBe(200);
+    const cb = await create.json() as { ok: boolean; result?: { id?: string } };
+    expect(cb.ok).toBe(true);
+    expect(cb.result?.id).toBeTruthy();
+    const vid = cb.result!.id!;
+    const verify = await fetch(`${base}/dre/tool`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "mind_synapse_verify", args: { synapseId: vid } }),
+    });
+    const vb = await verify.json() as { ok: boolean; result?: { valid?: boolean } };
+    expect(vb.ok).toBe(true);
+    expect(vb.result?.valid).toBe(true);
+  });
+
   test("POST /dre/retrieve 在 daemon 内跑确定性检索（契约面 /dre/retrieve）", async () => {
     const res = await fetch(`${base}/dre/retrieve`, {
       method: "POST",

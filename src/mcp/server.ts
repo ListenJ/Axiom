@@ -362,7 +362,7 @@ registerNativeTools(registry);
 
 // ===== DRE 工具 (extracted to server/dre-tools.ts) =====
 registerDreTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
-registerMindTools(registry);
+registerMindTools(registry, { forward: (name, args) => invokeRemoteDreTool(name, args) });
 registerBrowserTools(registry);
 registerDocumentTools(registry);
 

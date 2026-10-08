@@ -1,33 +1,52 @@
 /**
  * 心智模块 MCP 工具 — mind_synapse_*
  *
- * 将神经突触心智模块（创建/激活/扩散/建议/校验/追溯）暴露为 MCP 工具，
- * 供外部 Agent、skill、插件通过工具注册表调用（微内核插件化）。
+ * 将神经突触心智模块（创建/激活/扩散/建议/校验/追溯）暴露为 MCP 工具。
+ *
+ * 内核收敛（ADR-012）：突触引擎属**核心内部**，由唯一内核拥有者（DRE daemon）持有；
+ * 本模块只保留工具**规格**，运行模式二选一：
+ *   - daemon：`engineProvider` 注入其唯一 synapse 引擎（本地执行）；
+ *   - MCP：`forward` 把 `{name,args}` 转发到 daemon（薄转发）。
+ * 故本文件对 `src/dre/synapse` 仅作 **type-only** 引用（运行时不耦合）。
  */
 import { z } from "zod";
-import type { ToolRegistry } from "../tool-registry.js";
-import { createSynapseEngine, type SynapseEngine, type SynapseNodeType } from "../../dre/synapse/index.js";
-import { readString } from "../../utils/env.js";
+import type { ToolRegistry, ToolDef } from "../tool-registry.js";
+import type { SynapseEngine, SynapseNodeType } from "../../dre/synapse/index.js";
 import { logger } from "../../utils/logger.js";
 
-const SYNAPSE_DB = readString("AXIOM_SYNAPSE_DB", "./data/synapse.db");
-
-let engine: SynapseEngine | null = null;
-
+/** 注入式引擎源：daemon 用它把自己的唯一 synapse 引擎交给处理器 */
+let injectedEngine: (() => SynapseEngine) | null = null;
+export function setMindEngineProvider(p: (() => SynapseEngine) | null): void {
+  injectedEngine = p;
+}
 function getEngine(): SynapseEngine {
-  if (!engine) engine = createSynapseEngine(SYNAPSE_DB);
-  return engine;
+  if (!injectedEngine) {
+    throw new Error("mind-tools: 引擎未装配（daemon 应注入 engineProvider；MCP 应走 forward）");
+  }
+  return injectedEngine();
 }
 
-/** 测试/进程级重置 */
-export function resetMindEngine(): void {
-  engine = null;
+export interface MindToolRegistrationOptions {
+  /** 本地执行：把唯一 synapse 引擎交给处理器（daemon 用） */
+  engineProvider?: () => SynapseEngine;
+  /** 远程转发：把 {name,args} 交给唯一内核拥有者（MCP 进程用） */
+  forward?: (name: string, args: Record<string, unknown>) => Promise<unknown>;
 }
 
 const nodeType = z.enum(["concept", "skill", "memory", "scene", "goal"]);
 
-export function registerMindTools(registry: ToolRegistry): void {
-  registry.add({
+export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistrationOptions): void {
+  // 保留字面量注册形态（供 D10 能力声明抽取器识别）；再按运行模式注册。
+  const collector = {
+    specs: [] as ToolDef[],
+    add(t: ToolDef) {
+      this.specs.push(t);
+      return this;
+    },
+  };
+  if (opts?.engineProvider) injectedEngine = opts.engineProvider;
+
+  collector.add({
     name: "mind_synapse_create",
     capability: ["db.write"],
     description: "创建神经突触（源节点 → 目标节点的加权关联），带可校验哈希",
@@ -48,7 +67,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_synapse_activate",
     capability: ["db.write"],
     description: "激活某节点的全部出边突触（Hebbian 增强 + 全局轻微衰减）",
@@ -62,7 +81,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_synapse_spread",
     capability: ["db.write"],
     description: "扩散激活：从种子节点沿突触 BFS，强度随跳数衰减（扩散/独立思考）",
@@ -77,7 +96,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_synapse_suggest",
     // 建议本身是排序，但每次命中会落一条 suggest trace（src/dre/synapse/engine.ts:225）
     capability: ["db.write"],
@@ -93,7 +112,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_synapse_verify",
     capability: ["internal"],
     description: "校验突触数据完整性（重算哈希比对 + 验证链完整性），返回可追溯结论",
@@ -104,7 +123,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_synapse_trace",
     capability: ["internal"],
     description: "追溯突触的完整验证链（创建/激活/扩散/衰减/建议记录）",
@@ -115,7 +134,7 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  registry.add({
+  collector.add({
     name: "mind_suggest",
     // 无 recordScene 时也必须 db.write：advisor.suggest → suggestNextSteps 落 suggest trace
     capability: ["db.write"],
@@ -141,5 +160,13 @@ export function registerMindTools(registry: ToolRegistry): void {
     },
   });
 
-  logger.info("[MindTools] registered mind_synapse_* tools (db=" + SYNAPSE_DB + ")");
+  for (const spec of collector.specs) {
+    registry.add(
+      opts?.forward
+        ? { ...spec, handler: (args: Record<string, unknown>) => opts.forward!(spec.name, args) }
+        : spec,
+    );
+  }
+
+  logger.info("[MindTools] registered mind_synapse_* tools (" + (opts?.forward ? "forward→daemon" : "local engine") + ")");
 }
