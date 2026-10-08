@@ -27,7 +27,7 @@
 - **fail-closed 规则（registerDynamicProvider）**：① `placement="kernel-proposal"` → 拒（内核不自动注册）；② 未声明 `sideEffects` → 拒；③ 命中高危能力且未 `authorized` → 拒；④ 含高危能力仍 `in-process` → 拒（须 worker/sandbox）。拒绝一律抛 `CapabilityRegistrationError`。
 - **验证**：`tests/unit/capability-self-extension.test.ts` 7 条断言全绿（外围可热加 / 内核不自动注册 / 未声明拒 / 高危未授权拒 / 高危未隔离拒 / 授权+sandbox 通过 / 提案不落核）；risk 相关 4 文件 **98 pass / 0 fail**（单源化无回归）；doc-contract+D2+arch-integrity **77 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 451 文件 / 120,832 行已同步。
 - **不做项**：worker/sandbox **执行器**尚未接线（当前只校验隔离级别声明，运行期强制隔离列入 ADR-014 §7-2）；未接 `Observe→Gap` 自动报告（§7-1）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`bde8bd2d`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — docs(adr)+test(arch): 内核/外围分域准则（ADR-013，性能取向入核）
 
