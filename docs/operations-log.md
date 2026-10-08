@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-08 — chore(gates): 登记 daemon 出网点 + env 模板（Step 2a 配套）
+
+- **任务**：Step 2a（`07a01396`）落地后全量门禁暴露两处登记缺口，按门禁要求补齐。分级 **T1**。
+- **改动**：
+  1. `config/outbound-fetch-baseline.json`：登记 `src/daemon/client.ts`（direct=2，urlSource=env，仿 laya-http；**不**入"受外部影响主机"三分名单，因主机由 operator 经 `AXIOM_DRE_DAEMON_URL` 固定）；totals 同步 22→23 文件 / 26→28 直接调用；
+  2. `tests/outbound-fetch-ratchet.test.ts`：来源分布 env 6→7 同步；
+  3. `.env.example`：登记 `AXIOM_DRE_DAEMON_{PORT,URL,TOKEN}`。
+- **验证**：`bun test tests/outbound-fetch-ratchet.test.ts tests/env-example-completeness.test.ts` 全绿；**串行全量 `bun test --timeout 15000 ./tests` = 4673 pass / 67 skip / 0 fail**；`bunx tsc --noEmit` rc=0。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-08 — feat(daemon): DRE Daemon 落地为唯一内核拥有者（内核收敛 Step 2a）
 
 - **任务**：用户裁定唯一 Kernel 拥有者 = **DRE daemon**。本步落地 daemon 进程与客户端（**加法式**，尚不切换调用方，不破坏现有路径）。分级 **T3**。

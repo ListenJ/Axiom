@@ -13,8 +13,8 @@
     "$note": "AST 计数，不用 grep。grep 版口径把 Bun.serve 的 fetch 处理器、方法声明、注释文本都算成出网点（实测 26 文件），AST 版是 23 文件。别名形态必须计入引用：只扫 fetch( 会漏掉整个 frontend-review.ts。"
   },
   "totals": {
-    "files": 22,
-    "directCalls": 26,
+    "files": 23,
+    "directCalls": 28,
     "globalThisFetchRefs": 4
   },
   "urlSourceValues": [
@@ -294,6 +294,17 @@
       "reachable": true,
       "endpoint": "own-loopback",
       "note": "EDGE_EMBED_URL ?? EDGE_LLM_URL ?? 内置回环默认端点；proxy-fetch.ts 明文点名它不经本模块。给它套默认拒绝的守卫会把它自己的默认配置判死（实测），故必须与 allow-list 同步做"
+    },
+    {
+      "file": "src/daemon/client.ts",
+      "direct": 2,
+      "aliased": 0,
+      "urlSource": "env",
+      "guard": "none",
+      "redirectPerHop": false,
+      "reachable": true,
+      "endpoint": "intranet-service",
+      "note": "DRE daemon 客户端；主机由 operator 经 AXIOM_DRE_DAEMON_URL 配置（默认 loopback），path 固定（/api/port、/dre/run、/events 等）"
     }
   ]
 }
