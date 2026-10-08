@@ -22,7 +22,7 @@
 - **任务**：ADR-014 的 `proposeCapability()` 在 `src/dre/runtime/capability-registry.ts` 新增 2 行 `Date.now()`，触发 G-04 确定性披露门（`tests/unit/determinism-disclosure.test.ts`）的普查数字漂移。分级 **T1**。
 - **改动**：`docs/LIMITATIONS.md` §5.2 表 `Date.now()` 命中处数 179→**181**、合计 256→**258**、§5.2.1 行 `capability-registry` 的 `Date.now ×2→×4` 与行号；`tests/unit/determinism-disclosure.test.ts` 期望值同步（179→181、256→258、文本断言）。
 - **验证**：`bun test tests/unit/determinism-disclosure.test.ts` = 5 pass / 0 fail。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`179d7b84`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(dre): 运行时自扩展能力 + fail-closed 门（ADR-014）
 
