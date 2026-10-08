@@ -23,7 +23,7 @@
 - **定位**：该用例 500 次无缓存检索 + GraphRAG depth 3，**未声明显式超时**，实测耗时在 **4.95s～5.28s** 之间抖动（连跑 3 次：1 过 2 红），正好压在 bun 默认 5s 上——属**负载敏感的既有抖动**，与本次改动无关（该用例只用 `DeterministicRetrievalEngine`/`KnowledgeWiki`，`git diff` 实测未触碰 `src/dre/retrieval`、`src/knowledge`）。
 - **改动**：给 5 个重负载 `Layer…` 用例补显式 `30_000` 超时（`Layer0 only` / `0+1+2` / `0+1+2+3` / `0-4` / `0-5`）；不改判据、不改阈值。
 - **验证**：`bun test tests/stress/high-intensity-load.test.ts` = **22 pass / 0 fail**（连跑稳定）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`8d6f4fb8`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — feat(dre): MCP DRE 工具切到 daemon（内核收敛 Step 2b-ii，内核数→1）
 
@@ -36,7 +36,7 @@
 - **回归**：`tests/unit/dre-daemon.test.ts` 增 `/dre/tool` 端到端（执行 `persona_list` 命中 daemon 引擎）+ 未知工具 404；`tests/unit/dre-tools-behavior.test.ts` 增 forward 模式委托断言。
 - **坑（已修）**：`collector` 的注释里字面写了 `.add({`，被 D10 抽取器的 `indexOf(".add({")` 当成注册点，导致重生成多一行 `dre_constraint_inject`（186→187）——改写注释后重生成与在册**逐字一致**。
 - **验证**：`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25；`doc-contract` 35/0；`outbound-fetch-ratchet`（登记新出网点，env 8）；`dre-daemon`+`dre-tools-behavior` 20/20；`arch:stats` 39 模块 / 449 文件 / 120,553 行已同步。**至此生产内核数 = 1（仅 DRE daemon）**。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`64dffbc3`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — test(dre): DRE MCP 工具行为安全网（Step 2b-ii 前置）
 
