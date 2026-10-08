@@ -27,7 +27,7 @@
   4. 新增 `deploy/systemd/axiom-dre@.service`（`systemd-analyze verify` 通过）。
 - **验证**：`tests/unit/dre-daemon.test.ts` = **9 pass / 0 fail**（daemon 端到端：health/status/cognitive-state/port write+read/run/400 + 客户端四项）；`bunx tsc --noEmit` rc=0；`architecture-integrity` 25/25（新增 src 模块未触 L1 依赖违规）；`arch:stats` 38→**39 模块** / 447 文件 / 120,478 行已同步。
 - **不做项（Step 2b，待做）**：本步**未**切换 `main.ts` / `routes/dre.ts` / `routes/pipeline.ts` / `dre-tools.ts` 到客户端——加法先行，切换单独立契约并回归 e2e/冒烟。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`07a01396`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-08 — refactor(dre): 抽 createDreKernel 工厂（内核收敛 Step 1）
 
