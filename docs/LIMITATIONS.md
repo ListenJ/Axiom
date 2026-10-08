@@ -124,13 +124,13 @@
 
 | 不确定源 | 命中文件数 | 命中处数（= 命中行数） |
 | --- | --- | --- |
-| `Date.now()` | 34 | 179 |
+| `Date.now()` | 34 | 181 |
 | `performance.now()` / `process.hrtime` | 5 | 39 |
 | `Math.random()` | 10 | 20 |
 | `randomUUID()` | 3 | 7 |
 | `localeCompare()` | 5 | 6 |
 | `new Date()` | 3 | 5 |
-| **合计** | **36 个文件（并集）** | **256 处** |
+| **合计** | **36 个文件（并集）** | **258 处** |
 
 CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否覆盖全部命中文件（防止再次漂移）。
 
@@ -156,7 +156,7 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 | `src/dre/retrieval/knowledge-wiki.ts` | Date.now ×1 | Date.now@180 |
 | `src/dre/retrieval/observability.ts` | Date.now ×2 | Date.now@158,169 |
 | `src/dre/runtime/atom-engine.ts` | Date.now ×5 / randomUUID ×1 / localeCompare ×1 | Date.now@90,91,151,211,218 randomUUID@90 localeCompare@286 |
-| `src/dre/runtime/capability-registry.ts` | Date.now ×2 | Date.now@108,189 |
+| `src/dre/runtime/capability-registry.ts` | Date.now ×4 | Date.now@142,203,207,287 |
 | `src/dre/runtime/context-engine.ts` | Date.now ×4 | Date.now@171,177,240,362 |
 | `src/dre/runtime/event-bus.ts` | Math.random ×2 / Date.now ×3 | Math.random@105,112 Date.now@51,105,112 |
 | `src/dre/runtime/knowledge-network.ts` | Math.random ×5 / Date.now ×22 / localeCompare ×1 | Math.random@164,338,368,397,605 Date.now@164,165,243,251,257,279… localeCompare@491 |
@@ -255,7 +255,7 @@ CI 侧由 `tests/unit/determinism-disclosure.test.ts` 持续校验本节是否�
 
 ### 5.5 未覆盖项（如实登记）
 
-1. **本节分类按模块与代码证据给出，未对全部 253 处逐点判定**其是否进入输出。已逐点核实的仅 §5.3 列出的那些；
+1. **本节分类按模块与代码证据给出，未对全部 258 处逐点判定**其是否进入输出。已逐点核实的仅 §5.3 列出的那些；
    其余（如 `constraint/solver.ts`、`synapse/*`、`kernel.ts`、`persona/loader.ts`、`context-engine.ts` 等的时间戳）
    仅登记命中，**未判定**其是否影响确定性输出。按 5.4 的口径，此类未判定项**一律不得被引用为"确定性"的正面证据**。
 2. **N≥5 次跨进程实测 —— 已补做（2026-09-18），但覆盖面有限，结论不得外推。**

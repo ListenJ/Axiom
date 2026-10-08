@@ -17,6 +17,13 @@
 
 ---
 
+## 2026-10-09 — chore(docs): 同步不确定源普查数字（ADR-014 副作用）
+
+- **任务**：ADR-014 的 `proposeCapability()` 在 `src/dre/runtime/capability-registry.ts` 新增 2 行 `Date.now()`，触发 G-04 确定性披露门（`tests/unit/determinism-disclosure.test.ts`）的普查数字漂移。分级 **T1**。
+- **改动**：`docs/LIMITATIONS.md` §5.2 表 `Date.now()` 命中处数 179→**181**、合计 256→**258**、§5.2.1 行 `capability-registry` 的 `Date.now ×2→×4` 与行号；`tests/unit/determinism-disclosure.test.ts` 期望值同步（179→181、256→258、文本断言）。
+- **验证**：`bun test tests/unit/determinism-disclosure.test.ts` = 5 pass / 0 fail。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(dre): 运行时自扩展能力 + fail-closed 门（ADR-014）
 
 - **任务**：Runtime 需按场景自加功能（自进化，**不依赖 MCP/skill**），并**对高危/未授权操作 fail-closed**。落为 ADR-014 + 能力注册表扩展 + 安全门。分级 **T2/T3**。
