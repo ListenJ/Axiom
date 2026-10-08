@@ -65,10 +65,13 @@ import { registerMindTools } from "./server/mind-tools.js";
 import { registerBrowserTools } from "./server/browser-tools.js";
 import { registerDocumentTools } from "./server/document-tools.js";
 import { enableKnowledgeEmbeddingIndex } from "../services/knowledge-embedding-index.js";
+import { applySqliteConcurrencyPragmas } from "../utils/sqlite-pragmas.js";
 
 
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
+// 多进程写基线：MCP 与主服务可能同时写 agent.db，须 busy_timeout 防 SQLITE_BUSY（见 src/utils/sqlite-pragmas.ts）
+applySqliteConcurrencyPragmas(db);
 // 写入侧语义索引装配（2026-09-21）：未授权/无路由时零成本；详见 services/knowledge-embedding-index.ts
 enableKnowledgeEmbeddingIndex(db);
 

@@ -14,6 +14,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { applySqliteConcurrencyPragmas } from "../utils/sqlite-pragmas.js";
 import fs from "fs";
 import path from "path";
 import { readString } from "../utils/env.js";
@@ -188,8 +189,7 @@ export class SQLiteMemory {
       this.dbPath = dbPath || resolveSqliteMemoryDbPath();
       this.db = new Database(this.dbPath);
     }
-    this.db.run("PRAGMA journal_mode = WAL");
-    this.db.run("PRAGMA synchronous = NORMAL");
+    applySqliteConcurrencyPragmas(this.db);
     this.initSchema();
     // P1-S2 层2：存量 unicode61 库升级为 trigram（新库由 initSchema 直接建 trigram，此处幂等跳过）
     const migration = migrateMemoryFtsToTrigram(this.db);

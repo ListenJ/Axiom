@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { applySqliteConcurrencyPragmas } from "../utils/sqlite-pragmas.js";
 import { createHash } from "node:crypto";
 import fs from "fs";
 import path from "path";
@@ -19,8 +20,7 @@ export class KnowledgeStore {
       const resolvedPath = dbPath || readString("KNOWLEDGE_DB_PATH") || readString("DATABASE_PATH", "./data/agent.db");
       this.db = new Database(resolvedPath);
     }
-    this.db.run("PRAGMA journal_mode = WAL");
-    this.db.run("PRAGMA synchronous = NORMAL");
+    applySqliteConcurrencyPragmas(this.db);
     this.initSchema();
   }
 

@@ -9,6 +9,7 @@
  */
 
 import { Database } from "bun:sqlite";
+import { applySqliteConcurrencyPragmas } from "../../utils/sqlite-pragmas.js";
 import { createHash } from "crypto";
 import type { IBackend, Inode } from "../vfs.js";
 import { NodeType } from "../vfs.js";
@@ -24,8 +25,7 @@ export class SqliteBackend implements IBackend {
   }
 
   private initialize(): void {
-    this.db.exec("PRAGMA journal_mode=WAL;");
-    this.db.exec("PRAGMA synchronous=NORMAL;");
+    applySqliteConcurrencyPragmas(this.db);
 
     // 主 KV 表
     this.db.exec(`
