@@ -10,6 +10,10 @@
  *   - 读取优化管道 (分层缓存 + 字段投影)
  */
 import { Database } from "bun:sqlite";
+import { installCodeIndexPort } from "./codeindex/codegraph-port.js";
+
+// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）
+installCodeIndexPort();
 import type { ServerWebSocket } from "bun";
 import { APP_VERSION } from "./version.js";
 import { VaultManager } from "./memory/vault-manager.js";

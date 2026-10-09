@@ -6,6 +6,10 @@
  * 快捷键: Tab 切换 | F1 诊断 | F2 配置 | F3 性能 | F4 Native | Ctrl+C 退出
  */
 import blessed from "blessed";
+import { installCodeIndexPort } from "../codeindex/codegraph-port.js";
+
+// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）
+installCodeIndexPort();
 import { logger } from "../utils/logger.js";
 import { router, toolPool, type ToolRole } from "../router/model-router.js";
 import { orchestrator } from "../router/task-orchestrator.js";

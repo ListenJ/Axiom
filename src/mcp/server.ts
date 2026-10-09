@@ -5,6 +5,10 @@
  * 所有记忆操作通过 Obsidian Vault 文件系统进行，确保所有 Agent 共享同一记忆库。
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { installCodeIndexPort } from "../codeindex/codegraph-port.js";
+
+// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）
+installCodeIndexPort();
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Database } from "bun:sqlite";

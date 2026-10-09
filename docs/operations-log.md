@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-10 — refactor(arch): 收敛内核→外围 #3（codegraph-index→codeindex，基线→1）
+
+- **任务**：完成 ADR-013 §7-1 最后一处——`memory`（内核）对 `codeindex`（外围）的直接依赖按接缝切开。分级 **T2/T3**。
+- **改动**：
+  1. `src/memory/codegraph-index.ts`：去掉 `import ... from "../codeindex/local-index.js"`，声明 **`CodeIndexPort`** 接口（+ 结构类型 `CodeSymbolLike`/`LocalSearchResultLike`）与 `setCodeIndexPort()`；`ensureLocalCodeIndex`/`searchSymbols`/`getCallers`/`getCallees` 改为经端口取数，**未注入即跳过本地索引加速**（回退外部 codegraph，行为不变路径）。
+  2. 新增 `src/codeindex/codegraph-port.ts`：用真实 codeindex 实现构造端口 + `installCodeIndexPort()`（**外围→内核**方向，符合 ADR-013）。
+  3. 组合根装配：`src/main.ts`、`src/cli.ts`、`src/mcp/server.ts`、`src/tui/app.ts` 启动时 `installCodeIndexPort()`。
+- **棘轮清零（到已知例外）**：`config/kernel-periphery-baseline.json` **2 → 1**（仅剩 `dre/pipeline/search-port→crawl`，ADR-013 §6 已登记例外）。
+- **验证（按用户指令：先落设计，测试随后）**：`bunx tsc --noEmit` rc=0；内核↔外围门 + 架构完整性 + 外围↔核心门 + doc-contract + docs-consistency + determinism + timer-unref + 出网 + env = **101 pass / 0 fail**；`arch:stats` 40 模块 / 454 文件 / 121,339 行已同步。
+- **未做**：全量 `bun test` 未在本次跑（用户要求设计落地后再测）；入口装配仅覆盖 4 个长驻入口，库/测试直用需自行 `installCodeIndexPort()`。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — refactor(arch): 收敛内核→外围 #2（dynamic-model-assigner→eval）
 
 - **任务**：ADR-013 §7-1 第 2 处——把 router（内核）对 eval（外围）的直接依赖按接缝切开。分级 **T2**。

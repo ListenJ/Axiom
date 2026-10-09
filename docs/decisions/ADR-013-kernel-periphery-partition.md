@@ -63,6 +63,6 @@
 
 ## 7. 待办（后续增量）
 
-1. 收敛 §6 的 3 处"内核→外围"（把热段入核、冷段外移），逐条把棘轮基线降到 1（仅留 search-port 例外）。
+1. ✅ **已完成（2026-10-10）**：§6 的 3 处"内核→外围"已全部按接缝切开——① `router/code-retrieval-router→pi-agent`（`CodeContextRetriever` 注入）；② `router/dynamic-model-assigner→eval`（`ModelEvalProvider` 注入 + 结构类型）；③ `memory/codegraph-index→codeindex`（`CodeIndexPort` 注入 + 组合根 `installCodeIndexPort()`）。棘轮基线 **4 → 1**（仅留 `dre/pipeline/search-port→crawl` 已知例外）。
 2. 把"内核集/外围集"的**成员变更**纳入本 ADR 修订（新增模块须归类）。
 3. 在 `GET /version` 的 `runtime` 块里暴露**内核就绪度**（供外围判断热路径可用性），与 ADR-012 §7-2 一致。

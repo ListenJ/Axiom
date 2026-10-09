@@ -1,5 +1,5 @@
 {
-  "comment": "ADR-013 内核/外围分域：**内核不得依赖外围**（依赖倒置）。存量在册、只拦增量；收敛后须同步下调（陈旧在册项也红）。",
+  "comment": "ADR-013 内核/外围分域：**内核不得依赖外围**（依赖倒置）。2026-10-10 收敛到仅剩 **1 处已知例外**（dre/pipeline/search-port → crawl，L1 门已豁免的搜索端口）；此后任何新增内核→外围依赖都会即红。",
   "kernelDirs": [
     "dre",
     "memory",
@@ -25,12 +25,6 @@
       "file": "src/dre/pipeline/search-port.ts",
       "imports": [
         "src/crawl/search-engines.ts"
-      ]
-    },
-    {
-      "file": "src/memory/codegraph-index.ts",
-      "imports": [
-        "src/codeindex/local-index.ts"
       ]
     }
   ]

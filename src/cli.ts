@@ -5,6 +5,10 @@
  * 用法: bun run src/cli.ts <command> [options]
  */
 import { Database } from "bun:sqlite";
+import { installCodeIndexPort } from "./codeindex/codegraph-port.js";
+
+// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）
+installCodeIndexPort();
 import { searchAggregator } from "./crawl/search-engines.js";
 import { logger } from "./utils/logger.js";
 import { readString } from "./utils/env.js";

@@ -17,7 +17,41 @@ import path from "path";
 import { readFileSync, statSync } from "fs";
 import { logger } from "../utils/logger.js";
 import { Cache } from "../utils/cache.js";
-import { tryLocal, searchSymbolsLocal, getCallersLocal, getCalleesLocal, isProjectIndexed, indexProject, type LocalSearchResult } from "../codeindex/local-index.js";
+/**
+ * 代码索引**端口**（ADR-013 依赖倒置）：本模块（kernel/memory）只依赖接口，具体实现
+ * （`src/codeindex` 的本地 AST 索引）由**组合根注入**（`installCodeIndexPort()`）。
+ * 未注入时，"本地索引加速"整段优雅跳过（回退到外部 codegraph 二进制），无内核→外围依赖。
+ */
+export interface CodeSymbolLike {
+  id: number | string;
+  kind: string;
+  name: string;
+  qualifiedName: string;
+  filePath: string;
+  language: string;
+  startLine: number;
+  endLine: number;
+  signature?: string;
+}
+export interface LocalSearchResultLike {
+  node: CodeSymbolLike;
+  score: number;
+}
+export interface CodeIndexPort {
+  isIndexed(projectName: string): boolean;
+  index(projectPath: string, projectName: string): void;
+  searchSymbols(projectPath: string, projectName: string, query: string, opts: { kind?: string; limit?: number }): LocalSearchResultLike[] | null;
+  getCallers(projectPath: string, projectName: string, symbolName: string, opts: { limit?: number }): LocalSearchResultLike[] | null;
+  getCallees(projectPath: string, projectName: string, symbolName: string, opts: { limit?: number }): LocalSearchResultLike[] | null;
+}
+let _codeIndexPort: CodeIndexPort | null = null;
+/** 注入代码索引实现（组合根调用）；null = 未注入（跳过本地索引加速）。 */
+export function setCodeIndexPort(port: CodeIndexPort | null): void {
+  _codeIndexPort = port;
+}
+export function getCodeIndexPort(): CodeIndexPort | null {
+  return _codeIndexPort;
+}
 import { TIMEOUTS } from "../constants/timeouts.js";
 
 // ═══════════════════════════════════════════════════════════════
@@ -62,7 +96,7 @@ export function invalidateCodegraphCache(): void {
 
 
 /** 本地结果 → codegraph 兼容形状（id 转字符串）。 */
-function toCodeGraphResult(local: LocalSearchResult[]): CodeGraphSearchResult[] {
+function toCodeGraphResult(local: LocalSearchResultLike[]): CodeGraphSearchResult[] {
   return local.map(({ node, score }) => ({
     node: {
       id: String(node.id), kind: node.kind, name: node.name, qualifiedName: node.qualifiedName,
@@ -79,10 +113,12 @@ let codegraphBin: string | null = null;
  * 本地索引建立后，searchSymbols/getCallers/getCallees 自动本地优先。
  */
 export function ensureLocalCodeIndex(projectPath: string): boolean {
+  const port = _codeIndexPort;
+  if (!port) return false; // 未注入代码索引端口：跳过本地索引
   const name = path.basename(projectPath);
-  if (isProjectIndexed(name)) return true;
+  if (port.isIndexed(name)) return true;
   try {
-    indexProject(projectPath, name);
+    port.index(projectPath, name);
     return true;
   } catch (e) {
     logger.warn("[CodeGraph] Local code index failed, using codegraph fallback", { error: (e as Error).message });
@@ -261,8 +297,7 @@ export async function searchSymbols(
   return cachedQuery("searchSymbols", { query, ...opts }, async () => {
     // 本地优先：TS/JS 项目已索引时直接查 SQLite，避免 spawn codegraph
     if (opts?.projectPath) {
-      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
-        searchSymbolsLocal(query, path.basename(opts.projectPath!), { kind: opts?.kind, limit: opts?.limit }));
+      const local = _codeIndexPort?.searchSymbols(opts.projectPath, path.basename(opts.projectPath), query, { kind: opts?.kind, limit: opts?.limit });
       if (local) return toCodeGraphResult(local);
     }
     const args = ["query", query, "--json"];
@@ -291,8 +326,7 @@ export async function getCallers(
   return cachedQuery("getCallers", { symbolName, ...opts }, async () => {
     // 本地优先
     if (opts?.projectPath) {
-      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
-        getCallersLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      const local = _codeIndexPort?.getCallers(opts.projectPath, path.basename(opts.projectPath), symbolName, { limit: opts?.limit });
       if (local) return toCodeGraphResult(local);
     }
     const args = ["callers", symbolName, "--json"];
@@ -312,8 +346,7 @@ export async function getCallees(
   return cachedQuery("getCallees", { symbolName, ...opts }, async () => {
     // 本地优先
     if (opts?.projectPath) {
-      const local = tryLocal(opts.projectPath, path.basename(opts.projectPath), () =>
-        getCalleesLocal(symbolName, path.basename(opts.projectPath!), { limit: opts?.limit }));
+      const local = _codeIndexPort?.getCallees(opts.projectPath, path.basename(opts.projectPath), symbolName, { limit: opts?.limit });
       if (local) return toCodeGraphResult(local);
     }
     const args = ["callees", symbolName, "--json"];
