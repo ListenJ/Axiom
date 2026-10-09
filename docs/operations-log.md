@@ -25,7 +25,7 @@
   2. `capability-registry.ts`：`CapabilityProvider` 增可执行体 `invoke`/`worker`/`sandbox`；`registerDynamicProvider` 增"可执行体须匹配 isolation"校验（worker 缺 entry / sandbox 缺 command / in-process 缺 invoke → 拒）；新增 **`invokeCapability(contract, req)`**（select → 按声明执行 → `recordResult`）。
 - **验证**：`tests/unit/capability-isolation.test.ts` 5 条（in-process 执行 / **worker 子进程 JSON 往返** / 注册 fail-closed 三例 / 无 provider 拒 / 错误类型）；连同自扩展门与既有门禁 **92 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 452 文件 / 120,978 行已同步。
 - **不做项**：§7-1（Observe→Gap 自动报告）与 §7-3（`GET /version` 列 contract）仍待做。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`494481e6`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — chore(docs): 同步不确定源普查数字（ADR-014 副作用）
 
