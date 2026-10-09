@@ -29,7 +29,26 @@ import {
 import { router, type ChatMessage } from "./model-router.js";
 import { assignModel } from "./model-capability-registry.js";
 import type { TaskRole } from "./models.js";
-import { PiAgentAdapter } from "../pi-agent/pi-agent-adapter.js";
+/**
+ * 代码上下文检索器接口（**依赖倒置**，ADR-013）——路由层只依赖本接口；具体实现
+ * （如 Pi Agent 本地工具）由组合层注入。这样消除 `router → pi-agent` 的**内核→外围**依赖。
+ */
+export interface CodeContextRetriever {
+  retrieveCodeContext(query: string, opts?: {
+    cwd?: string;
+    maxLines?: number;
+    maxBytes?: number;
+    useParallel?: boolean;
+  }): Promise<{
+    content: string;
+    source: string;
+    toolUsed: string;
+    success: boolean;
+    executionTimeMs: number;
+    tokenSaved: number;
+    error?: string;
+  }>;
+}
 
 // ═══════════════════════════════════════════════════════════════
 // Type Definitions
@@ -109,10 +128,11 @@ const ROUTING_PROMPT = `你是一个代码检索策略路由专家。分析用�
 // ═══════════════════════════════════════════════════════════════
 
 export class CodeRetrievalRouter {
-  private piAgent: PiAgentAdapter;
+  private retriever: CodeContextRetriever | null;
 
-  constructor(cwd?: string) {
-    this.piAgent = new PiAgentAdapter(cwd);
+  /** 注入式：检索实现由组合层提供；未注入时该策略回退 fulltext。 */
+  constructor(retriever?: CodeContextRetriever) {
+    this.retriever = retriever ?? null;
   }
 
   /**
@@ -437,8 +457,13 @@ export class CodeRetrievalRouter {
     query: string,
     result: RetrievalResult
   ): Promise<void> {
-    // 使用 Pi Agent 本地工具执行检索（零 token 消耗）
-    const piResult = await this.piAgent.retrieveCodeContext(query);
+    if (!this.retriever) {
+      logger.warn("[CodeRetrieval] 未注入代码检索器，回退 fulltext", {});
+      await this.executeFulltextStrategy(query, result);
+      return;
+    }
+    // 使用注入的代码检索器（如 Pi Agent 本地工具，零 token 消耗）
+    const piResult = await this.retriever.retrieveCodeContext(query);
 
     if (piResult.success) {
       result.context = piResult.content;

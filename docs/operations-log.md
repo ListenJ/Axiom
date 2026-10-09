@@ -17,6 +17,15 @@
 
 ---
 
+## 2026-10-09 — refactor(arch): 收敛内核→外围 #1（code-retrieval-router→pi-agent）
+
+- **任务**：ADR-013 §7-1——把内核（router）对**外围**（pi-agent）的直接依赖按接缝切开，棘轮下调。分级 **T2**。
+- **改动**：`src/router/code-retrieval-router.ts` 去掉 `import { PiAgentAdapter } from "../pi-agent/..."`，改为**依赖倒置**——本文件声明 `CodeContextRetriever` 接口，检索实现由**组合层注入**（`constructor(retriever?)`）；未注入时该策略**回退 fulltext**（优雅降级）。无 `src/` 生产调用方、无测试构造点，改动低风险。
+- **棘轮下调**：`config/kernel-periphery-baseline.json` **4 → 3**（余 `dre/pipeline/search-port`（已知例外）、`memory/codegraph-index`、`router/dynamic-model-assigner`）。
+- **验证**：`bun test`（内核↔外围门 + 架构完整性 + 外围↔核心门 + doc-contract + docs-consistency + determinism + 出网）= **96 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,210 行已同步。
+- **不做项**：剩余 2 处（`memory/codegraph-index→codeindex` 6 个函数、`router/dynamic-model-assigner→eval` 多调用点）需多调用点注入改造，留后续单独提交。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — ops(embed): 卸载本地 CUDA embedding 服务（含防自启）
 
 - **任务**：用户要求清理本地部署的 embedding 模型服务、**禁止其再自我启动**（GPU 另作他用）。分级 **T3（运维）**。
