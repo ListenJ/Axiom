@@ -23,9 +23,9 @@
 - **改动**：`src/router/dynamic-model-assigner.ts` 去掉 `import { getModelEvalService, type ModelEvalResult } from "../eval/..."`（**类型也不 import**，因 `eval→router` 已存在，动态目录循环门禁会计 type-only；改声明**最小结构类型** `ModelEvalResultLike`）；新增 `ModelEvalProvider` 接口 + `setModelEvalProvider()`；`runAssignment` 从注入 provider 取数，未注入 → **优雅降级为空报告**。
 - **组合根接线**：`src/eval/eval-cli.ts`、`src/cli/commands/eval.ts`、`src/routes/eval-routes.ts` 的 `/eval/assign` 三处调用前 `setModelEvalProvider(getModelEvalService())`。
 - **棘轮下调**：`config/kernel-periphery-baseline.json` **3 → 2**（余 `dre/pipeline/search-port`（已知例外）、`memory/codegraph-index→codeindex`）。
-- **验证**：内核↔外围门 + 架构完整性 + 外围↔核心门 + timer-unref + determinism = **39 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,265 行已同步。
+- **验证**：内核↔外围门 + 架构完整性 + 外围↔核心门 + timer-unref + determinism = **39 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,253 行已同步。
 - **不做项**：`memory/codegraph-index→codeindex`（6 函数、多调用点）留最后一处单独提交。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`02947b0f`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — refactor(arch): 收敛内核→外围 #1（code-retrieval-router→pi-agent）
 
