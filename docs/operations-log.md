@@ -27,7 +27,7 @@
 - **安全边界**：扫描**只读**——不注册、不提案落核；缺口处理仍走 `admitCapability`（验证+e fail-closed）/`proposeCapability`（内核提案）受控通道。
 - **验证**：`tests/unit/dre-daemon.test.ts` 增 `GET /dre/capability-gaps`（`ok/scannedAt>0/gaps[]`）；连同缺口/隔离/准入/边界/timer-unref/文档/架构/出网/env 门禁 **118 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,185 行已同步。
 - **不做项**：候选**生成器**（缺口→候选实现）与**评判模型配置**仍属运行期接线，未做。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`afa651ee`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — test(dre): 自进化端到端演练（ADR-014 闭环证明）
 
