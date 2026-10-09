@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — ops(embed): 卸载本地 CUDA embedding 服务（含防自启）
+
+- **任务**：用户要求清理本地部署的 embedding 模型服务、**禁止其再自我启动**（GPU 另作他用）。分级 **T3（运维）**。
+- **诊断（实测）**：`axiom-embed@listen.service` 为 **root 拥有的 system 服务**，`enabled` + `Restart=always`，正跑 `uvicorn ... :9001`（bge-m3 / CUDA，内存 ≈2.7G）；单元 `/etc/systemd/system/axiom-embed@.service`（root）。无其他单元依赖它。
+- **本机约束**：`sudo -n` **需密码**（`a password is required`）——**停/禁/移除需用户以 root 执行**，代理无法代劳。
+- **本次落地（仓库侧，免 root）**：
+  1. 新增 `runtime-embed/uninstall-systemd.sh`：`stop + disable + mask + rm 单元 + daemon-reload + reset-failed`，`--purge` 追加删 `.venv/models/.cache`（约 10G）；因为 system 服务仅 stop 会被 `Restart=always` 拉起、且 enabled 会开机自启，故必须 **mask**。
+  2. `.env`（本地，不入库）：`AXIOM_EMBEDDING_CONSENT=no`，注释 `EDGE_EMBED_URL/EDGE_EMBED_MODEL/LOCAL_EMBED_API_KEY/LOCAL_EMBED_BASE_URL`——运行期不再依赖 `:9001`。
+- **待用户执行（root）**：`sudo bash runtime-embed/uninstall-systemd.sh`（或加 `--purge` 释放约 10G）。
+- **验证**：`bash -n runtime-embed/uninstall-systemd.sh` 通过；脚本为运维工具（`.sh`，不入 `arch:stats`）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(daemon): 自进化缺口扫描接入运行时（只报告）
 
 - **任务**：让自进化"在运行时活着"——daemon 周期跑 `analyzeGaps`，**只报告/不自动改内核**（符合高危防范）。分级 **T2**。
