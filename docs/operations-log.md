@@ -17,6 +17,18 @@
 
 ---
 
+## 2026-10-09 — feat(daemon): 自进化缺口扫描接入运行时（只报告）
+
+- **任务**：让自进化"在运行时活着"——daemon 周期跑 `analyzeGaps`，**只报告/不自动改内核**（符合高危防范）。分级 **T2**。
+- **改动**：
+  1. `src/daemon/dre-daemon.ts`：启动即扫一次 `capabilityRegistry.analyzeGaps()`，随后按 `AXIOM_GAP_SCAN_MS`（默认 60s）周期扫描；有缺口则 `logger.warn`；报告存内存并经 **`GET /dre/capability-gaps`**（需鉴权）只读暴露；定时器 `unref()`（timer-unref 门禁）、`stop()` 清理。
+  2. `src/daemon/contract.ts`：`DRE_DAEMON_BASE_CAPABILITIES` 增 `dre.capability_gaps`；契约 MINOR `1.3.0 → 1.4.0`。
+  3. `.env.example`：登记 `AXIOM_GAP_SCAN_MS`。
+- **安全边界**：扫描**只读**——不注册、不提案落核；缺口处理仍走 `admitCapability`（验证+e fail-closed）/`proposeCapability`（内核提案）受控通道。
+- **验证**：`tests/unit/dre-daemon.test.ts` 增 `GET /dre/capability-gaps`（`ok/scannedAt>0/gaps[]`）；连同缺口/隔离/准入/边界/timer-unref/文档/架构/出网/env 门禁 **118 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,185 行已同步。
+- **不做项**：候选**生成器**（缺口→候选实现）与**评判模型配置**仍属运行期接线，未做。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — test(dre): 自进化端到端演练（ADR-014 闭环证明）
 
 - **任务**：用**注入评测**真跑一遍自进化闭环，证明"管道建好且可跑通"（ADR-014 §7-5）。分级 **T2**。

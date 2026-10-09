@@ -12,7 +12,7 @@
 import { APP_VERSION } from "../version.js";
 
 /** 契约面版本（新增端点/字段时 +MINOR；破坏性变更才 +MAJOR） */
-export const DRE_DAEMON_CONTRACT_VERSION = "1.3.0";
+export const DRE_DAEMON_CONTRACT_VERSION = "1.4.0";
 
 /** 恒由代码提供的端点能力（daemon 启动即挂载，不随运行态变化） */
 export const DRE_DAEMON_BASE_CAPABILITIES = [
@@ -20,6 +20,7 @@ export const DRE_DAEMON_BASE_CAPABILITIES = [
   "dre.run",
   "dre.status",
   "dre.cognitive_state",
+  "dre.capability_gaps",
   "events",
 ] as const;
 

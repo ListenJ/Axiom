@@ -130,6 +130,15 @@ describe("DRE Daemon 集成", () => {
     expect(vb.result?.valid).toBe(true);
   });
 
+  test("GET /dre/capability-gaps 返回缺口报告（启动即扫，只读）", async () => {
+    const res = await fetch(`${base}/dre/capability-gaps`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { ok: boolean; scannedAt: number; gaps: unknown[] };
+    expect(body.ok).toBe(true);
+    expect(body.scannedAt).toBeGreaterThan(0);
+    expect(Array.isArray(body.gaps)).toBe(true);
+  });
+
   test("POST /dre/retrieve 在 daemon 内跑确定性检索（契约面 /dre/retrieve）", async () => {
     const res = await fetch(`${base}/dre/retrieve`, {
       method: "POST",

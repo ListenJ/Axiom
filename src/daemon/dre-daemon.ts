@@ -89,6 +89,26 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   } catch {
     retrievalReady = false;
   }
+  // ── 自进化：周期扫描能力缺口（**只报告，不自动改内核**）──
+  let lastGapReport: { scannedAt: number; gaps: ReturnType<typeof capabilityRegistry.analyzeGaps> } = {
+    scannedAt: 0,
+    gaps: [],
+  };
+  const scanCapabilityGaps = () => {
+    const gaps = capabilityRegistry.analyzeGaps();
+    lastGapReport = { scannedAt: Date.now(), gaps };
+    if (gaps.length > 0) {
+      logger.warn("[DRE-Daemon] capability gaps detected (report-only)", {
+        count: gaps.length,
+        contracts: gaps.map((g) => g.contract),
+      });
+    }
+    return lastGapReport;
+  };
+  scanCapabilityGaps(); // 启动即扫一次
+  const gapTimer = setInterval(scanCapabilityGaps, readInt("AXIOM_GAP_SCAN_MS", 60_000));
+  gapTimer.unref?.(); // 维护类定时器不阻止进程退出（timer-unref 门禁）
+
   const runtimeFacts = {
     toolsRegistered: Object.keys(dreToolHandlers).length,
     retrievalReady,
@@ -125,6 +145,11 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
       if (url.pathname === "/dre/status" && req.method === "GET") {
         return json({ ok: true, status: kernel.getStatus() });
       }
+      if (url.pathname === "/dre/capability-gaps" && req.method === "GET") {
+        // 自进化观测面：最新缺口报告（只读）。处理仍走 admitCapability/proposeCapability 的受控通道。
+        return json({ ok: true, ...lastGapReport });
+      }
+
       if (url.pathname === "/dre/cognitive-state" && req.method === "GET") {
         return json({ ok: true, state: engine.getCognitiveState() });
       }
@@ -245,6 +270,7 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   const stop = async (): Promise<void> => {
     if (stopped) return;
     stopped = true;
+    clearInterval(gapTimer);
     server.stop(true);
     await kernel.shutdown();
     logger.info("[DRE-Daemon] stopped");
