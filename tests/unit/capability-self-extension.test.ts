@@ -82,6 +82,14 @@ describe("ADR-014 运行时自扩展：安全 + 分域", () => {
     expect(capabilityRegistry.listByContract("analysis.summarization")).toHaveLength(1);
   });
 
+  test("listContracts 实况：无 provider 时为空，注册后列出该契约", () => {
+    expect(capabilityRegistry.listContracts()).toEqual([]);
+    capabilityRegistry.registerDynamicProvider(
+      base({ placement: "periphery", isolation: "in-process", sideEffects: ["internal"], invoke: async () => ({}) }),
+    );
+    expect(capabilityRegistry.listContracts()).toContain("analysis.summarization");
+  });
+
   test("proposeCapability 只记录提案，不注册、不执行", () => {
     const p = capabilityRegistry.proposeCapability({ contract: "knowledge.retrieval", rationale: "高频缺口" });
     expect(p.id).toBeTruthy();

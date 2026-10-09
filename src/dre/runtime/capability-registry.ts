@@ -478,6 +478,13 @@ class CapabilityRegistryImpl {
     return Array.from(this.capabilities.values());
   }
 
+  /** 当前有 ≥1 provider 可服务的契约清单（实况；供契约面能力协商） */
+  listContracts(): CapabilityContract[] {
+    return [...this.capabilitiesByContract.keys()].filter(
+      (c) => (this.capabilitiesByContract.get(c)?.size ?? 0) > 0,
+    );
+  }
+
   /**
    * Get capabilities by contract.
    */

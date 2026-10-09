@@ -23,6 +23,7 @@ import { ToolRegistry } from "../mcp/tool-registry.js";
 import { registerDreTools } from "../mcp/server/dre-tools.js";
 import { registerMindTools } from "../mcp/server/mind-tools.js";
 import { createSynapseEngine } from "../dre/synapse/index.js";
+import { capabilityRegistry } from "../dre/runtime/capability-registry.js";
 import { LocalKnowledgePort } from "../dre/port/index.js";
 import { eventBus, type RuntimeEvent } from "../dre/runtime/event-bus.js";
 import { readInt, readString } from "../utils/env.js";
@@ -88,7 +89,11 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
   } catch {
     retrievalReady = false;
   }
-  const runtimeFacts = { toolsRegistered: Object.keys(dreToolHandlers).length, retrievalReady };
+  const runtimeFacts = {
+    toolsRegistered: Object.keys(dreToolHandlers).length,
+    retrievalReady,
+    serviceableContracts: capabilityRegistry.listContracts(),
+  };
 
   const bindPort = opts?.port ?? readInt("AXIOM_DRE_DAEMON_PORT", 18790);
   const hostname = opts?.hostname ?? "127.0.0.1";

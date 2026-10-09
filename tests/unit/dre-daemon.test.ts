@@ -45,7 +45,7 @@ describe("DRE Daemon 集成", () => {
     expect(res.status).toBe(200);
     const body = await res.json() as {
       ok: boolean; contractVersion: string; capabilities: string[];
-      runtime: { toolsRegistered: number; retrievalReady: boolean };
+      runtime: { toolsRegistered: number; retrievalReady: boolean; serviceableContracts: string[] };
     };
     expect(body.ok).toBe(true);
     expect(body.contractVersion).toBe(DRE_DAEMON_CONTRACT_VERSION);
@@ -55,6 +55,8 @@ describe("DRE Daemon 集成", () => {
     expect(body.runtime.toolsRegistered).toBeGreaterThan(0);
     expect(body.capabilities.includes("dre.tool")).toBe(body.runtime.toolsRegistered > 0);
     expect(body.capabilities.includes("dre.retrieve")).toBe(body.runtime.retrievalReady);
+    // ADR-014 §7-3：契约面暴露"可服务 contract"实况（当前无 provider → 空数组）
+    expect(Array.isArray(body.runtime.serviceableContracts)).toBe(true);
   });
 
   test("GET /dre/status 返回 KernelStatus", async () => {

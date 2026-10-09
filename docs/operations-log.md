@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-09 — feat(daemon): 契约面暴露可服务 contract（ADR-014 §7-3）
+
+- **任务**：ADR-014 §7-3——`GET /version` 增列"当前可服务的能力契约清单"（实况），供外围做能力协商。分级 **T1/T2**。
+- **改动**：`capability-registry.ts` 增 `listContracts()`（有 ≥1 provider 的契约）；`contract.ts` 的 `DreDaemonRuntime` 增 `serviceableContracts`，契约 MINOR `1.2.0 → 1.3.0`；daemon `/version` 填 `capabilityRegistry.listContracts()`（当前无 provider → 空数组，实况不粉饰）。
+- **验证**：`tests/unit/dre-daemon.test.ts` 断言 `runtime.serviceableContracts` 为数组；`tests/unit/capability-self-extension.test.ts` 增"无 provider 为空 / 注册后列出该契约"；连同缺口/隔离/文档/架构/determinism 门禁 **107 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 452 文件 / 121,041 行已同步。
+- **说明**：`initCapabilities()`（默认 provider）全仓无调用方，故当前 `serviceableContracts` 为空属**真实运行态**，非缺陷——真接线时列出即自动生效。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(dre): 能力缺口分析 Observe→Gap（ADR-014 §7-1）
 
 - **任务**：自进化闭环的"观测 → 缺口"环节——用真实用量发现能力缺口，**只报告不自动注册**。分级 **T2**。
