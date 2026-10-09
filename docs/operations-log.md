@@ -23,7 +23,7 @@
 - **根因**：该用例快路径（ping/NACK）的 `ask` 超时仅 **2000ms**；整仓全量执行时进程受争用，部分快路径 ask 超 2000ms 被误判为 `timeout`，致 pongs/nacks/timeouts 的**精确计数断言**漂移（实测全量内 2011ms，单跑 ~84ms）。
 - **修复**：快路径超时 `2000 → 30_000ms`（本用例只断言"快路径恒不超时"）；**慢路径保持 80ms**，超时语义测试不变。
 - **验证**：`bun test tests/stress/audit-regression-stress.test.ts` = **8 pass / 0 fail**；随后全量 `bun test --timeout 15000 ./tests` = **4721 pass / 67 skip / 0 fail**（无 flake）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`a5d47659`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-10 — fix(runtime): pipeline SSE 代理补断开清理（audit:runtime 回归）
 
@@ -32,7 +32,7 @@
 - **修复**：改用 `upstream.body.getReader()` + `ReadableStream`——`pull()` 前推上游分片、`done` 关闭；**`cancel(reason)` 取消上游 reader**（进而中止到 daemon 的连接），SSE 契约不变。
 - **验证**：`bun run audit:runtime` = **16/16 pass**（修前 15/16 fail）；`bunx tsc --noEmit` rc=0；`arch:stats` 454 文件 / 121,360 行已同步（`docs/ARCHITECTURE.md`）。
 - **备注**：这是"设计落地→开始测试"后由 `audit:runtime` 抓到的**真实回归**（此前多轮未跑该门），非 flake。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`421c8132`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-10 — refactor(arch): 收敛内核→外围 #3（codegraph-index→codeindex，基线→1）
 
