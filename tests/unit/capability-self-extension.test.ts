@@ -33,7 +33,7 @@ describe("ADR-014 运行时自扩展：安全 + 分域", () => {
 
   test("外围 provider（内部副作用）可热加并被 select 命中", () => {
     capabilityRegistry.registerDynamicProvider(
-      base({ placement: "periphery", isolation: "worker", sideEffects: ["internal"] }),
+      base({ placement: "periphery", isolation: "in-process", sideEffects: ["internal"], invoke: async () => ({ ok: true }) }),
     );
     const caps = capabilityRegistry.listByContract("analysis.summarization");
     expect(caps).toHaveLength(1);
@@ -76,7 +76,7 @@ describe("ADR-014 运行时自扩展：安全 + 分域", () => {
 
   test("高危能力已授权 + sandbox 隔离 → 允许注册", () => {
     capabilityRegistry.registerDynamicProvider(
-      base({ placement: "periphery", isolation: "sandbox", sideEffects: ["net.outbound", "db.write"] }),
+      base({ placement: "periphery", isolation: "sandbox", sideEffects: ["net.outbound", "db.write"], sandbox: { command: "echo" } }),
       { authorized: true },
     );
     expect(capabilityRegistry.listByContract("analysis.summarization")).toHaveLength(1);

@@ -20,6 +20,7 @@
 import { logger } from "../../utils/logger.js";
 import { eventBus } from "./event-bus.js";
 import { HIGH_RISK_CAPABILITIES, type Capability as PermissionCapability } from "../../utils/permissions.js";
+import { runIsolated } from "./capability-isolation.js";
 
 // ─── Abstract Capability Contracts ─────────────────────────────────────────
 
@@ -69,6 +70,13 @@ export interface CapabilityProvider {
   sideEffects?: PermissionCapability[];
   /** 来源：内置 或 运行时自扩展 */
   source?: "builtin" | "dynamic";
+  // ── 可执行体（须与 isolation 匹配；动态注册必须提供对应项，否则拒绝）──
+  /** isolation="in-process" 时的进程内实现 */
+  invoke?: (req: Record<string, unknown>) => Promise<unknown>;
+  /** isolation="worker" 时的子进程入口模块 */
+  worker?: { entry: string; args?: string[] };
+  /** isolation="sandbox" 时的沙箱命令 */
+  sandbox?: { command: string; args?: string[] };
 }
 
 /** 内核能力提案（不注册、不执行；内核变更走门禁） */
@@ -188,7 +196,40 @@ class CapabilityRegistryImpl {
         );
       }
     }
+    // 可执行体须与声明的隔离匹配（fail-closed：声明了隔离就必须真有对应执行体）
+    const iso = provider.isolation ?? "in-process";
+    if (iso === "worker" && !provider.worker?.entry) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 声明 worker 隔离但缺 worker.entry（无可执行体即拒绝）`);
+    }
+    if (iso === "sandbox" && !provider.sandbox?.command) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 声明 sandbox 隔离但缺 sandbox.command（无可执行体即拒绝）`);
+    }
+    if (iso === "in-process" && typeof provider.invoke !== "function") {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 声明 in-process 隔离但缺 invoke（无可执行体即拒绝）`);
+    }
+
     this.registerProvider({ ...provider, source: "dynamic" });
+  }
+
+  /**
+   * 按契约选择最佳 provider 并**按其隔离声明执行**（fail-closed，不退回 in-process），
+   * 随后记录结果（成功/失败）。
+   */
+  async invokeCapability(
+    contract: CapabilityContract,
+    req: Record<string, unknown> = {},
+    opts?: { timeoutMs?: number },
+  ): Promise<unknown> {
+    const cap = this.select(contract);
+    if (!cap) throw new CapabilityRegistrationError(`无 provider 可服务契约 '${contract}'`);
+    let ok = false;
+    try {
+      const result = await runIsolated(cap.provider, req, opts);
+      ok = true;
+      return result;
+    } finally {
+      this.recordResult(cap.id, ok);
+    }
   }
 
   /**

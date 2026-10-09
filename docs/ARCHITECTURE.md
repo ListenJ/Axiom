@@ -13,7 +13,7 @@ Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 
 | 属性 | 值（生成命令：`bun run scripts/count-arch-stats.mjs`；本节数字禁止手抄） |
 |------|-----|
 | 语言 / 运行时 | TypeScript 5.x / Bun 1.4+ |
-| src/ | **40 模块 / 451 文件 / 120,832 行**（`bun run arch:stats` 生成值，2026-10-08；本地 CUDA embedding、Redis AUTH/unref、搜索兜底、DRE Kernel 生命周期收口、单一来源（DRE_VERSION/SQLite pragma）、Kernel 工厂、DRE daemon、MCP 工具薄转发、契约版本面、统计/搜索路由改走契约面后同步；数值由 docs-consistency 断言与实测精确相等） |
+| src/ | **40 模块 / 452 文件 / 120,978 行**（`bun run arch:stats` 生成值，2026-10-08；本地 CUDA embedding、Redis AUTH/unref、搜索兜底、DRE Kernel 生命周期收口、单一来源（DRE_VERSION/SQLite pragma）、Kernel 工厂、DRE daemon、MCP 工具薄转发、契约版本面、统计/搜索路由改走契约面后同步；数值由 docs-consistency 断言与实测精确相等） |
 | 测试 | **488 个 `*.test.ts`**；串行全套 **4,725 用例（4,658 pass / 67 skip / 0 fail / 105s）**，命令与入口见 §4（2026-10-07 实测；§4 的 09-29 数字为历史基线） |
 | MCP 工具 | **189** 个去重工具（零重复）；单一事实源 `src/testing/tool-count.ts`，生成器 `scripts/count-tools.mjs` |
 | 代码质量门 | `as any` ≤ 25（2026-09-29 实测 8）、每文件 ≤ 5、`: any` ≤ 90、`@ts-expect-error` ≤ 1 |
