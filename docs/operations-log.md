@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-09 — test(dre): 自进化端到端演练（ADR-014 闭环证明）
+
+- **任务**：用**注入评测**真跑一遍自进化闭环，证明"管道建好且可跑通"（ADR-014 §7-5）。分级 **T2**。
+- **新增** `tests/unit/capability-evolution-loop.test.ts`（3 条）：① **全链** `Observe(gap)`→`analyzeGaps`→建候选→`admitCapability`（eval 高分）→`listContracts` 含该契约→`invokeCapability` 执行并记结果→`unregisterProvider` 退役→契约回落；② **fail-closed**：验证不过 → 拒绝、**未注册**、候选实现未被调用、缺口仍在；③ **可重复**：退役/重置后可再观测到缺口。
+- **验证**：该文件 3 pass；连同准入/文档/架构门禁 **80 pass / 0 fail**；`arch:stats` src 面未变（453 文件 / 121,158 行）。
+- **说明**：用注入评测（`EvalFn`），**不依赖外部评判模型**——证明代码路径闭合；真实着火仍需配置评判模型与候选生成（运行期接线）。
+- **Commit**：`67affd86`（已推送；已 fast-forward 到 `main`，按规则 9 回填）
+
 ## 2026-10-09 — feat(dre): 能力准入的 Validate 接线（ADR-014 §4 第 4 步）
 
 - **任务**：补上自进化闭环最后一块——"缺口/候选 → **eval 验证** → 达标才注册/提案"。分级 **T2/T3**。
