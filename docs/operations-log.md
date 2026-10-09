@@ -23,7 +23,7 @@
 - **改动**：`capability-registry.ts` 增 `listContracts()`（有 ≥1 provider 的契约）；`contract.ts` 的 `DreDaemonRuntime` 增 `serviceableContracts`，契约 MINOR `1.2.0 → 1.3.0`；daemon `/version` 填 `capabilityRegistry.listContracts()`（当前无 provider → 空数组，实况不粉饰）。
 - **验证**：`tests/unit/dre-daemon.test.ts` 断言 `runtime.serviceableContracts` 为数组；`tests/unit/capability-self-extension.test.ts` 增"无 provider 为空 / 注册后列出该契约"；连同缺口/隔离/文档/架构/determinism 门禁 **107 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 452 文件 / 121,041 行已同步。
 - **说明**：`initCapabilities()`（默认 provider）全仓无调用方，故当前 `serviceableContracts` 为空属**真实运行态**，非缺陷——真接线时列出即自动生效。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`38251b2e`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(dre): 能力缺口分析 Observe→Gap（ADR-014 §7-1）
 
