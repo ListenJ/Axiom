@@ -234,7 +234,7 @@ describe("S5 Actor ask/NACK/超时风暴 800 并发（H1 新链路）", () => {
         const target = i % 3 === 2 ? "slow-worker" : "fast-worker";
         const topic = i % 3 === 0 ? "unknown-topic" : i % 3 === 1 ? "ping" : "never-reply";
         return system
-          .ask("storm-caller", target, "request", topic, { i }, i % 3 === 2 ? 80 : 2000)
+          .ask("storm-caller", target, "request", topic, { i }, i % 3 === 2 ? 80 : 30_000)
           .then((reply) => ({ kind: reply.type }))
           .catch((e: Error) => ({ kind: e.message.includes("timeout") ? "timeout" : "error" }));
       }),

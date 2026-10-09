@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-10 — test(stress): 硬化 S5 Actor 风暴用例（消除全量内 flake）
+
+- **任务**：测试阶段全量多次出现 `S5 Actor ask/NACK/超时风暴 800 并发` 偶发失败（单跑 3/3 稳过、全量内失败）。分级 **T1**。
+- **根因**：该用例快路径（ping/NACK）的 `ask` 超时仅 **2000ms**；整仓全量执行时进程受争用，部分快路径 ask 超 2000ms 被误判为 `timeout`，致 pongs/nacks/timeouts 的**精确计数断言**漂移（实测全量内 2011ms，单跑 ~84ms）。
+- **修复**：快路径超时 `2000 → 30_000ms`（本用例只断言"快路径恒不超时"）；**慢路径保持 80ms**，超时语义测试不变。
+- **验证**：`bun test tests/stress/audit-regression-stress.test.ts` = **8 pass / 0 fail**；随后全量 `bun test --timeout 15000 ./tests` = **4721 pass / 67 skip / 0 fail**（无 flake）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-10 — fix(runtime): pipeline SSE 代理补断开清理（audit:runtime 回归）
 
 - **任务**：测试阶段首跑 `bun run audit:runtime` **报红**（`streams.cleanup`）。分级 **T2**。
