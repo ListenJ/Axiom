@@ -25,7 +25,7 @@
   2. 外围 `src/eval/capability-validator.ts`：`createEvalCapabilityValidator()` 把 `src/eval` 的 `evaluateResponse` + 评测用例包装成验证器（阈值/安全可配，`evaluate` 可注入）；评测不可用/无样例/抛错 → `pass:false`（fail-closed）。
 - **落点纠偏（实测）**：适配器最初放 `src/services` → 触发架构门禁两条红（services 目录 import 数超 9；`services ↔ eval` 循环，因 `eval→services` 既有）。迁到 `src/eval`（外围→内核单向）后两条门禁转绿。
 - **验证**：`tests/unit/capability-admission.test.ts` 7 条（缺验证器拒 / 通过则注册 / 未过拒 / 抛错 fail-closed 拒 / eval 高分过·低分拒 / 评测抛错·无样例 fail-closed / requireSafety 不达标拒）；连同缺口/隔离/自扩展/边界/文档/架构/determinism **104 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 40 模块 / 453 文件 / 121,158 行已同步。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`9ad1a6df`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(daemon): 契约面暴露可服务 contract（ADR-014 §7-3）
 
