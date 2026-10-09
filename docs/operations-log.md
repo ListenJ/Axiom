@@ -27,7 +27,7 @@
   2. `.env`（本地，不入库）：`AXIOM_EMBEDDING_CONSENT=no`，注释 `EDGE_EMBED_URL/EDGE_EMBED_MODEL/LOCAL_EMBED_API_KEY/LOCAL_EMBED_BASE_URL`——运行期不再依赖 `:9001`。
 - **待用户执行（root）**：`sudo bash runtime-embed/uninstall-systemd.sh`（或加 `--purge` 释放约 10G）。
 - **验证**：`bash -n runtime-embed/uninstall-systemd.sh` 通过；脚本为运维工具（`.sh`，不入 `arch:stats`）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`8ad3daef`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(daemon): 自进化缺口扫描接入运行时（只报告）
 
