@@ -57,6 +57,6 @@
 
 ## 7. 待办
 
-1. 把 `Observe→Gap→Propose` 接上真实用量（`recordResult` + 用量库），产出**缺口→提案**的自动报告；
+1. ✅ **已完成（2026-10-09）**：`Observe→Gap` 接上真实用量——`search` 对「无 provider」的契约记 miss；`analyzeGaps()` 产出 `no-provider` / `low-success` 缺口（依据 `recordResult` 的 usageCount/successRate）。**只报告，不自动注册**；缺口可经既有 `proposeCapability()`（内核）或外围热加处理。
 2. ✅ **已完成（2026-10-09）**：`src/dre/runtime/capability-isolation.ts` 的 `runIsolated()` + 注册处「可执行体须匹配 isolation」校验——**运行期强制隔离**（in-process `invoke` / worker 子进程 JSON 往返 / sandbox 经 `executeInSandbox`），声明了隔离却无可执行体即拒绝，**不退回进程内**；`invokeCapability()` 按声明执行并记录结果。
 3. `GET /version.capabilities` 增列"当前可服务的 contract 清单"（与 ADR-012 §7-2 实况化一致）。

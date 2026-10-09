@@ -79,6 +79,13 @@ export interface CapabilityProvider {
   sandbox?: { command: string; args?: string[] };
 }
 
+/** 能力缺口（观测产物；**只报告/提案，不自动注册**） */
+export interface CapabilityGap {
+  contract: CapabilityContract;
+  kind: "no-provider" | "low-success";
+  evidence: { misses?: number; usageCount?: number; successRate?: number };
+}
+
 /** 内核能力提案（不注册、不执行；内核变更走门禁） */
 export interface KernelCapabilityProposal {
   id: string;
@@ -128,6 +135,8 @@ class CapabilityRegistryImpl {
   private capabilitiesByContract = new Map<CapabilityContract, Set<string>>();
   private stats = { searches: 0, selections: 0, fallbacks: 0 };
   private kernelProposals: KernelCapabilityProposal[] = [];
+  /** 观测：契约被检索但无可用 provider 的次数（缺口信号） */
+  private searchMisses = new Map<CapabilityContract, number>();
 
   /**
    * Register a provider.
@@ -264,6 +273,41 @@ class CapabilityRegistryImpl {
     return [...this.kernelProposals];
   }
 
+  private noteSearchMiss(contract: CapabilityContract): void {
+    this.searchMisses.set(contract, (this.searchMisses.get(contract) ?? 0) + 1);
+  }
+
+  /**
+   * 分析**能力缺口**（观测 → 缺口），供上层决定"外围热加"或"内核提案"。
+   * **只报告**：不注册、不改动任何 provider。
+   *  - `no-provider`：该契约被检索过但没有 provider（`misses` 次数）；
+   *  - `low-success`：该契约有 provider 且用量达阈值，但最佳成功率低于阈值。
+   */
+  analyzeGaps(opts?: { minUsageForLowSuccess?: number; minSuccessRate?: number }): CapabilityGap[] {
+    const minUsage = opts?.minUsageForLowSuccess ?? 5;
+    const minRate = opts?.minSuccessRate ?? 0.5;
+    const gaps: CapabilityGap[] = [];
+
+    for (const [contract, misses] of this.searchMisses) {
+      if (misses > 0) gaps.push({ contract, kind: "no-provider", evidence: { misses } });
+    }
+
+    const byContract = new Map<CapabilityContract, Capability[]>();
+    for (const cap of this.capabilities.values()) {
+      const list = byContract.get(cap.contract) ?? [];
+      list.push(cap);
+      byContract.set(cap.contract, list);
+    }
+    for (const [contract, caps] of byContract) {
+      const totalUsage = caps.reduce((a, c) => a + c.usageCount, 0);
+      const bestRate = caps.reduce((a, c) => Math.max(a, c.successRate), 0);
+      if (totalUsage >= minUsage && bestRate < minRate) {
+        gaps.push({ contract, kind: "low-success", evidence: { usageCount: totalUsage, successRate: bestRate } });
+      }
+    }
+    return gaps;
+  }
+
   /**
    * Search for capabilities that match a contract.
    */
@@ -277,7 +321,10 @@ class CapabilityRegistryImpl {
 
     // Use contract index instead of scanning all capabilities (O(n) → O(k)).
     const ids = this.capabilitiesByContract.get(contract);
-    if (!ids) return results;
+    if (!ids) {
+      this.noteSearchMiss(contract);
+      return results;
+    }
 
     for (const capId of ids) {
       const cap = this.capabilities.get(capId);
@@ -304,6 +351,7 @@ class CapabilityRegistryImpl {
     }
 
     results.sort((a, b) => b.score - a.score);
+    if (results.length === 0) this.noteSearchMiss(contract);
     return results;
   }
 
@@ -412,6 +460,7 @@ class CapabilityRegistryImpl {
     this.capabilities.clear();
     this.capabilitiesByContract.clear();
     this.kernelProposals = [];
+    this.searchMisses.clear();
     this.stats = { searches: 0, selections: 0, fallbacks: 0 };
   }
 

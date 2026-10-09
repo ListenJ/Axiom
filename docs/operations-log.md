@@ -17,6 +17,17 @@
 
 ---
 
+## 2026-10-09 — feat(dre): 能力缺口分析 Observe→Gap（ADR-014 §7-1）
+
+- **任务**：自进化闭环的"观测 → 缺口"环节——用真实用量发现能力缺口，**只报告不自动注册**。分级 **T2**。
+- **改动**：
+  1. `capability-registry.ts`：`search` 对「无 provider 服务」的契约记 miss（`searchMisses`）；新增 **`analyzeGaps(opts)`** 产出 `CapabilityGap[]`——`no-provider`（被检索过却无 provider，带 miss 次数）/ `low-success`（用量达阈值但最佳成功率低于阈值，依据 `recordResult` 的 usageCount/successRate）；`reset()` 清观测。
+  2. `src/dre/index.ts` 导出 `CapabilityGap`；新增类型 `CapabilityGap`。
+- **安全**：缺口分析**只读**——不注册、不改动 provider；缺口处理仍走既有一级门（外围热加走 `registerDynamicProvider` 的 fail-closed 守卫；内核走 `proposeCapability` 提案）。
+- **验证**：`tests/unit/capability-gap-analysis.test.ts` 4 条（no-provider 缺口且不自动注册 / 持续失败达阈值判 low-success / 达标不误报 / reset 清空）；连同隔离+自扩展+文档+架构+determinism 门禁 **91 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 452 文件 / 121,027 行已同步。
+- **不做项**：§7-3（`GET /version` 列可服务 contract）仍待做。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(dre): 能力运行期强制隔离（ADR-014 §7-2）
 
 - **任务**：把隔离从"仅校验声明"升级为**运行期强制**——高危/自扩展 provider 按其声明真正在 worker/沙箱执行（用户强调的高危防范）。分级 **T2/T3**。
