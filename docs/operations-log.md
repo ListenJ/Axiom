@@ -17,6 +17,15 @@
 
 ---
 
+## 2026-10-10 — fix(runtime): pipeline SSE 代理补断开清理（audit:runtime 回归）
+
+- **任务**：测试阶段首跑 `bun run audit:runtime` **报红**（`streams.cleanup`）。分级 **T2**。
+- **根因**：Step 2b-i 把 `src/routes/pipeline.ts` 改为 daemon `/events` 代理时，直接 `new Response(upstream.body, …)`，**丢了断开清理**——审计判据要求文件含 `cancel(` 或 `eventBus.unsubscribe`，且真实运行时客户端断开不会拆掉到 daemon 的流（悬挂套接字/reader）。
+- **修复**：改用 `upstream.body.getReader()` + `ReadableStream`——`pull()` 前推上游分片、`done` 关闭；**`cancel(reason)` 取消上游 reader**（进而中止到 daemon 的连接），SSE 契约不变。
+- **验证**：`bun run audit:runtime` = **16/16 pass**（修前 15/16 fail）；`bunx tsc --noEmit` rc=0；`arch:stats` 454 文件 / 121,360 行已同步（`docs/ARCHITECTURE.md`）。
+- **备注**：这是"设计落地→开始测试"后由 `audit:runtime` 抓到的**真实回归**（此前多轮未跑该门），非 flake。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-10 — refactor(arch): 收敛内核→外围 #3（codegraph-index→codeindex，基线→1）
 
 - **任务**：完成 ADR-013 §7-1 最后一处——`memory`（内核）对 `codeindex`（外围）的直接依赖按接缝切开。分级 **T2/T3**。
