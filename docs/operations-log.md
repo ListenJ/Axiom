@@ -27,7 +27,7 @@
 - **棘轮清零（到已知例外）**：`config/kernel-periphery-baseline.json` **2 → 1**（仅剩 `dre/pipeline/search-port→crawl`，ADR-013 §6 已登记例外）。
 - **验证（按用户指令：先落设计，测试随后）**：`bunx tsc --noEmit` rc=0；内核↔外围门 + 架构完整性 + 外围↔核心门 + doc-contract + docs-consistency + determinism + timer-unref + 出网 + env = **101 pass / 0 fail**；`arch:stats` 40 模块 / 454 文件 / 121,339 行已同步。
 - **未做**：全量 `bun test` 未在本次跑（用户要求设计落地后再测）；入口装配仅覆盖 4 个长驻入口，库/测试直用需自行 `installCodeIndexPort()`。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`eff37f06`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — refactor(arch): 收敛内核→外围 #2（dynamic-model-assigner→eval）
 
