@@ -40,7 +40,7 @@ export { atomStore, type Atom, type AtomKind, type AtomRelation, type AtomConfid
 export { knowledgeNetwork, type KnowledgeEntity, type EntityKind, type EntityState, type Evidence as KnowledgeEvidence, type Behavior as KnowledgeBehavior, type Prediction as KnowledgePrediction, type Hypothesis as KnowledgeHypothesis, type TimelineEntry, type EntityLink } from "./runtime/knowledge-network.js";
 export { scheduler, type ScheduledTask, type TaskStatus as SchedulerTaskStatus, type TaskPriority } from "./runtime/scheduler.js";
 export { ruleEngine, type Rule } from "./runtime/rule-engine.js";
-export { capabilityRegistry, CapabilityRegistrationError, type Capability, type CapabilityProvider, type CapabilityContract, type CapabilityPlacement, type CapabilityIsolation, type KernelCapabilityProposal, type CapabilityGap } from "./runtime/capability-registry.js";
+export { capabilityRegistry, CapabilityRegistrationError, type Capability, type CapabilityProvider, type CapabilityContract, type CapabilityPlacement, type CapabilityIsolation, type KernelCapabilityProposal, type CapabilityGap, type CapabilityValidator, type CapabilityValidationInput, type CapabilityValidationVerdict } from "./runtime/capability-registry.js";
 export { contextEngine } from "./runtime/context-engine.js";
 
 // v3.0.0 新增模块

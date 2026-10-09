@@ -17,6 +17,16 @@
 
 ---
 
+## 2026-10-09 — feat(dre): 能力准入的 Validate 接线（ADR-014 §4 第 4 步）
+
+- **任务**：补上自进化闭环最后一块——"缺口/候选 → **eval 验证** → 达标才注册/提案"。分级 **T2/T3**。
+- **改动**：
+  1. 内核 `src/dre/runtime/capability-registry.ts`：新增 `CapabilityValidator` 接口 + **`admitCapability(provider,{validator,authorized,gap})`**——先跑验证器，**通过才 `registerDynamicProvider`**；缺验证器/未过/抛错一律 **fail-closed 拒绝**。内核只声明接口、**不 import `src/eval`**（保持内核→外围无依赖，符合 ADR-013）。
+  2. 外围 `src/eval/capability-validator.ts`：`createEvalCapabilityValidator()` 把 `src/eval` 的 `evaluateResponse` + 评测用例包装成验证器（阈值/安全可配，`evaluate` 可注入）；评测不可用/无样例/抛错 → `pass:false`（fail-closed）。
+- **落点纠偏（实测）**：适配器最初放 `src/services` → 触发架构门禁两条红（services 目录 import 数超 9；`services ↔ eval` 循环，因 `eval→services` 既有）。迁到 `src/eval`（外围→内核单向）后两条门禁转绿。
+- **验证**：`tests/unit/capability-admission.test.ts` 7 条（缺验证器拒 / 通过则注册 / 未过拒 / 抛错 fail-closed 拒 / eval 高分过·低分拒 / 评测抛错·无样例 fail-closed / requireSafety 不达标拒）；连同缺口/隔离/自扩展/边界/文档/架构/determinism **104 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 40 模块 / 453 文件 / 121,158 行已同步。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-09 — feat(daemon): 契约面暴露可服务 contract（ADR-014 §7-3）
 
 - **任务**：ADR-014 §7-3——`GET /version` 增列"当前可服务的能力契约清单"（实况），供外围做能力协商。分级 **T1/T2**。

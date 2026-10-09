@@ -79,6 +79,21 @@ export interface CapabilityProvider {
   sandbox?: { command: string; args?: string[] };
 }
 
+/** 验证输入/结论/验证器（注入式——内核**不 import** `src/eval`，避免内核→外围依赖） */
+export interface CapabilityValidationInput {
+  provider: CapabilityProvider;
+  contract: CapabilityContract;
+  gap?: CapabilityGap;
+}
+export interface CapabilityValidationVerdict {
+  pass: boolean;
+  score?: number;
+  reason: string;
+}
+export type CapabilityValidator = (
+  input: CapabilityValidationInput,
+) => Promise<CapabilityValidationVerdict> | CapabilityValidationVerdict;
+
 /** 能力缺口（观测产物；**只报告/提案，不自动注册**） */
 export interface CapabilityGap {
   contract: CapabilityContract;
@@ -239,6 +254,35 @@ class CapabilityRegistryImpl {
     } finally {
       this.recordResult(cap.id, ok);
     }
+  }
+
+  /**
+   * **验证后准入**（ADR-014 §4 第 4 步）：先跑注入的 `validator`，**通过才注册**；
+   * 验证失败/抛错/缺验证器一律**拒绝**（fail-closed）。验证器由组合层注入（如 `src/eval` 适配器），
+   * 内核本身不依赖 eval，保持内核→外围无依赖。
+   */
+  async admitCapability(
+    provider: CapabilityProvider,
+    opts: { validator: CapabilityValidator; authorized?: boolean; gap?: CapabilityGap },
+  ): Promise<CapabilityValidationVerdict> {
+    if (!opts || typeof opts.validator !== "function") {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 缺少验证器：未经验证不得注册（fail-closed）`);
+    }
+    const contract = provider.capabilities[0];
+    if (!contract) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 未声明能力契约`);
+    }
+    let verdict: CapabilityValidationVerdict;
+    try {
+      verdict = await opts.validator({ provider, contract, gap: opts.gap });
+    } catch (err) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 验证抛错，按 fail-closed 拒绝：${(err as Error).message}`);
+    }
+    if (!verdict || verdict.pass !== true) {
+      throw new CapabilityRegistrationError(`provider '${provider.id}' 验证未通过：${verdict?.reason ?? "无结论"}`);
+    }
+    this.registerDynamicProvider(provider, { authorized: opts.authorized });
+    return verdict;
   }
 
   /**
