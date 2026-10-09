@@ -26,7 +26,7 @@
 - **安全**：缺口分析**只读**——不注册、不改动 provider；缺口处理仍走既有一级门（外围热加走 `registerDynamicProvider` 的 fail-closed 守卫；内核走 `proposeCapability` 提案）。
 - **验证**：`tests/unit/capability-gap-analysis.test.ts` 4 条（no-provider 缺口且不自动注册 / 持续失败达阈值判 low-success / 达标不误报 / reset 清空）；连同隔离+自扩展+文档+架构+determinism 门禁 **91 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 452 文件 / 121,027 行已同步。
 - **不做项**：§7-3（`GET /version` 列可服务 contract）仍待做。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`ca83156f`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — feat(dre): 能力运行期强制隔离（ADR-014 §7-2）
 
