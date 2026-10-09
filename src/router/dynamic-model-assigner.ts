@@ -22,10 +22,37 @@ import {
   registerModel,
   type ModelCapability,
 } from "./model-capability-registry.js";
-import {
-  getModelEvalService,
-  type ModelEvalResult,
-} from "../eval/model-eval-service.js";
+/**
+ * 模型评估结果的**最小结构类型**（ADR-013）：**不 import `src/eval`** —— eval 属外围，
+ * 且 `eval → router` 已存在，再 `router → eval` 会形成目录循环。故此处只声明结构形状。
+ */
+export interface ModelEvalResultLike {
+  modelId: string;
+  provider: string;
+  evaluatedAt: string;
+  scores: {
+    capability: number;
+    speed: number;
+    cost: number;
+    safety: number;
+    overall: number;
+  };
+  metadata: {
+    contextWindow: number;
+    isFree: boolean;
+  };
+  recommendation?: { bestRoles: string[]; notes?: string };
+}
+/** 模型评估 provider 接口（依赖倒置）——具体实现（`src/eval` 的 ModelEvalService）由组合根注入。 */
+export interface ModelEvalProvider {
+  getLatestResults(opts?: { sinceDays?: number }): ModelEvalResultLike[];
+  runFullEvaluation(opts?: { models?: string[]; includeBenchmarks?: boolean; apiKey?: string }): Promise<ModelEvalResultLike[]>;
+}
+/** 注入 eval provider（组合根调用）；未注入时 `runAssignment` 优雅降级为空报告。 */
+let _modelEvalProvider: ModelEvalProvider | null = null;
+export function setModelEvalProvider(p: ModelEvalProvider | null): void {
+  _modelEvalProvider = p;
+}
 
 // ========== 类型定义 ==========
 
@@ -74,7 +101,7 @@ const DEFAULT_CONFIG: Required<AssignmentConfig> = {
 };
 
 // 角色匹配规则：基于模型评分维度推断最佳角色
-const ROLE_SCORING: { role: TaskRole; weight: (s: ModelEvalResult["scores"], m: ModelEvalResult["metadata"]) => number }[] = [
+const ROLE_SCORING: { role: TaskRole; weight: (s: ModelEvalResultLike["scores"], m: ModelEvalResultLike["metadata"]) => number }[] = [
   {
     role: "decision",
     weight: (s) => s.speed * 0.5 + s.cost * 0.3 + s.capability * 0.2,
@@ -190,7 +217,7 @@ function inferProvider(modelId: string, evalProvider: string): ModelProvider {
  * 分数越高 → 优先级数值越低（priority 1 最高）
  */
 function computePriority(
-  evalResult: ModelEvalResult,
+  evalResult: ModelEvalResultLike,
   config: Required<AssignmentConfig>
 ): number {
   let priority: number;
@@ -220,7 +247,7 @@ function computePriority(
  * 基于评估分数和角色匹配规则，为模型分配最佳角色
  */
 function assignRoles(
-  evalResult: ModelEvalResult,
+  evalResult: ModelEvalResultLike,
   config: Required<AssignmentConfig>
 ): TaskRole[] {
   const roles: TaskRole[] = [];
@@ -279,7 +306,19 @@ export class DynamicModelAssigner {
     includeBenchmarks?: boolean;
   }): Promise<AssignmentReport> {
     const startTime = performance.now();
-    const evalService = getModelEvalService();
+    const evalService = _modelEvalProvider;
+    if (!evalService) {
+      logger.warn("[DynamicAssigner] 未注入模型评估 provider（eval 属外围，需组合根注入），返回空报告");
+      return {
+        timestamp: new Date().toISOString(),
+        evaluatedModels: 0,
+        assignedModels: 0,
+        newAssignments: [],
+        updatedPriorities: [],
+        unassignedModels: [],
+        recommendations: ["未注入模型评估 provider（eval 属外围，需组合根注入）"],
+      };
+    }
 
     // Step 1: Get latest evaluation results
     let evalResults = evalService.getLatestResults({ sinceDays: 1 });
@@ -399,7 +438,7 @@ export class DynamicModelAssigner {
    */
   private registerDynamicModel(
     assignment: DynamicAssignment,
-    evalResult: ModelEvalResult
+    evalResult: ModelEvalResultLike
   ): void {
     const capability: ModelCapability = {
       id: `dynamic_${assignment.modelId.replace(/[^a-zA-Z0-9_-]/g, "_")}`,
@@ -489,7 +528,7 @@ export class DynamicModelAssigner {
   // ========== 内部辅助 ==========
 
   private buildReason(
-    evalResult: ModelEvalResult,
+    evalResult: ModelEvalResultLike,
     roles: TaskRole[],
     priority: number
   ): string {
@@ -505,7 +544,7 @@ export class DynamicModelAssigner {
   }
 
   private generateRecommendations(
-    evalResults: ModelEvalResult[],
+    evalResults: ModelEvalResultLike[],
     assignments: DynamicAssignment[]
   ): string[] {
     const recs: string[] = [];

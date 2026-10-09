@@ -1,5 +1,5 @@
 import { getModelEvalService, type ModelEvalResult } from "../../eval/model-eval-service.js";
-import { getDynamicModelAssigner } from "../../router/dynamic-model-assigner.js";
+import { getDynamicModelAssigner, setModelEvalProvider } from "../../router/dynamic-model-assigner.js";
 
 function getFlag(name: string, args: string[]): string | undefined {
   const flag = args.find(a => a.startsWith(`--${name}=`));
@@ -77,6 +77,7 @@ export async function handleEvalEval(args: string[]) {
 }
 
 export async function handleEvalAssign(args: string[]) {
+  setModelEvalProvider(getModelEvalService());
   const assigner = getDynamicModelAssigner();
   const force = args.includes("--force");
   const benchmarks = args.includes("--benchmarks") || args.includes("--bench");

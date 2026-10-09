@@ -14,7 +14,7 @@
  */
 
 import { getModelEvalService, type ModelEvalResult } from "./model-eval-service.js";
-import { getDynamicModelAssigner } from "../router/dynamic-model-assigner.js";
+import { getDynamicModelAssigner, setModelEvalProvider } from "../router/dynamic-model-assigner.js";
 
 // ===== CLI Args =====
 const args = Bun.argv.slice(2);
@@ -101,6 +101,7 @@ async function cmdEval() {
 }
 
 async function cmdAssign() {
+  setModelEvalProvider(getModelEvalService());
   const assigner = getDynamicModelAssigner();
 
   console.log("\n🎯 Axiom Dynamic Model Assignment");

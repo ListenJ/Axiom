@@ -32,12 +32,6 @@
       "imports": [
         "src/codeindex/local-index.ts"
       ]
-    },
-    {
-      "file": "src/router/dynamic-model-assigner.ts",
-      "imports": [
-        "src/eval/model-eval-service.ts"
-      ]
     }
   ]
 }

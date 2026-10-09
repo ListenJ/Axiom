@@ -188,7 +188,9 @@ export async function handleEvalAssign(ctx: RouteContext): Promise<Response | nu
       let body: Record<string, unknown> = {};
       try { body = await ctx.req.json(); } catch { /* empty body ok */ }
 
-      const { getDynamicModelAssigner } = await import("../router/dynamic-model-assigner.js");
+      const { getDynamicModelAssigner, setModelEvalProvider } = await import("../router/dynamic-model-assigner.js");
+      const { getModelEvalService } = await import("../eval/model-eval-service.js");
+      setModelEvalProvider(getModelEvalService());
       const assigner = getDynamicModelAssigner();
 
       const report = await assigner.runAssignment({
