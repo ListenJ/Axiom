@@ -24,7 +24,7 @@
 - **棘轮下调**：`config/kernel-periphery-baseline.json` **4 → 3**（余 `dre/pipeline/search-port`（已知例外）、`memory/codegraph-index`、`router/dynamic-model-assigner`）。
 - **验证**：`bun test`（内核↔外围门 + 架构完整性 + 外围↔核心门 + doc-contract + docs-consistency + determinism + 出网）= **96 pass / 0 fail**；`bunx tsc --noEmit` rc=0；`arch:stats` 453 文件 / 121,210 行已同步。
 - **不做项**：剩余 2 处（`memory/codegraph-index→codeindex` 6 个函数、`router/dynamic-model-assigner→eval` 多调用点）需多调用点注入改造，留后续单独提交。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`b6d2b059`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-09 — ops(embed): 卸载本地 CUDA embedding 服务（含防自启）
 
