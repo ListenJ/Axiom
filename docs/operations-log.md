@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-10 — test(stress): 硬化 mega-pressure 用例（消除负载敏感红）
+
+- **任务**：`tests/rigorous/mega-pressure.test.ts` 的 Vault 压测在外部重载（reranker 构建 + QEMU VM）时失真。分级 **T1**。
+- **根因**：① "500 写入后检索 1000 并发" 断言 `duration < 10000`（墙钟，负载下 13.1s 翻红）；② "1000 并发写入同 vault" 无显式超时，负载下 22.9s **超过 15s 用例超时**。
+- **修复**：① 墙钟预算放宽为**负载容忍值** `120_000ms`（**语义判据不变**：不丢/确定性/内存增长）；② 两条重负载用例显式声明 `120_000ms` 超时。
+- **验证**：`bun test tests/rigorous/mega-pressure.test.ts` = **7 pass / 0 fail**（12.5s）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-10 — test(stress): 硬化 S5 Actor 风暴用例（消除全量内 flake）
 
 - **任务**：测试阶段全量多次出现 `S5 Actor ask/NACK/超时风暴 800 并发` 偶发失败（单跑 3/3 稳过、全量内失败）。分级 **T1**。
