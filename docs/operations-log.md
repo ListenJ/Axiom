@@ -23,7 +23,7 @@
 - **根因**：`scripts/smoke-linux.sh` 的 **host 分支未把 `--port` 传给服务**（只设 `HOST/AXIOM_AUTH_TOKEN/DATABASE_PATH/LOG_LEVEL`），服务回落到默认 **18789** → 撞本机既有部署实例 → 启动即败。docker 分支同样未设容器内端口（`-p "${PORT}:${PORT}"` 映射与实际监听不一致）。
 - **修复**：host 分支 env 增 `AXIOM_GATEWAY_PORT="$PORT"`；docker 分支 `-e AXIOM_GATEWAY_PORT="$PORT"`。`bash -n` 通过。
 - **验证（host 模式，端口 18795，最新源码构建 dist）**：六道全绿——构建 ✓ / 启动 ✓ / **健康 `/health=ok`** ✓ / **runtime-audit** ✓ / **诊断端点 200** ✓ / **聊天往返 HTTP=200 结构化响应** ✓；`SMOKE PASS`（exit 0）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`b83b8378`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-10 — test(stress): 硬化 mega-pressure 用例（消除负载敏感红）
 
@@ -31,7 +31,7 @@
 - **根因**：① "500 写入后检索 1000 并发" 断言 `duration < 10000`（墙钟，负载下 13.1s 翻红）；② "1000 并发写入同 vault" 无显式超时，负载下 22.9s **超过 15s 用例超时**。
 - **修复**：① 墙钟预算放宽为**负载容忍值** `120_000ms`（**语义判据不变**：不丢/确定性/内存增长）；② 两条重负载用例显式声明 `120_000ms` 超时。
 - **验证**：`bun test tests/rigorous/mega-pressure.test.ts` = **7 pass / 0 fail**（12.5s）。
-- **Commit**：`<pending>`（推送后按规则 9 回填）
+- **Commit**：`0d0b7739`（已推送；已 fast-forward 到 `main`，按规则 9 以记录维护提交回填）
 
 ## 2026-10-10 — test(stress): 硬化 S5 Actor 风暴用例（消除全量内 flake）
 
