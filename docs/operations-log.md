@@ -17,6 +17,14 @@
 
 ---
 
+## 2026-10-10 — fix(smoke): smoke-linux 把 --port 传给服务（host/docker）
+
+- **任务**：跑六道冒烟时门 3（健康）失败：`Failed to start server. Is port 18789 in use?`。分级 **T1/T2**。
+- **根因**：`scripts/smoke-linux.sh` 的 **host 分支未把 `--port` 传给服务**（只设 `HOST/AXIOM_AUTH_TOKEN/DATABASE_PATH/LOG_LEVEL`），服务回落到默认 **18789** → 撞本机既有部署实例 → 启动即败。docker 分支同样未设容器内端口（`-p "${PORT}:${PORT}"` 映射与实际监听不一致）。
+- **修复**：host 分支 env 增 `AXIOM_GATEWAY_PORT="$PORT"`；docker 分支 `-e AXIOM_GATEWAY_PORT="$PORT"`。`bash -n` 通过。
+- **验证（host 模式，端口 18795，最新源码构建 dist）**：六道全绿——构建 ✓ / 启动 ✓ / **健康 `/health=ok`** ✓ / **runtime-audit** ✓ / **诊断端点 200** ✓ / **聊天往返 HTTP=200 结构化响应** ✓；`SMOKE PASS`（exit 0）。
+- **Commit**：`<pending>`（推送后按规则 9 回填）
+
 ## 2026-10-10 — test(stress): 硬化 mega-pressure 用例（消除负载敏感红）
 
 - **任务**：`tests/rigorous/mega-pressure.test.ts` 的 Vault 压测在外部重载（reranker 构建 + QEMU VM）时失真。分级 **T1**。

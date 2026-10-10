@@ -114,7 +114,7 @@ case "$MODE" in
     log "启动容器 $CONTAINER"
     docker run -d --name "$CONTAINER" \
       -v "$REPO:/app" -w /app -p "${PORT}:${PORT}" \
-      -e HOST=0.0.0.0 -e AXIOM_AUTH_TOKEN="$TOKEN" \
+      -e HOST=0.0.0.0 -e AXIOM_AUTH_TOKEN="$TOKEN" -e AXIOM_GATEWAY_PORT="$PORT" \
       -e DATABASE_PATH=/app/data/smoke.db -e LOG_LEVEL=warn \
       oven/bun:1 sh -c "bun run dist/main.js" >/dev/null
     ;;
@@ -122,7 +122,7 @@ case "$MODE" in
     log "启动前台进程（后台，setsid 独立进程组）"
     # 2026-09-29 修复：原实现把 bun 放在子 shell 里后台化，cleanup 杀到的不是真实服务进程，
     # 冒烟“PASS”后端口 18789 仍被占用（实测残留 pid）。改为当前 shell 直接后台化 + 记录真实 pid。
-    ( cd "$REPO" && exec env HOST="$BIND" AXIOM_AUTH_TOKEN="$TOKEN" \
+    ( cd "$REPO" && exec env HOST="$BIND" AXIOM_AUTH_TOKEN="$TOKEN" AXIOM_GATEWAY_PORT="$PORT" \
         DATABASE_PATH="$REPO/data/smoke.db" LOG_LEVEL=warn \
         setsid bun run dist/main.js ) >/tmp/axiom-smoke.log 2>&1 &
     SMOKE_PID=$!
