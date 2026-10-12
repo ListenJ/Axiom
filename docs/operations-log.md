@@ -1858,3 +1858,10 @@
 - **修复**：①门 6 更名"聊天往返（带鉴权）"，非 2xx 一律 `gate 1`；②新增门 6b 鉴权链——无凭证 POST /chat 必须 401/403（冒烟 token 为随机自生成且服务用同一 token 启动 ⇒ 拒绝确定性成立）；服务未启用鉴权时 6b SKIP 不计失败（部署口径非冒烟失败）；③deploy/LINUX-SMOKE.md 门表同步 6/6b。
 - **验证**：`bash -n` 通过；门表与实现逐门核对。
 - **Commit**：`ba32b7eb`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — docs: env 模板登记 AXIOM_REPO_ROOT + 棘轮同步（门自证 ×2）
+
+- **任务**：全量回归 2 fail 均为门自证有效——①env 模板完整性门抓到 H1 新读取的 AXIOM_REPO_ROOT 未登记；②docs-consistency 棘轮抓行数漂移（120,858→120,898）。分级 **T1**。
+- **修复**：.env.example 补 AXIOM_REPO_ROOT（含默认探测说明：单 checkout 部署无需设置）；ARCHITECTURE.md 基线同步。
+- **验证**：env 门 + docs-consistency 22/0。
+- **Commit**：`<占位-回填H4>`
