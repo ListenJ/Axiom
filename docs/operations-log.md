@@ -1786,3 +1786,10 @@
 - **修复**：`ensureEvalProvider()` 惰性自注入——runAssignment 入口发现未注入时动态 import 外围 eval 服务（router→eval 内核→外围方向按本仓惯例走 lazy import 防循环依赖）；显式 `setModelEvalProvider(null)` 仍可禁用（测试隔离语义保留）；注入失败记 warn 降级空报告。
 - **验证**：测试双注入后 runAssignment evaluatedModels=1（provider 路径激活）；显式 null 走降级路径；tsc rc=0；tests/router+decision 全绿。注：本机 runAssignment 实测 evaluatedModels=0 属数据态（data/model-eval.db 0 行 + runFullEvaluation 需 OPENROUTER_API_KEY），非注入缺陷。
 - **Commit**：`9315c271`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(daemon): /dre/tool 结构化错误 + openEvents 建连超时（轮 7 Medium 批次）
+
+- **任务**：①/dre/tool handler 抛错直接冒泡 → Bun 500 空响应，MCP 薄转发拿不到 `{ok:false,error}` 结构化体；②client.openEvents 建连阶段裸 fetch——daemon 端口假死/半开时调用方无限挂起（health 有 30s 超时而事件流建连无保护）。分级 **T1**。
+- **修复**：①handler 包 try/catch 返回 `json({ok:false,error},500)`（对齐 /dre/run 既有纪律）；②openEvents 加 `AbortSignal.timeout(this.timeoutMs)`（仅建连阶段；读流阶段语义不变）。
+- **验证**：tsc rc=0；dre-daemon/dre-tools/runtime-host 三文件 29/0。
+- **Commit**：`<占位-回填C>`

@@ -198,8 +198,14 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
         const args = (body.args && typeof body.args === "object" ? body.args : {}) as Record<string, unknown>;
         const handler = dreToolHandlers[name];
         if (!handler) return json({ ok: false, error: `unknown DRE tool: ${name}` }, 404);
-        const result = await handler(args);
-        return json({ ok: true, result });
+        // 轮 7 审计：handler（synapse/DB 操作、外部 fetch）抛错曾直接冒泡 → Bun 500
+        // 空响应，MCP 侧薄转发拿不到结构化体。对齐周边端点（/dre/run 等）catch 纪律。
+        try {
+          const result = await handler(args);
+          return json({ ok: true, result });
+        } catch (err) {
+          return json({ ok: false, error: (err as Error).message }, 500);
+        }
       }
 
       if (url.pathname === "/dre/run" && req.method === "POST") {

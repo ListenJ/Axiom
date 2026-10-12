@@ -105,7 +105,13 @@ export class DreDaemonClient {
   /** 事件流（SSE）——返回上游 Response，调用方负责转发 body */
   async openEvents(): Promise<Response> {
     try {
-      return await fetch(`${this.baseUrl}/events`, { method: "GET", headers: this.headers() });
+      // 建连阶段受 timeoutMs 保护（轮 7 审计：裸 fetch 在 daemon 端口假死/半开时
+      // 无限挂起；读流阶段本就不受 timeoutMs 限制，语义不变）。
+      return await fetch(`${this.baseUrl}/events`, {
+        method: "GET",
+        headers: this.headers(),
+        signal: AbortSignal.timeout(this.timeoutMs),
+      });
     } catch (err) {
       throw new DreDaemonUnavailableError(`DRE daemon events unreachable at ${this.baseUrl}: ${(err as Error).message}`);
     }
