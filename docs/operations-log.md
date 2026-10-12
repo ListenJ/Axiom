@@ -1836,4 +1836,4 @@
 - **任务**：`readExistingTier` 自建 vault 根口径（env 直读+手工拼接）与 VaultManager 配置解析双源——任一侧变化即分叉，"防降级覆盖"契约（一手源不被兜底源覆盖）依赖此读取。分级 **T1**。
 - **修复**：复用既有 `vault.readNote()`（同一路径解析 + resolveSafePath 安全约束）读既有笔记；函数去 async（readNote 同步）、去 env 接触；调用点同步签名。
 - **验证**：tsc rc=0；`bun build` 解析通过；文件内 OBSIDIAN_VAULT_PATH 引用 0（env 直读面归零，单源达成）。
-- **Commit**：`<占位-回填C1>`
+- **Commit**：`00b89630`（已推送，按规则 9 以本记录维护提交回填）
