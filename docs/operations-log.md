@@ -1899,4 +1899,4 @@
 - **任务**：轮 7 审计 §4.3 剩余最后 5 项。分级 **T1**。
 - **修复**：①capability-isolation 运行时二进制 AXIOM_RUNTIME_BIN env 化（默认 bun 兼容）；②install-systemd.sh 实例用户 SUDO_USER 推导 + REPO 位置推导（对齐 install-wind-collect 模式）；③mind-tools 双写入口收口——registerMindTools 的 engineProvider 改局部闭包（不再写模块全局），双模并传显式告警，handler 改走 getRegisteredEngine（跨模块注入口 setMindEngineProvider 保留为唯一全局路）；④model-router embedding 回环豁免——local-embed + 127.0.0.1 端点时 LOCAL_EMBED_API_KEY 缺失不再抛 Missing API key（探针：过 key 门到 fetch 层），消除 embedding 角色静默消失；⑤invokeRemoteDreTool 非 JSON 响应结构化错误（text→parse 失败构造含 status+body 前 200 字符的 Error，诊断链路不再断）。
 - **验证**：tsc rc=0；dre-tools/dre-daemon 25/0；env 门（新变量已登记）；embed 探针实证豁免生效。
-- **Commit**：`<占位-回填LF>`
+- **Commit**：`a6ac8290`（已推送，按规则 9 以本记录维护提交回填）
