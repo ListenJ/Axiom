@@ -1711,4 +1711,4 @@
 - **工具**：ocr delegate preview/rule（变更面 132 reviewable + 198 excluded + 31 工具缺口普查闭合）、10 并行审查子代理、bun/bun test、tsc、go test/vet、uvicorn CUDA 实测、Bun.serve 独立实验 ×2。
 - **操作**：新增 `docs/reviews/2026-10-12-audit-round7.md`（六段格式，25KB）；**零源码/测试/配置改动**（规则 13 只审核不代写修复）。
 - **验证**：车道覆盖 132/132=100%（82 findings 复核后 75 入册，High 6→维持 3：laya 并发闸语义/laya-calibrate 分子分母口径/源码 grep 断言；EPIPE 崩溃实验证伪降级、SSE cancel 不可达实验反驳）；门禁实测全绿：doc-contract 35/0、audit:runtime 16/16、tsc rc=0、全量 bun test 4721 pass/67 skip/0 fail、count-tools 189、arch-stats 454/121360、go vet rc=0、Go 确定性 5 进程×10 迭代逐字节一致、KAL runs=5 identical、CUDA bge-m3 N=5 SHA-256 全一致（RTX 3050 Ti）；native/ 删除面 22/22 全 D 零活跃引用；主张 18 条：一致 14/部分 1/不一致 1（README 场景数 21→实测 23）/未验证 2。
-- **Commit**：`<占位-本轮回填>`
+- **Commit**：`968305ee`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
