@@ -1829,4 +1829,4 @@
 - **任务**：wiki_links 改名 RELEASE 后才跑 memory_notes UPDATE——后者失败时链接已指向 archivePath 而行仍留旧 path（悬空链接，无回滚）。分级 **T1**（单方法事务边界，验证命令替代接缝）。
 - **修复**：三步（links source/target 改名 + notes 行 UPDATE）同包 `SAVEPOINT archive_note_path`，失败 ROLLBACK TO 整体回滚；SAVEPOINT 名随语义更新。
 - **验证**：新旧形态对照实证——旧形态 notes 表缺失时 links 留 archived（悬空）；新形态同故障整体回退（links 保持 old）；tsc rc=0；tests/memory 49/0。
-- **Commit**：`<占位-回填S1>`
+- **Commit**：`253d2013`（已推送，按规则 9 以本记录维护提交回填）
