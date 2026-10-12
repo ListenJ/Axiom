@@ -9,10 +9,15 @@ import fs from "node:fs";
 import { startDreDaemon, type DreDaemonHandle } from "../../src/daemon/dre-daemon.js";
 import { createDreDaemonClient } from "../../src/daemon/client.js";
 import { DRE_DAEMON_CONTRACT_VERSION, DRE_DAEMON_BASE_CAPABILITIES } from "../../src/daemon/contract.js";
+import { snapshotEnv } from "../helpers/env-snapshot.js";
 
 const DB = `.tmp/dre-daemon-test-${process.pid}.db`;
 let handle: DreDaemonHandle;
 let base = "";
+
+// 轮 7 审计三梯队⑤：两个 describe 共用一份快照（模块级，首个 afterAll 触发前
+// 两个 describe 都已跑完——bun 顺序执行），覆盖全部改写键。
+const restoreEnv = snapshotEnv(["DRE_DB_PATH", "DATABASE_PATH", "DRE_AUTO_TICK"]);
 
 describe("DRE Daemon 集成", () => {
   beforeAll(async () => {
@@ -29,7 +34,6 @@ describe("DRE Daemon 集成", () => {
     for (const suffix of ["", "-wal", "-shm"]) {
       try { fs.rmSync(DB + suffix, { force: true }); } catch {}
     }
-    delete process.env.DRE_DB_PATH;
   });
 
   test("GET /health 存活且 state 明确", async () => {
@@ -200,6 +204,7 @@ describe("DRE Daemon 客户端", () => {
   afterAll(async () => {
     if (handle) await handle.stop();
     try { fs.rmSync(process.env.DRE_DB_PATH ?? "", { force: true }); } catch {}
+    restoreEnv();
   });
 
   test("client.health / status / cognitiveState / run 均可用", async () => {

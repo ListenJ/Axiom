@@ -3,15 +3,19 @@
  * 锁住：缺标注拒绝（防"裸跑"）、域标签校验、命中率/margin/门槛建议计算。
  */
 import { describe, test, expect, afterEach } from "bun:test";
+import { snapshotEnv } from "../helpers/env-snapshot.js";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCalibration } from "../../src/decision/laya-calibrate.js";
 
 const REAL_FETCH = globalThis.fetch;
+// 轮 7 审计三梯队⑤：delete 不恢复会把运行环境已配置的 LAYA_DECISION_URL
+// 泄漏为"已删除"状态给同进程后续测试（对齐 laya-http.test.ts 的 ENV_KEYS 范本）。
+const restoreLayaEnv = snapshotEnv(["LAYA_DECISION_URL"]);
 afterEach(() => {
   globalThis.fetch = REAL_FETCH;
-  delete process.env.LAYA_DECISION_URL;
+  restoreLayaEnv();
 });
 
 function setup(cases: unknown) {

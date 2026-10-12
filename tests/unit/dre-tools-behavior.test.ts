@@ -13,9 +13,14 @@ import { describe, test, expect, beforeAll, afterAll } from "bun:test";
 import fs from "node:fs";
 import { ToolRegistry } from "../../src/mcp/tool-registry.js";
 import { registerDreTools, shutdownKernel } from "../../src/mcp/server/dre-tools.js";
+import { snapshotEnv } from "../helpers/env-snapshot.js";
 
 const DB = `.tmp/dre-tools-behavior-${process.pid}.db`;
 let handlers: Record<string, (args: Record<string, unknown>) => Promise<unknown>>;
+
+// 轮 7 审计三梯队⑤：beforeAll 改写的 env 键 + 不可逆 delete 必须在 afterAll 全量
+// 还原（bun 单进程顺序执行，泄漏会改变同进程后续测试文件的行为分支）。
+const restoreEnv = snapshotEnv(["DRE_DB_PATH", "DATABASE_PATH", "DRE_LLM_URL", "DRE_AUTO_TICK", "DEEPSEEK_API_KEY"]);
 
 describe("DRE MCP 工具行为安全网", () => {
   beforeAll(async () => {
@@ -35,7 +40,7 @@ describe("DRE MCP 工具行为安全网", () => {
     for (const suffix of ["", "-wal", "-shm"]) {
       try { fs.rmSync(DB + suffix, { force: true }); } catch {}
     }
-    delete process.env.DRE_DB_PATH;
+    restoreEnv();
   });
 
   test("注册了 DRE 工具面（含关键工具名）", () => {

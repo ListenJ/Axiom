@@ -13,11 +13,15 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { judgeDrift, runDrift } from "../../src/decision/laya-calibrate.js";
+import { snapshotEnv } from "../helpers/env-snapshot.js";
 
 const REAL_FETCH = globalThis.fetch;
+// 轮 7 审计三梯队⑤：delete 不恢复会把运行环境已配置的 LAYA_DECISION_URL
+// 泄漏为"已删除"状态给同进程后续测试（对齐 laya-http.test.ts 的 ENV_KEYS 范本）。
+const restoreLayaEnv = snapshotEnv(["LAYA_DECISION_URL"]);
 afterEach(() => {
   globalThis.fetch = REAL_FETCH;
-  delete process.env.LAYA_DECISION_URL;
+  restoreLayaEnv();
 });
 
 describe("judgeDrift —— 纯判定（无 fetch）", () => {
