@@ -1,3 +1,6 @@
+# 机器绑定（轮 7 审计部署题①裁决）：本单元为单机部署配置，路径绑定本机 checkout。
+# 迁移机器时需按新机器路径改写 WorkingDirectory/ExecStart/ReadWritePaths（systemd 要求绝对路径，
+# 错误路径下单元会响亮失败 status=203/EXITChdir，不会静默错跑）。
 [Unit]
 Description=Axiom Runtime (instance %i)
 After=network.target

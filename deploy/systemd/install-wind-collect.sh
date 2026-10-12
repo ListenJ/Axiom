@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # 安装/更新 Wind 每日采集的 systemd 单元（需 sudo）
 #   sudo bash deploy/systemd/install-wind-collect.sh
+# 仓库根从脚本位置推导（轮 7 审计部署题①：零成本可移植化）；
+# 仍可用环境变量 AXIOM_REPO_ROOT 显式覆盖。
 set -euo pipefail
 [ "$(id -u)" -eq 0 ] || { echo "需要 root：sudo bash $0" >&2; exit 1; }
 
-REPO=/run/media/listen/base/openclaw-fusion
+REPO="${AXIOM_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 SRC="$REPO/deploy/systemd"
 DST=/etc/systemd/system
 INSTANCE="${1:-listen}"

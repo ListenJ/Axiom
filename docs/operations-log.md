@@ -1844,3 +1844,10 @@
 - **修复**：①client-connector 新增 `expandPathString`（`${VAR}` / `${VAR:-default}` 对齐既有 resolveEntryTimeout 约定；`${REPO_ROOT}` 特殊解析 AXIOM_REPO_ROOT env → cwd 回退）+ `resolveEntryPaths`（command/args/url 三处连接时解析）；②yaml akshare/wind 两 server 改 `${REPO_ROOT}`（ifind bunx 无路径本就不涉）。语义：未定义变量展开空串 → spawn 响亮失败（optional 降级 info），不静默指向错误路径。
 - **验证**：yaml 解析保持原样（占位符连接时展开）；展开语义 5 场景单元验证（REPO_ROOT/具名 env/默认值/未知变量空串/普通命令原样）；mcp-config 套件 10/0；tsc rc=0。
 - **Commit**：`ee8c89f5`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — chore(deploy): 硬编码后果审核裁决落地（install 推导 + 单元机器绑定声明）
+
+- **任务**：轮 7 部署题①用户裁决——"硬编码逐处审后果：可控则保留，不可控则解析"。分级 **T1**。
+- **后果审核矩阵**：①deploy/systemd 4 单元——systemd 语义**要求绝对路径**、机器本地配置、错误路径下响亮失败（status=203/EXITChdir）不会静默错跑 → **后果可控，保留硬编码**，补机器绑定声明头（迁移机器改写指引）；②install-wind-collect.sh——零成本改仓库根从脚本位置推导（AXIOM_REPO_ROOT 可覆盖）；③mcp-servers.yaml——前一条已判不可控改解析（另提交）。
+- **验证**：`bash -n` 通过；推导实测（脚本位置 → 仓库根）；`systemd-analyze verify` 全部单元 0 错误。
+- **Commit**：`<占位-回填H2>`
