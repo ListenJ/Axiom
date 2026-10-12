@@ -1837,3 +1837,10 @@
 - **修复**：复用既有 `vault.readNote()`（同一路径解析 + resolveSafePath 安全约束）读既有笔记；函数去 async（readNote 同步）、去 env 接触；调用点同步签名。
 - **验证**：tsc rc=0；`bun build` 解析通过；文件内 OBSIDIAN_VAULT_PATH 引用 0（env 直读面归零，单源达成）。
 - **Commit**：`00b89630`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — refactor(mcp): mcp-servers.yaml 机器路径改 ${REPO_ROOT} 解析（用户裁决：不可控硬编码 → 解析）
+
+- **任务**：轮 7 审计遗留部署题①——用户裁决"硬编码逐处审后果：不可控则解析"。`config/mcp-servers.yaml` 是**入库运行时配置**：机器路径换 checkout/换机后 command not found，optional 标记又降级为 info 日志 → **静默失效不可控**，判解析。
+- **修复**：①client-connector 新增 `expandPathString`（`${VAR}` / `${VAR:-default}` 对齐既有 resolveEntryTimeout 约定；`${REPO_ROOT}` 特殊解析 AXIOM_REPO_ROOT env → cwd 回退）+ `resolveEntryPaths`（command/args/url 三处连接时解析）；②yaml akshare/wind 两 server 改 `${REPO_ROOT}`（ifind bunx 无路径本就不涉）。语义：未定义变量展开空串 → spawn 响亮失败（optional 降级 info），不静默指向错误路径。
+- **验证**：yaml 解析保持原样（占位符连接时展开）；展开语义 5 场景单元验证（REPO_ROOT/具名 env/默认值/未知变量空串/普通命令原样）；mcp-config 套件 10/0；tsc rc=0。
+- **Commit**：`<占位-回填H1>`

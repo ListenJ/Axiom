@@ -86,16 +86,42 @@ function expandEnv(env: Record<string, string>): Record<string, string> {
   return out;
 }
 
+/**
+ * 展开 command/args/url 中的 ${VAR} 占位符（轮 7 审计：机器绑定路径整改——
+ * yaml 改用 ${REPO_ROOT} 等变量后在此解析）。扩展名支持 ${VAR:-default}
+ *（对齐 resolveEntryTimeout 的既有约定）；${REPO_ROOT} 特殊解析为仓库根
+ *（优先 AXIOM_REPO_ROOT env，回退进程 cwd 向上探测 package.json）。
+ * 未定义且无默认值的变量展开为空串——命令不存在时 spawn 会响亮失败（optional
+ * server 降级为 info 日志），不静默指向错误路径。
+ */
+function expandPathString(value: string): string {
+  return value.replace(/\$\{(\w+)(?::-([^}]*))?\}/g, (_, varName: string, def?: string) => {
+    if (varName === "REPO_ROOT") return readString("AXIOM_REPO_ROOT") || process.cwd().replace(/\/src$/, "");
+    const v = readString(varName);
+    if (v !== "") return v;
+    return def ?? "";
+  });
+}
+
+function resolveEntryPaths(entry: McpServerEntry): McpServerEntry {
+  const out: McpServerEntry = { ...entry };
+  if (out.command) out.command = expandPathString(out.command);
+  if (out.args) out.args = out.args.map((a) => expandPathString(String(a)));
+  if (out.url) out.url = expandPathString(out.url);
+  return out;
+}
+
 /** 默认 client 工厂：按配置类型建立 stdio / remote HTTP 连接 */
 async function createSdkClient(name: string, entry: McpServerEntry): Promise<McpClientLike> {
   const client = new Client({ name: `axiom-mcp-client-${name}`, version: "1.0.0" });
   if (entry.type === "remote" && entry.url) {
-    await client.connect(new StreamableHTTPClientTransport(new URL(entry.url)));
+    await client.connect(new StreamableHTTPClientTransport(new URL(resolveEntryPaths(entry).url!)));
   } else if (entry.command) {
+    const resolved = resolveEntryPaths(entry);
     await client.connect(new StdioClientTransport({
-      command: entry.command,
-      args: entry.args ?? [],
-      env: entry.env ? { ...getDefaultEnvironment(), ...expandEnv(entry.env) } : undefined,
+      command: resolved.command!,
+      args: resolved.args ?? [],
+      env: resolved.env ? { ...getDefaultEnvironment(), ...expandEnv(resolved.env) } : undefined,
       stderr: "inherit",
     }));
   } else {

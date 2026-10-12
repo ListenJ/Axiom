@@ -55,7 +55,7 @@ servers:
   # 注意（实测 2026-10-07）：上游 eastmoney/sina 单次请求可达 30s，
   # 故 timeoutMs 放宽到 120s；批量抓取请走 runtime-data/ 的脚本而非交互式调用。
   akshare:
-    command: "/run/media/listen/base/openclaw-fusion/runtime-data/.venv/bin/python"
+    command: "${REPO_ROOT}/runtime-data/.venv/bin/python"
     args: ["-m", "akshare_mcp"]
     optional: true
     timeoutMs: "${MCP_AKSHARE_TIMEOUT_MS:-120000}"
@@ -72,8 +72,8 @@ servers:
   # 无 WIND_API_KEY 时：optional 使其降级为 info 日志，不影响其他 MCP/启动。
   # 未配 key 时 optional 跳过，不阻塞启动。
   wind:
-    command: "/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/.venv/bin/python"
-    args: ["/run/media/listen/base/openclaw-fusion/mcp-servers/wind-mcp/server.py"]
+    command: "${REPO_ROOT}/mcp-servers/wind-mcp/.venv/bin/python"
+    args: ["${REPO_ROOT}/mcp-servers/wind-mcp/server.py"]
     optional: true
     env:
       WIND_API_KEY: "${WIND_API_KEY}"
