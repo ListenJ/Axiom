@@ -100,28 +100,39 @@ function startFakeRedis(requiredPassword?: string) {
 describe("Redis 认证", () => {
   it("口令正确 ⇒ 连接可用且命令成功", async () => {
     const fake = startFakeRedis("s3cret-pass");
-    const client = await RedisClient.connect(`redis://:s3cret-pass@127.0.0.1:${fake.server.port}/0`);
-    expect(client, "带正确口令应连接成功").not.toBeNull();
-    await client!.set("k1", "v1");
-    expect(await client!.get("k1")).toBe("v1");
-    client!.disconnect();
-    fake.stop();
+    let client: Awaited<ReturnType<typeof RedisClient.connect>> = null;
+    try {
+      client = await RedisClient.connect(`redis://:s3cret-pass@127.0.0.1:${fake.server.port}/0`);
+      expect(client, "带正确口令应连接成功").not.toBeNull();
+      await client!.set("k1", "v1");
+      expect(await client!.get("k1")).toBe("v1");
+    } finally {
+      client?.disconnect();
+      fake.stop(); // 轮 7 审计：断言失败也必须回收 socket（原实现泄漏到进程结束）
+    }
   });
 
   it("口令错误 ⇒ connect() 返回 null（干净降级，不返回半死客户端）", async () => {
     const fake = startFakeRedis("right-pass");
-    const client = await RedisClient.connect(`redis://:wrong-pass@127.0.0.1:${fake.server.port}/0`);
-    expect(client, "口令错误应判定为连接失败").toBeNull();
-    fake.stop();
+    try {
+      const client = await RedisClient.connect(`redis://:wrong-pass@127.0.0.1:${fake.server.port}/0`);
+      expect(client, "口令错误应判定为连接失败").toBeNull();
+    } finally {
+      fake.stop(); // 轮 7 审计：失败路径同样回收 fake server
+    }
   });
 
   it("无口令实例 ⇒ 不受影响", async () => {
     const fake = startFakeRedis(undefined);
-    const client = await RedisClient.connect(`redis://127.0.0.1:${fake.server.port}/0`);
-    expect(client).not.toBeNull();
-    await client!.set("k2", "v2");
-    expect(await client!.get("k2")).toBe("v2");
-    client!.disconnect();
-    fake.stop();
+    let client: Awaited<ReturnType<typeof RedisClient.connect>> = null;
+    try {
+      client = await RedisClient.connect(`redis://127.0.0.1:${fake.server.port}/0`);
+      expect(client).not.toBeNull();
+      await client!.set("k2", "v2");
+      expect(await client!.get("k2")).toBe("v2");
+    } finally {
+      client?.disconnect();
+      fake.stop();
+    }
   });
 });

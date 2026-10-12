@@ -72,7 +72,9 @@ describe("DRE MCP 工具行为安全网", () => {
     const list = (await handlers.persona_list({})) as string[];
     expect(Array.isArray(list)).toBe(true);
     expect(list).toContain("general");
-    const sw = (await handlers.persona_switch({ mode: "code", reason: "net" })) as { mode?: string } | { success?: boolean };
+    // 轮 7 审计：条件断言在返回不含 mode 时整条静默跳过（假绿）——先钉存在再钉值。
+    const sw = (await handlers.persona_switch({ mode: "code", reason: "net" })) as { mode?: string; success?: boolean };
+    expect("mode" in sw || sw.success === true, "persona_switch 必须回 mode 或显式 success").toBe(true);
     if ("mode" in sw) expect(sw.mode).toBe("code");
   });
 

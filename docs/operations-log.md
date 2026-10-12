@@ -1872,3 +1872,10 @@
 - **修复**：①outbound-fetch-baseline $note 23→24（对齐 totals.files）；②engine.ts getDb JSDoc 张冠李戴——悬空 docblock 移回 getStatus；③daily_collect.py WIND_DAILY_CAP 死常量删除 + docstring 错指改 WIND_DAILY_CREDITS/积分口径（对齐 systemd unit）；④README 场景数 21→23（DEFAULT_SCENES 实测）；⑤querybin.go+test 按规则 4 归档删除（端点已退役、零生产消费者、注释宣称的 experiments 路径不存在），归档说明落 archive/runtime-go/。
 - **验证**：py_compile + go build/vet/test(search) 全绿 + tsc rc=0 + doc-contract 35/0 + 棘轮同步 120,896。
 - **Commit**：`ab01dfdd`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — test(strength): Low 积压②测试断言批（3 文件）
+
+- **任务**：轮 7 审计 §4.3 测试断言组。分级 **T1**。
+- **修复**：①laya-http 补 3 用例——退避间隔递增（时间戳计量，250/500ms 下界 + 递增）、429 重试成功补锁（文件头宣称无用例）、429/422 分级对照；②redis-auth 三用例 try/finally（断言失败也回收 socket/fake server，修泄漏）；③dre-tools persona_switch 条件断言钉存在性（"必须回 mode 或显式 success"）+ object 断言收紧 null。
+- **验证**：三文件 34/0；tsc rc=0。
+- **Commit**：`<占位-回填L2>`

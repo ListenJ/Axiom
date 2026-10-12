@@ -120,6 +120,40 @@ describe("layaDecide —— 单条与错误分级", () => {
     expect(fetchCalls.length).toBe(3); // 1 次原始 + 2 次重试
   });
 
+  test("5xx 重试的退避间隔递增（轮 7 审计：仅断言调用次数时 0ms 退化实现恒绿）", async () => {
+    // postJson 退避 = 250 * 2^attempt + jitter(0..120) ⇒ attempt0→[250,370)ms、attempt1→[500,620)ms。
+    // 记录每次 fetch 时间戳，断言间隔达到退避下界且递增。
+    const stamps: number[] = [];
+    fetchImpl = async () => {
+      stamps.push(Date.now());
+      return new Response("boom", { status: 503 });
+    };
+    await expect(layaDecide("s", { a: { type: "noul", instructions: "x" } })).rejects.toThrow(/503/);
+    expect(stamps.length).toBe(3);
+    const gap1 = stamps[1] - stamps[0];
+    const gap2 = stamps[2] - stamps[1];
+    expect(gap1).toBeGreaterThanOrEqual(250); // attempt0 退避下界（jitter 前）
+    expect(gap2).toBeGreaterThanOrEqual(500); // attempt1 退避下界
+    expect(gap2).toBeGreaterThan(gap1); // 递增
+  }, 20_000);
+
+  test("429 可重试分支：重试后成功（文件头宣称行为的补锁，轮 7 审计缺口）", async () => {
+    let n = 0;
+    fetchImpl = async () => {
+      n++;
+      return n === 1 ? new Response("rate-limited", { status: 429 }) : new Response(JSON.stringify(OK_SINGLE), { status: 200 });
+    };
+    const res = await layaDecide("s", { a: { type: "noul", instructions: "x" } });
+    expect(res.answers.refund.noul).toBeCloseTo(0.9956);
+    expect(fetchCalls.length).toBe(2); // 429 走重试而非直接抛
+  });
+
+  test("429 与 4xx 分级对照：429 重试烧满 / 422 单次（分级判定锁定）", async () => {
+    fetchImpl = async () => new Response("rl", { status: 429 });
+    await expect(layaDecide("s", { a: { type: "noul", instructions: "x" } })).rejects.toThrow(/429/);
+    expect(fetchCalls.length).toBe(3); // 429 可重试：1 原始 + 2 重试
+  });
+
   test("未配置 LAYA_DECISION_URL：fail loud 不发请求", async () => {
     delete process.env.LAYA_DECISION_URL;
     await expect(layaDecide("s", { a: { type: "noul", instructions: "x" } })).rejects.toThrow(/LAYA_DECISION_URL 未配置/);
