@@ -650,7 +650,10 @@ export class SQLiteMemory {
   }
 
   archiveNotePath(notePath: string, archivePath: string): boolean {
-    this.db.run("SAVEPOINT vault_wiki_links_archive");
+    // 轮 7 审计：原实现只把 wiki_links 改名包进 SAVEPOINT，memory_notes 的 UPDATE
+    // 在 RELEASE 之后执行——后者失败时链接已指向 archivePath 而行仍在旧 path，
+    // 产生悬空链接且无回滚。两步同属"归档改名"一个原子语义，包进同一 SAVEPOINT。
+    this.db.run("SAVEPOINT archive_note_path");
     try {
       this.db.run(
         "UPDATE vault_wiki_links SET source_path = ? WHERE source_path = ?",
@@ -660,17 +663,17 @@ export class SQLiteMemory {
         "UPDATE vault_wiki_links SET target_path = ? WHERE target_path = ?",
         [archivePath, notePath],
       );
-      this.db.run("RELEASE SAVEPOINT vault_wiki_links_archive");
+      const result = this.db.run(
+        "UPDATE memory_notes SET path = ?, para_category = 'archives', updated_at = ? WHERE path = ?",
+        [archivePath, Date.now(), notePath],
+      );
+      this.db.run("RELEASE SAVEPOINT archive_note_path");
+      return result.changes > 0;
     } catch (e) {
-      try { this.db.run("ROLLBACK TO SAVEPOINT vault_wiki_links_archive"); } catch {}
-      try { this.db.run("RELEASE SAVEPOINT vault_wiki_links_archive"); } catch {}
+      try { this.db.run("ROLLBACK TO SAVEPOINT archive_note_path"); } catch {}
+      try { this.db.run("RELEASE SAVEPOINT archive_note_path"); } catch {}
       throw e;
     }
-    const result = this.db.run(
-      "UPDATE memory_notes SET path = ?, para_category = 'archives', updated_at = ? WHERE path = ?",
-      [archivePath, Date.now(), notePath],
-    );
-    return result.changes > 0;
   }
 
   stats(): {
