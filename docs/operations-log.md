@@ -1885,4 +1885,4 @@
 - **任务**：轮 7 审计 §4.3 CI 组。分级 **T1**。
 - **修复**：①3 workflows 各移除未使用的 `actions: write` 授权（最小权限；upload-artifact 用默认 GITHUB_TOKEN，stress-runner/run-visual-gate/frontend-audit.sh 均无 GitHub API 调用）；②smoke-linux kill-by-port 兜底加 cmdline 校验（匹配 dist/main.js|axiom|smoke 才强杀，无关进程跳过防误伤）。
 - **验证**：YAML 解析 3/3 OK；grep 复核 0 残留；`bash -n` 通过。
-- **Commit**：`<占位-回填L3>`
+- **Commit**：`410eea1a`（已推送，按规则 9 以本记录维护提交回填）
