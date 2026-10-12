@@ -259,17 +259,18 @@ async function main(): Promise<void> {
 const TIER_RANK: Record<SourceTier, number> = { primary: 0, secondary: 1, fallback: 2 };
 
 /** 读既有笔记正文里的 `> 源等级：` 标记，反推等级；无标记/无笔记返回 null */
-async function readExistingTier(notePath: string): Promise<SourceTier | null> {
-  try {
-    const full = `${process.env.OBSIDIAN_VAULT_PATH || "./axiom-memory"}/${notePath}`;
-    const text = await Bun.file(full).text();
-    if (text.includes("一手（官方发布方）")) return "primary";
-    if (text.includes("二手（正规财经媒体")) return "secondary";
-    if (text.includes("兜底（未命中白名单")) return "fallback";
-    return null;
-  } catch {
-    return null;
-  }
+function readExistingTier(vault: VaultManager, notePath: string): SourceTier | null {
+  // 轮 7 审计：原实现自建 vault 根路径口径（env 直读 + 手工拼接），与 VaultManager
+  // 的配置解析/resolveSafePath 是两套独立维护的事实源——任一侧变化即分叉，而
+  // "防降级覆盖"契约正依赖此读取。改为复用 vault.readNote（同一路径解析单源），
+  // 本函数不再接触 env。
+  const note = vault.readNote(notePath);
+  if (!note) return null;
+  const text = note.content;
+  if (text.includes("一手（官方发布方）")) return "primary";
+  if (text.includes("二手（正规财经媒体")) return "secondary";
+  if (text.includes("兜底（未命中白名单")) return "fallback";
+  return null;
 }
 
   console.log(`[${domainId}] db=${dbPath} topics=${topics.length} raw=data/raw/${domainId}/`);
@@ -348,7 +349,7 @@ async function readExistingTier(notePath: string): Promise<SourceTier | null> {
     // 防降级覆盖（2026-10-07 实测教训）：搜索结果逐次波动，重跑可能把已入库的
     // **一手官方源**内容换成 arxiv/新闻聚合壳等兜底源（实测 LPR 笔记被 arxiv 论文覆盖）。
     // 契约：新源等级**不优于**既有等级时不重写，保住已核实的好来源。
-    const existingTier = await readExistingTier(notePath);
+    const existingTier = readExistingTier(vault, notePath);
     if (existingTier && TIER_RANK[picked.tier] > TIER_RANK[existingTier]) {
       console.log(`[${domainId}] ${t.id}: KEEP 既有 ${existingTier} 源不被 ${picked.tier} 源覆盖 (${notePath})`);
       skipped++;

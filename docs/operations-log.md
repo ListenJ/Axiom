@@ -1830,3 +1830,10 @@
 - **修复**：三步（links source/target 改名 + notes 行 UPDATE）同包 `SAVEPOINT archive_note_path`，失败 ROLLBACK TO 整体回滚；SAVEPOINT 名随语义更新。
 - **验证**：新旧形态对照实证——旧形态 notes 表缺失时 links 留 archived（悬空）；新形态同故障整体回退（links 保持 old）；tsc rc=0；tests/memory 49/0。
 - **Commit**：`253d2013`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — refactor(scripts): collect-knowledge vault 路径单源化（轮 7 Medium 收尾）
+
+- **任务**：`readExistingTier` 自建 vault 根口径（env 直读+手工拼接）与 VaultManager 配置解析双源——任一侧变化即分叉，"防降级覆盖"契约（一手源不被兜底源覆盖）依赖此读取。分级 **T1**。
+- **修复**：复用既有 `vault.readNote()`（同一路径解析 + resolveSafePath 安全约束）读既有笔记；函数去 async（readNote 同步）、去 env 接触；调用点同步签名。
+- **验证**：tsc rc=0；`bun build` 解析通过；文件内 OBSIDIAN_VAULT_PATH 引用 0（env 直读面归零，单源达成）。
+- **Commit**：`<占位-回填C1>`
