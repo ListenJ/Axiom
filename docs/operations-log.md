@@ -1871,4 +1871,4 @@
 - **任务**：轮 7 审计 §4.3 文档漂移组清零。分级 **T1**。
 - **修复**：①outbound-fetch-baseline $note 23→24（对齐 totals.files）；②engine.ts getDb JSDoc 张冠李戴——悬空 docblock 移回 getStatus；③daily_collect.py WIND_DAILY_CAP 死常量删除 + docstring 错指改 WIND_DAILY_CREDITS/积分口径（对齐 systemd unit）；④README 场景数 21→23（DEFAULT_SCENES 实测）；⑤querybin.go+test 按规则 4 归档删除（端点已退役、零生产消费者、注释宣称的 experiments 路径不存在），归档说明落 archive/runtime-go/。
 - **验证**：py_compile + go build/vet/test(search) 全绿 + tsc rc=0 + doc-contract 35/0 + 棘轮同步 120,896。
-- **Commit**：`<占位-回填L1>`
+- **Commit**：`ab01dfdd`（已推送，按规则 9 以本记录维护提交回填）
