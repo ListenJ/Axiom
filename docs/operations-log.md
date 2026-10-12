@@ -1814,4 +1814,4 @@
 - **二稿修复**：①assigner 侧移除 lazy import（恢复纯端口，router 零外围 import）；②组合根 `src/main.ts` 启动序列一次性注入（动态 import 在组合根是职责而非内核依赖——分域门只扫内核目录）；③eval-routes handler 侧冗余 set 移除（CLI 独立进程保留自带注入）。
 - **验证**：kernel-periphery-boundary 2/0（在册面回到仅 search-port 例外）；docs-consistency 棘轮同步 120,858 行；tsc rc=0；router+decision+config-center 合跑 98/0。
 - **教训登记**：修复架构类审计发现前先读分域门/棘轮基线的扫描口径——"修复"本身可能构成新的违规形态。
-- **Commit**：`<占位-回填B2>`
+- **Commit**：`4f3bc3e4`（已推送，按规则 9 以本记录维护提交回填）
