@@ -82,7 +82,6 @@ jobs:
     continue-on-error: true # 周报级不阻断（ADR-002），差异进 artifact
     permissions:
       contents: read
-      actions: write
     steps:
       - uses: actions/checkout@v4
 

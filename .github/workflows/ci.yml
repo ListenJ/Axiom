@@ -238,7 +238,6 @@ jobs:
     needs: test
     permissions:
       contents: read
-      actions: write
     # D4（2026-09-19）：L3 重型门禁仅在 main/master 或 PR 上跑；
     # codex/** 的 push 只跑 L1（test + windows-portable）。
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'

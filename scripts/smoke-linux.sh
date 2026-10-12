@@ -60,12 +60,18 @@ cleanup() {
     if [ -n "${SMOKE_PID:-}" ]; then
       kill -- "-$SMOKE_PID" 2>/dev/null || kill "$SMOKE_PID" 2>/dev/null || true
     fi
-    # 兜底：按端口清理仍在监听的进程（防包装进程/子进程逃逸）
+    # 兜底：按端口清理仍在监听的进程（防包装进程/子进程逃逸）。
+    # 轮 7 审计：kill -9 前先校验 cmdline 属本仓库冒烟产物——任何恰好监听
+    # 该端口的无关进程不得被误杀。
     sleep 1
     STILL=$(ss -ltnp 2>/dev/null | grep ":${PORT} " | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2 || true)
     if [ -n "$STILL" ]; then
-      log "清理兜底：端口 ${PORT} 仍被 pid=$STILL 占用，强制结束"
-      kill -9 "$STILL" 2>/dev/null || true
+      if tr '\0' ' ' < "/proc/$STILL/cmdline" 2>/dev/null | grep -qE 'dist/main\.js|axiom|smoke'; then
+        log "清理兜底：端口 ${PORT} 仍被 pid=$STILL（cmdline 匹配冒烟产物）占用，强制结束"
+        kill -9 "$STILL" 2>/dev/null || true
+      else
+        log "清理兜底：端口 ${PORT} 被 pid=$STILL 占用但 cmdline 非冒烟产物，跳过强杀（防误伤）"
+      fi
     fi
   elif [ "$MODE" = "systemd" ] && [ "${SYSTEMD_STARTED:-0}" = "1" ]; then
     systemctl stop "$SERVICE_NAME" >/dev/null 2>&1 || true
