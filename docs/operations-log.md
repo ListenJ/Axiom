@@ -1792,4 +1792,4 @@
 - **任务**：①/dre/tool handler 抛错直接冒泡 → Bun 500 空响应，MCP 薄转发拿不到 `{ok:false,error}` 结构化体；②client.openEvents 建连阶段裸 fetch——daemon 端口假死/半开时调用方无限挂起（health 有 30s 超时而事件流建连无保护）。分级 **T1**。
 - **修复**：①handler 包 try/catch 返回 `json({ok:false,error},500)`（对齐 /dre/run 既有纪律）；②openEvents 加 `AbortSignal.timeout(this.timeoutMs)`（仅建连阶段；读流阶段语义不变）。
 - **验证**：tsc rc=0；dre-daemon/dre-tools/runtime-host 三文件 29/0。
-- **Commit**：`<占位-回填C>`
+- **Commit**：`8443449f`（已推送，按规则 9 以本记录维护提交回填）
