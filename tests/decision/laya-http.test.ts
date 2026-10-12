@@ -179,6 +179,90 @@ describe("layaDecideBatch —— 分块/保序/补跑", () => {
     expect((fetchCalls[0].body as { concurrency: number }).concurrency).toBeLessThanOrEqual(8); // 钳制义务字段
   });
 
+  test("条目级全局闸：服务端可观测并发条目 ≤ maxConcurrency（轮 7 H1 语义修正）", async () => {
+    // 契约第四节：并发硬顶 8 是**条目**级吞吐上限（服务端实测 >8 反降）。
+    // 轮 7 审计发现旧实现把闸用在"批请求数"上：多个并发调用各自整批出门，
+    // 服务端按 body.concurrency 并发执行每个请求 ⇒ 服务端同时处理的条目数
+    // = Σ min(items_i, concurrency)，旧闸下随并发请求数线性超发（2 调用 × 4 = 8+）。
+    // 本用例让两个 layaDecideBatch 并发跑（各 250 条目、limit=8），计量服务端
+    // 可观测并发条目 Σ min(items_i, limit)：条目闸下大块独占（250 ≥ 8 ⇒ 第二调用
+    // 等待，服务端任一时刻只执行一个请求的 ≤8 条）；旧批槽实现下两请求叠发（红）。
+    let serverConcurrent = 0;
+    let serverPeak = 0;
+    let batchInflight = 0;
+    let batchPeak = 0;
+    fetchImpl = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };
+      serverConcurrent += Math.min(body.items.length, 8); // 服务端按 concurrency≤8 执行
+      batchInflight++;
+      serverPeak = Math.max(serverPeak, serverConcurrent);
+      batchPeak = Math.max(batchPeak, batchInflight);
+      await new Promise((r) => setTimeout(r, 8)); // 制造重叠窗口
+      const resp = new Response(
+        JSON.stringify(batchResp(body.items.map((m) => ({ id: m.id, ok: true, answers: { q: { type: "noul", noul: 0.9 } } })))),
+        { status: 200 },
+      );
+      serverConcurrent -= Math.min(body.items.length, 8);
+      batchInflight--;
+      return resp;
+    };
+    const mk = (n: number, tag: string) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `${tag}${i}`,
+        state: `s${i}`,
+        questions: { q: { type: "noul" as const, instructions: "x" } },
+      }));
+    const [r1, r2] = await Promise.all([
+      layaDecideBatch({ items: mk(250, "a") }, { maxConcurrency: 8 }),
+      layaDecideBatch({ items: mk(250, "b") }, { maxConcurrency: 8 }),
+    ]);
+    expect(r1.ok).toBe(250);
+    expect(r2.ok).toBe(250);
+    // 大块（250 ≥ limit 8）独占 ⇒ 两请求不重叠（串行化是正确行为）；
+    // 服务端任一时刻在处理条目 ≤8（契约第四节硬顶）。
+    expect(batchPeak).toBe(1);
+    expect(serverPeak).toBeLessThanOrEqual(8);
+  });
+
+  test("条目级全局闸：小批跨调用叠发不超 8（额度复用）", async () => {
+    // 250 条独占是保守路径；小批（< limit）必须能并行填满额度：4 条 × limit=8
+    // ⇒ 理论可 2 个 4 条请求叠发（4+4=8）。计量同上，验证额度不被浪费也不超发。
+    let serverConcurrent = 0;
+    let serverPeak = 0;
+    let batchInflight = 0;
+    let batchPeak = 0;
+    fetchImpl = async (_url, init) => {
+      const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };
+      serverConcurrent += Math.min(body.items.length, 8);
+      batchInflight++;
+      serverPeak = Math.max(serverPeak, serverConcurrent);
+      batchPeak = Math.max(batchPeak, batchInflight);
+      await new Promise((r) => setTimeout(r, 8));
+      const resp = new Response(
+        JSON.stringify(batchResp(body.items.map((m) => ({ id: m.id, ok: true, answers: { q: { type: "noul", noul: 0.9 } } })))),
+        { status: 200 },
+      );
+      serverConcurrent -= Math.min(body.items.length, 8);
+      batchInflight--;
+      return resp;
+    };
+    const mk = (n: number, tag: string) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `${tag}${i}`,
+        state: `s${i}`,
+        questions: { q: { type: "noul" as const, instructions: "x" } },
+      }));
+    const rs = await Promise.all([
+      layaDecideBatch({ items: mk(4, "a") }, { maxConcurrency: 8 }),
+      layaDecideBatch({ items: mk(4, "b") }, { maxConcurrency: 8 }),
+      layaDecideBatch({ items: mk(4, "c") }, { maxConcurrency: 8 }),
+      layaDecideBatch({ items: mk(4, "d") }, { maxConcurrency: 8 }),
+    ]);
+    for (const r of rs) expect(r.ok).toBe(4);
+    expect(serverPeak).toBeLessThanOrEqual(8); // 硬顶
+    expect(batchPeak).toBeGreaterThanOrEqual(2); // 小批允许叠发（额度复用，不退化为串行）
+  });
+
   test("超 500 条自动分块，多块结果保序拼接", async () => {
     fetchImpl = async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };

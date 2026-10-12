@@ -224,26 +224,49 @@ export interface LayaBatchSummary {
   clientRetried: number;
 }
 
-/** 全局并发闸（进程级）：跨分块与跨调用共享，保证整机不超限。 */
+/** 全局并发闸（进程级，**条目粒度**）：跨分块与跨调用共享，保证整机在飞条目不超限。 */
 let inflight = 0;
 const waiters: Array<() => void> = [];
 
-async function acquireSlot(limit: number): Promise<void> {
-  while (inflight >= limit) {
+/**
+ * 预留 n 个条目槽位：原子预留 min(n, 剩余额度)，额度不足以整块推进时挂起等待
+ * （放行按 waiters FIFO 逐个重查——唤醒者拿到的额度可能已被更早的 waiter 占用）。
+ * 大块（n>limit 不可整块预留）独占等待至额度归零后整块推进，条目守恒不超发。
+ * 轮 7 审计 H1 语义修正：契约第四节的并发硬顶 8 是**条目**级吞吐上限
+ * （服务端实测 >8 反降），闸必须按条目计数，而不是按批请求数。
+ */
+async function acquireItems(n: number, limit: number): Promise<void> {
+  if (n >= limit) {
+    // 整块独占：等全部在飞条目退出后再整块推进（避免饿死与拆块复杂化）。
+    while (inflight > 0) {
+      await new Promise<void>((resolve) => waiters.push(resolve));
+    }
+    inflight += n;
+    return;
+  }
+  for (;;) {
+    if (inflight + n <= limit) {
+      inflight += n;
+      return;
+    }
     await new Promise<void>((resolve) => waiters.push(resolve));
   }
-  inflight++;
 }
 
-function releaseSlot(): void {
-  inflight--;
-  const next = waiters.shift();
-  if (next) next();
+function releaseItems(n: number): void {
+  inflight = Math.max(0, inflight - n);
+  // 级联唤醒：释放的额度可能连续满足多个排队 waiter（每个醒来自查推进/续眠），
+  // 只唤醒一个会让剩余 waiter 空等到下一次 release（慢请求下吞吐浪费）。
+  // 上限 = waiter 数，防外部 release 误调用导致的异常自旋。
+  for (let i = 0; i < waiters.length; i++) {
+    const next = waiters.shift();
+    if (next) next();
+  }
 }
 
 /**
- * 批量决策（推荐链路）：自动分块（≤500/块，同时批次数 ≤2）+ 全局并发闸（≤8）
- * + 一次失败项补跑（仅 5xx/超时类）。results 与输入**严格同序**。
+ * 批量决策（推荐链路）：自动分块（≤500/块）+ 全局**条目级**并发闸（≤8，契约第四节，
+ * 服务端实测 >8 反降）+ 一次失败项补跑（仅 5xx/超时类）。results 与输入**严格同序**。
  */
 export async function layaDecideBatch(
   input: LayaBatchInput,
@@ -264,9 +287,8 @@ export async function layaDecideBatch(
   const chunks: Array<typeof items> = [];
   for (let i = 0; i < items.length; i += LAYA_BATCH_LIMIT) chunks.push(items.slice(i, i + LAYA_BATCH_LIMIT));
 
-  // 同时批次数 ≤2（契约第五节）。并发语义分两层：批请求粒度由 acquireSlot 运行时钳制；
-  // 条目级并发经 body.concurrency（≤8 硬顶，getLayaHttpConfig clamp）按契约交服务端执行——
-  // 客户端无法替代服务端执行条目级调度，此字段是契约义务而非仅建议值。
+  // 并发语义（契约第四节）：条目级全局硬顶 8——acquireItems 按条目预留额度，
+  // 跨分块与跨调用共享进程级计数；body.concurrency 同值交付服务端（契约义务）。
   const results: LayaBatchItemResult[] = new Array(items.length);
   let nextChunk = 0;
   const workers = Array.from({ length: Math.min(2, chunks.length) }, async () => {
@@ -274,7 +296,7 @@ export async function layaDecideBatch(
       const chunkIndex = nextChunk++;
       const chunkStart = chunkIndex * LAYA_BATCH_LIMIT;
       const mine = chunks[chunkIndex];
-      await acquireSlot(cfg.maxConcurrency);
+      await acquireItems(mine.length, cfg.maxConcurrency);
       try {
         const body: BatchRequestBody = {
           items: mine.map((m) => ({ id: m.id, state: m.state, questions: m.questions })),
@@ -296,7 +318,7 @@ export async function layaDecideBatch(
         }
         resp.results.forEach((r, i) => { results[chunkStart + i] = r; });
       } finally {
-        releaseSlot();
+        releaseItems(mine.length);
       }
     }
   });
@@ -320,13 +342,13 @@ export async function layaDecideBatch(
       concurrency: cfg.maxConcurrency,
       model: cfg.model,
     };
-    // N2：补跑与主路径同受并发闸约束（2 行纪律）。
-    await acquireSlot(cfg.maxConcurrency);
+    // N2：补跑与主路径同受条目级并发闸约束（口径一致）。
+    await acquireItems(redo.length, cfg.maxConcurrency);
     let resp: LayaBatchResponse;
     try {
       resp = await postJson<LayaBatchResponse>(`${base}/v1/systemone/batch`, body, cfg.batchTimeoutMs, cfg);
     } finally {
-      releaseSlot();
+      releaseItems(redo.length);
     }
     if (resp.results.length !== redo.length || resp.results.some((r, i) => r.id !== redo[i].id)) {
       throw new Error(`Laya 契约违约：retry results 与请求不同序/不等长`);

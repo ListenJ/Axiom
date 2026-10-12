@@ -1721,3 +1721,11 @@
 - **验证**：垂直切片红→绿实测（新回归用例先 noDistribution=0/hitRate=0 红，修后 1/1 绿）；`bun test tests/decision/` 36/0；`bun test tests/doc-contract.test.ts` 35/0（首轮 1 fail = 豁免面 66→67 超上限——门抓到了轮 7 报告新证据件，按 D0 惯例登记 66→67 后绿）；tsc rc=0；邻居回归 config-center-hardening/dre-tools-behavior 15/0。改动 4 文件全部任务必需（审计登记门修为验收链一环）。
 - **不做项**：acquireSlot 批槽→条目级语义重设计、code-retrieval-router 接线/删除（架构裁决，呈报用户）。
 - **Commit**：`3ac08931`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(decision): laya 并发闸改条目级（用户裁决 B，轮 7 H1 完整修复）
+
+- **任务**：轮 7 审计 H1 的架构裁决项落地——`acquireSlot` 批请求槽改**条目级**全局闸。分级 **T2**（并发语义变更 + 回归测试，垂直切片红→绿）。
+- **裁决依据**：调用方（calibrate/drift）传 `maxConcurrency: 2` 把整批压成 2 条目并发——调用方语义即条目级总闸；契约第四节"并发硬顶 8"本就是条目吞吐上限（服务端实测 >8 反降）。
+- **实现**：`acquireItems(n, limit)` 原子预留 min(n, 剩余额度)（循环唤醒重查）；`n≥limit` 大块独占等待整块推进（条目守恒）；`releaseItems` 级联唤醒全部 waiter（修探针发现的单唤醒饿死 bug：同批 waiter 只救活 1 个，慢请求下吞吐浪费）；补跑路径同口径。主路径/补跑/注释三处契约语义一致化。
+- **验证**：①大块独占用例（250×2 并发，limit 8）：服务端可观测并发 ≤8、batchPeak=1（串行化正确）；②额度复用用例（4×4 并发，limit 8）：serverPeak ≤8 且 batchPeak ≥2（不退化为串行）。测试开发期两次计量口径修正（raw itemInflight→服务端 min(items, concurrency) 口径；默认 limit 4 非 8 的显式传参）——实现语义经独立探针验证后测试对齐。`bun test tests/decision/` 38/0（3 次稳定）；doc-contract 35/0；tsc rc=0。
+- **Commit**：`<占位-本轮回填>`
