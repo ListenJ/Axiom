@@ -75,6 +75,39 @@ describe("Step 2 — chatStream 一致性", () => {
     expect(bufferedSpy).not.toHaveBeenCalled();
   });
 
+  test("AC-1b 已产出 delta 后失败：不重试同模型（SSE 不重复内容，轮 7 审计）", async () => {
+    // 轮 7 审计 §4.2：nativeEmitted 声明在 attempt 局部——attempt0 原生流产出
+    // "partial-" 后 mid-stream 失败，外层 catch 对同模型重试 → 同一条 SSE 流上
+    // 第二次产出完整内容（重复）。修复后：已产出 delta 的模型必须直接换模型，
+    // 同模型 attempt ≥1 不再发起（本用例 maxRetries=3，失败后 attempts 计数 = 1）。
+    const m = model("retrydup", 3);
+    findSpy = spyOn(mcr, "findModelsForRole").mockReturnValue([m] as never);
+    let nativeAttempts = 0;
+    nativeSpy = spyOn(providerCaller, "callProviderNativeStream").mockImplementation(
+      (async (_p: unknown, _m: unknown, _msgs: unknown, _t: unknown, _temp: unknown, onChunk: (d: string) => void) => {
+        nativeAttempts++;
+        onChunk("partial-");
+        throw new Error("mid-stream failure");
+      }) as never,
+    );
+    bufferedSpy = spyOn(providerCaller, "callProvider").mockResolvedValue({
+      content: "FULL-BUFFERED",
+      usage: { total_tokens: 9 },
+    } as never);
+
+    const events: Array<{ type: string; content?: string }> = [];
+    for await (const ev of router.chatStream("general-chat", userMsg("retrydup"), { preferNativeStream: true })) {
+      events.push(ev as never);
+    }
+
+    const tokens = events.filter((e) => e.type === "token").map((e) => e.content);
+    // 只有一次 "partial-"：无重发（buffered 未调用）、无二次原生尝试
+    expect(tokens).toEqual(["partial-"]);
+    expect(nativeAttempts).toBe(1);
+    expect(bufferedSpy).not.toHaveBeenCalled();
+    expect(events.some((e) => e.type === "error")).toBe(true);
+  });
+
   test("AC-2 chatStream 永久失败不烧满重试并切下一模型", async () => {
     const first = model("perm", 3);
     const second = model("perm-ok", 1);

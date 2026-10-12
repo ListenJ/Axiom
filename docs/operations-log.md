@@ -1772,3 +1772,10 @@
 - **修复**：AC-4/静态接线整用例删除（AC-4 是注释文本锁定无行为价值；静态接线的原子写行为已由相邻用例锁定）；AC-5 保留前半行为断言（双 complete 幂等）并更名；未用 readFileSync import 清理。
 - **验证**：tsc rc=0；两文件 10/0；cwd 无关性实证（src/ 子目录运行 4/0）。
 - **Commit**：`8722b377`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(router): chatStream nativeEmitted 提升 per-model（轮 7 一梯队遗留）
+
+- **任务**：`nativeEmitted` 声明在 attempt 局部——原生流产出部分 delta 后 mid-stream 失败，外层 catch 对**同模型**重试 → 同一 SSE 流上二次产出完整内容（重复）。分级 **T2**。
+- **修复**：新增 per-model `modelEmitted`（chunk 回调置位）；外层 catch 在 `modelEmitted` 时 `break` 换下一模型（跳过同模型退避重试）；AC-1b 回归用例锁定（maxRetries=3 下 nativeAttempts=1、tokens 仅 ["partial-"]、buffered 不调用）。
+- **验证**：红→绿实测（修前 attempts 1/3→2/3→3/3 同模型烧满，修后 attempt 1 即换模型）；tests/router 全目录 52/0；tsc rc=0。
+- **Commit**：`<占位-回填A>`

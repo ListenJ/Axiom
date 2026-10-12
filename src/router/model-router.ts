@@ -715,6 +715,10 @@ export class MultiPlatformRouter {
         continue;
       }
       const maxRetries = Math.max(1, model.maxRetries ?? DEFAULT_RETRY_ATTEMPTS);
+      // 轮 7 审计：nativeEmitted 必须是 per-model 状态——attempt 局部变量会让
+      // "已产出 delta 后 mid-stream 失败"的尝试被同模型重试，同一 SSE 流上二次
+      // 产出完整内容（重复）。已产出即视为该模型本轮耗尽，换下一模型。
+      let modelEmitted = false;
 
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const loopStart = Date.now();
@@ -815,6 +819,7 @@ export class MultiPlatformRouter {
                 if (!item) continue;
                 if (item.kind === "chunk") {
                   nativeEmitted = true;
+                  modelEmitted = true;
                   yield { type: "token", content: item.content };
                 } else if (item.kind === "done") {
                   nativeResult = item.result;
@@ -959,6 +964,12 @@ export class MultiPlatformRouter {
           if (PERMANENT_FAILURE_RE.test(msg)) {
             recordPermanentFailure(model.provider, model.model);
             logger.warn(`[Router/chatStream] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
+            break;
+          }
+          // 轮 7 审计：已向调用方产出过 delta —— 同模型重试必然二次产出完整内容
+          //（SSE 重复）。直接换下一模型。
+          if (modelEmitted) {
+            logger.warn(`[Router/chatStream] ${model.provider}/${model.model} emitted deltas before failing; skip same-model retry`, { error: msg });
             break;
           }
           if (attempt < maxRetries - 1) {
