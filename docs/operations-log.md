@@ -1737,3 +1737,10 @@
 - **门同步（门自证有效 ×3）**：①doc-contract D3 抓 ADR-013 §6 在册表反引号引用 → 该行改墓碑口径（`doc-caliber:absent` + 删除态断言）→ 墓碑登记表按门要求补 ADR-013；②docs-consistency 棘轮抓 §1 基线数字 → ARCHITECTURE.md 同步 454→453 文件 / 121,360→120,783 行（2026-10-12 生成值）；③ADR-013 棘轮表登记退役行（在册面 -1）。
 - **验证**：tsc rc=0；doc-contract + architecture-integrity + docs-consistency 合跑 70 tests / 0 fail；count-tools 189 不受影响（router 非 MCP 工具面）；删除后全仓引用扫描 0 命中。
 - **Commit**：`f4c872c0`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(core): config-center getNumber 空缺值回退 schema 默认（轮 7 二梯队①）
+
+- **任务**：轮 7 审计 §4.2——YAML 显式空值（`obsidianApiPort:`）以 null 入 values 表，`getNumber = Number(null ?? 0) = 0`（Number(null)=0 是有限数），导致 obsidianApiPort=0 / requestDelay=0（无节流）/ maxBodySize 潜在 0（全 413）。分级 **T2**。
+- **修复**：`getNumber` 对原始存储值判空（`raw===null|undefined|""` 或转换 NaN）时回退 `CONFIG_SCHEMA` 登记的 `default`；未登记键保持旧行为返回 0；正常显式值路径不变。首版只查 `Number.isFinite` 漏掉 null（Number(null)=0 有限）——回归测试抓住后改判原始值。
+- **验证**：AC-6 回归用例红→绿（null→27124/1000、set(null)→default、显式 500 生效、未登记键仍 0）；`bun test tests/unit/config-center-hardening.test.ts + docs-consistency` 17/0；tsc rc=0。docs-consistency 棘轮两次抓 ARCHITECTURE.md 行数漂移（本轮改 src +6 行），同步 120,783→120,791。
+- **Commit**：`<占位-回填①>`

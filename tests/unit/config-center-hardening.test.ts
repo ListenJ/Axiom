@@ -117,4 +117,27 @@ describe("Step 4 — ConfigCenter 加固", () => {
       if (idx >= 0) CONFIG_SCHEMA.splice(idx, 1);
     }
   });
+
+  test("AC-6 getNumber 非有限值回退 schema 默认（轮 7 审计：YAML 空值/runtime set(null) 归 0 风险）", () => {
+    // 轮 7 审计 §4.2：YAML 显式空值（`obsidianApiPort:`）以 null 入 values 表，
+    // getNumber = Number(null ?? 0) = 0 → obsidianApiPort=0 / requestDelay=0（无节流）；
+    // set(key, null) 同病。getNumber 应对非有限结果回退 schema.default。
+    const cc = new ConfigCenter(tmpYaml("empty-numeric"));
+    // 直接注入 null（模拟 YAML 空值或 runtime set(null) 后的存储态）
+    (cc as unknown as { values: Map<string, { key: string; value: unknown; source: string; lastModified: number; validated: boolean }> }).values.set("memory.obsidian_api_port", {
+      key: "memory.obsidian_api_port",
+      value: null,
+      source: "yaml",
+      lastModified: Date.now(),
+      validated: true,
+    });
+    expect(cc.getNumber("memory.obsidian_api_port")).toBe(27124); // schema 默认，非 0
+    cc.set("crawler.request_delay", null);
+    expect(cc.getNumber("crawler.request_delay")).toBe(1000); // schema 默认
+    // 正常路径不受影响：显式值仍然生效
+    cc.set("crawler.request_delay", 500);
+    expect(cc.getNumber("crawler.request_delay")).toBe(500);
+    // 无 schema 登记的键保持旧行为（0），不影响未登记键的调用方
+    expect(cc.getNumber("not.in.schema")).toBe(0);
+  });
 });

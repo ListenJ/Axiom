@@ -188,7 +188,15 @@ export class ConfigCenter {
   }
 
   getNumber(key: string): number {
-    return Number(this.get(key) ?? 0);
+    const raw = this.get(key);
+    const n = Number(raw ?? 0);
+    // 空缺/非有限值回退 schema 默认：YAML 显式空值存 null（Number(null)=0 是有限数，
+    // 只查转换结果会漏掉）、空串、runtime set(null)、非数字串（NaN）都不可当作 0 用——
+    // 否则 obsidianApiPort=0、requestDelay=0（无节流）、maxBodySize=0（全 413）。轮 7 审计 §4.2。
+    // 未登记键无默认可回，保持旧行为返回 0。
+    if (raw !== null && raw !== undefined && raw !== "" && Number.isFinite(n)) return n;
+    const fallback = CONFIG_SCHEMA.find((s) => s.key === key)?.default;
+    return typeof fallback === "number" ? fallback : 0;
   }
 
   getBoolean(key: string): boolean {
