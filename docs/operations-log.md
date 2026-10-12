@@ -1806,4 +1806,4 @@
 - **任务**：①EMBED_ALLOW_CPU 在默认 EMBED_REQUIRE_CUDA=1 下是 no-op（第一个检查永远先抛，错误提示还引导用户去设无效开关）；②HF tokenizer 同步跑在 async /v1/embeddings handler 里阻塞事件循环（encode 已正确 threadpool，此处遗漏）。分级 **T1**。
 - **修复**：①`require_cuda = ... and not allow_cpu`（用户显式接受 CPU 即放行）+ 错误提示补指引；②`total_tokens = await run_in_threadpool(encoder.count_tokens, texts)` 对齐 encode 的卸载模式。
 - **验证**：`python3 -m py_compile` 通过；门逻辑真值复现（ALLOW_CPU=1 → require_cuda=False）；源码断言双修在位。
-- **Commit**：`<占位-回填E>`
+- **Commit**：`f23b5903`（已推送，按规则 9 以本记录维护提交回填）
