@@ -1111,10 +1111,7 @@ export class MultiPlatformRouter {
 
     const config = PROVIDER_CONFIG[model.provider as keyof typeof PROVIDER_CONFIG];
     const apiKey = getEffectiveApiKey(model.provider, config.apiKeyEnv);
-    // 轮 7 审计：local-embed 是本机回环服务（127.0.0.1:9001，无网关鉴权），
-    // LOCAL_EMBED_API_KEY 缺失不该让 embedding 角色静默消失（占位 "local" 即可）。
-    const isLoopbackEmbed = model.provider === "local-embed" && getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL).includes("127.0.0.1");
-    if (!apiKey && !isLoopbackEmbed) throw new Error(`Missing API key for embedding`);
+    if (!apiKey) throw new Error(`Missing API key for embedding`);
 
     const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
 

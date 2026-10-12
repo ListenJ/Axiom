@@ -1900,3 +1900,11 @@
 - **修复**：①capability-isolation 运行时二进制 AXIOM_RUNTIME_BIN env 化（默认 bun 兼容）；②install-systemd.sh 实例用户 SUDO_USER 推导 + REPO 位置推导（对齐 install-wind-collect 模式）；③mind-tools 双写入口收口——registerMindTools 的 engineProvider 改局部闭包（不再写模块全局），双模并传显式告警，handler 改走 getRegisteredEngine（跨模块注入口 setMindEngineProvider 保留为唯一全局路）；④model-router embedding 回环豁免——local-embed + 127.0.0.1 端点时 LOCAL_EMBED_API_KEY 缺失不再抛 Missing API key（探针：过 key 门到 fetch 层），消除 embedding 角色静默消失；⑤invokeRemoteDreTool 非 JSON 响应结构化错误（text→parse 失败构造含 status+body 前 200 字符的 Error，诊断链路不再断）。
 - **验证**：tsc rc=0；dre-tools/dre-daemon 25/0；env 门（新变量已登记）；embed 探针实证豁免生效。
 - **Commit**：`a6ac8290`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-13 — revert(embed): 撤销 local-embed 回环豁免（Low④ 被 6bcadf7e 发布面闸门证伪）
+
+- **任务**：全量回归 6 fail 中的 `发布面闸门：默认 embedding 路由不误选 SiliconFlow` 实为**预存故意契约**——6bcadf7e（Step 6 local-embed 接线）锁定"本地路由无 key 时抛 Missing API key 且先于网络短路"的 fail-loud 语义。lane4b 报的"静默消失"是该闸门的**有意行为**（发布面不误选 SiliconFlow 的保护链一环），非缺陷。用户裁决触发重审：回退豁免，恢复闸门契约。
+- **操作**：仅撤销 model-router.ts 的豁免块（其余 4 项保留——S-A7×3 与 Mega 压力为负载敏感 flake，单独跑全绿见前轮记录；棘轮为正常漂移另行同步）。
+- **验证**：release-path-dev-models 9/0（闸门契约恢复）；tsc rc=0；laya-http/dre-tools 31/0。
+- **教训**：修"看似静默"的行为前先 grep 测试面是否存在**故意锁定该行为**的闸门——lane4b 当时只看了路由器没看发布面测试。
+- **Commit**：`<占位-回填RV>`
