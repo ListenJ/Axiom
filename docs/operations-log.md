@@ -1822,4 +1822,4 @@
 - **实证**：探针实测并发窗口真实存在——engine.close 50ms 窗口内 late tick 完整运行（overlap=true）；stopTickLoop 快路径 1ms 无 lost-wakeup（lane3b 的 Race A 描述在 JS 单线程下不成立，未改）。
 - **修复**：`_shutdownStarted` 停止闸——shutdown 入口先行置位；`tick()` 对 shutting 状态快速拒绝（fail-loud 抛错而非静默并发）；现网无外部手动 tick 调用方（拒绝路径为 /dre/tick 预留）。
 - **验证**：修复后 late tick 被 gate 拒绝（hazard closed）；start/stop 循环 ×50 无死锁；Race A/B 快路径不变；dre 四文件 123/0；tsc rc=0。
-- **Commit**：`<占位-回填K1>`
+- **Commit**：`2ce4ed5f`（已推送，按规则 9 以本记录维护提交回填）
