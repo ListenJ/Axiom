@@ -1800,3 +1800,10 @@
 - **修复**：①改 `filter` 批量列出全部违规 id（对齐 unlabeled/badDomain 风格）；②按最小长度尾部配对渲染 + 失配显式提示行；③掩码门槛 `length>8 → ≥16`（短值全掩码，泄露率 ≤50%）。
 - **验证**：tsc rc=0；decision+config-center+dre-tools 合跑 53/0；ingest `bun build` 解析通过；AC-1 掩码用例随新门槛自然通过。
 - **Commit**：`f26c0b47`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(embed): runtime-embed ALLOW_CPU 语义 + count_tokens 线程池（轮 7 Medium 批次 E）
+
+- **任务**：①EMBED_ALLOW_CPU 在默认 EMBED_REQUIRE_CUDA=1 下是 no-op（第一个检查永远先抛，错误提示还引导用户去设无效开关）；②HF tokenizer 同步跑在 async /v1/embeddings handler 里阻塞事件循环（encode 已正确 threadpool，此处遗漏）。分级 **T1**。
+- **修复**：①`require_cuda = ... and not allow_cpu`（用户显式接受 CPU 即放行）+ 错误提示补指引；②`total_tokens = await run_in_threadpool(encoder.count_tokens, texts)` 对齐 encode 的卸载模式。
+- **验证**：`python3 -m py_compile` 通过；门逻辑真值复现（ALLOW_CPU=1 → require_cuda=False）；源码断言双修在位。
+- **Commit**：`<占位-回填E>`

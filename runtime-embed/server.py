@@ -134,7 +134,9 @@ def create_app(encoder: Encoder) -> FastAPI:
             {"object": "embedding", "index": i, "embedding": vector.astype(float).tolist()}
             for i, vector in enumerate(vectors)
         ]
-        total_tokens = encoder.count_tokens(texts)
+        # 轮 7 审计：HF tokenizer 同步跑在 async handler 里会阻塞事件循环（上限
+        # 32 条 / 200k 字符的 CPU 开销不可忽略）；encode 已正确走 threadpool，此处对齐。
+        total_tokens = await run_in_threadpool(encoder.count_tokens, texts)
         return {
             "object": "list",
             "data": data,
@@ -147,10 +149,13 @@ def create_app(encoder: Encoder) -> FastAPI:
 
 def load_encoder() -> SentenceTransformerEncoder:
     model_path = Path(os.environ.get("EMBED_MODEL_PATH", str(DEFAULT_MODEL_PATH)))
-    require_cuda = os.environ.get("EMBED_REQUIRE_CUDA", "1") == "1"
     allow_cpu = os.environ.get("EMBED_ALLOW_CPU", "0") == "1"
+    # 轮 7 审计：EMBED_ALLOW_CPU 在默认 EMBED_REQUIRE_CUDA=1 下曾是 no-op——
+    # 第一个检查永远先抛，错误提示还引导用户去设 ALLOW_CPU（设了也没用）。
+    # 语义修正：ALLOW_CPU=1 显式覆盖 REQUIRE_CUDA（用户明说接受 CPU，即放行）。
+    require_cuda = os.environ.get("EMBED_REQUIRE_CUDA", "1") == "1" and not allow_cpu
     if require_cuda and not torch.cuda.is_available():
-        raise RuntimeError("CUDA unavailable and EMBED_REQUIRE_CUDA=1")
+        raise RuntimeError("CUDA unavailable and EMBED_REQUIRE_CUDA=1 (set EMBED_ALLOW_CPU=1 to allow CPU fallback)")
     if not torch.cuda.is_available() and not allow_cpu:
         raise RuntimeError("CUDA unavailable; set EMBED_ALLOW_CPU=1 to allow CPU fallback")
     device = os.environ.get("EMBED_DEVICE", "cuda" if torch.cuda.is_available() else "cpu")
