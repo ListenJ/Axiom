@@ -1736,4 +1736,4 @@
 - **操作（规则 4）**：带归档头注释（原位置/归档目的/复活条件/轮 7 审计出处）存档 `archive/src/_archive/code-retrieval-router-removed.ts`（archive/ 在 .gitignore，工作区本地归档）→ `git rm` 原文件。
 - **门同步（门自证有效 ×3）**：①doc-contract D3 抓 ADR-013 §6 在册表反引号引用 → 该行改墓碑口径（`doc-caliber:absent` + 删除态断言）→ 墓碑登记表按门要求补 ADR-013；②docs-consistency 棘轮抓 §1 基线数字 → ARCHITECTURE.md 同步 454→453 文件 / 121,360→120,783 行（2026-10-12 生成值）；③ADR-013 棘轮表登记退役行（在册面 -1）。
 - **验证**：tsc rc=0；doc-contract + architecture-integrity + docs-consistency 合跑 70 tests / 0 fail；count-tools 189 不受影响（router 非 MCP 工具面）；删除后全仓引用扫描 0 命中。
-- **Commit**：`<占位-本轮回填>`
+- **Commit**：`f4c872c0`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
