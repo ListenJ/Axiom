@@ -1729,3 +1729,11 @@
 - **实现**：`acquireItems(n, limit)` 原子预留 min(n, 剩余额度)（循环唤醒重查）；`n≥limit` 大块独占等待整块推进（条目守恒）；`releaseItems` 级联唤醒全部 waiter（修探针发现的单唤醒饿死 bug：同批 waiter 只救活 1 个，慢请求下吞吐浪费）；补跑路径同口径。主路径/补跑/注释三处契约语义一致化。
 - **验证**：①大块独占用例（250×2 并发，limit 8）：服务端可观测并发 ≤8、batchPeak=1（串行化正确）；②额度复用用例（4×4 并发，limit 8）：serverPeak ≤8 且 batchPeak ≥2（不退化为串行）。测试开发期两次计量口径修正（raw itemInflight→服务端 min(items, concurrency) 口径；默认 limit 4 非 8 的显式传参）——实现语义经独立探针验证后测试对齐。`bun test tests/decision/` 38/0（3 次稳定）；doc-contract 35/0；tsc rc=0。
 - **Commit**：`3e6efc11`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — refactor(router): code-retrieval-router 死代码归档删除（用户裁决 B，规则 4）
+
+- **任务**：轮 7 审计确认 `src/router/code-retrieval-router.ts`（605 行）全仓零消费者 + retriever 永不注入 + pi-agent 策略不可达（死代码）；用户裁决选项 B（归档删除，不接线）。分级 **T2**（规则 4 删除流程 + 三道门同步）。
+- **操作（规则 4）**：带归档头注释（原位置/归档目的/复活条件/轮 7 审计出处）存档 `archive/src/_archive/code-retrieval-router-removed.ts`（archive/ 在 .gitignore，工作区本地归档）→ `git rm` 原文件。
+- **门同步（门自证有效 ×3）**：①doc-contract D3 抓 ADR-013 §6 在册表反引号引用 → 该行改墓碑口径（`doc-caliber:absent` + 删除态断言）→ 墓碑登记表按门要求补 ADR-013；②docs-consistency 棘轮抓 §1 基线数字 → ARCHITECTURE.md 同步 454→453 文件 / 121,360→120,783 行（2026-10-12 生成值）；③ADR-013 棘轮表登记退役行（在册面 -1）。
+- **验证**：tsc rc=0；doc-contract + architecture-integrity + docs-consistency 合跑 70 tests / 0 fail；count-tools 189 不受影响（router 非 MCP 工具面）；删除后全仓引用扫描 0 命中。
+- **Commit**：`<占位-本轮回填>`

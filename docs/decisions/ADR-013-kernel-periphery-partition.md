@@ -59,7 +59,7 @@
 | `src/dre/pipeline/search-port.ts` | `crawl/search-engines` | 已知例外（搜索端口，L1 门已豁免）——保留登记 |
 | `src/memory/codegraph-index.ts` | `codeindex/local-index` | 待收敛：索引**查询 API** 内聚入核，构建留外围 |
 | `src/router/dynamic-model-assigner.ts` | `eval/model-eval-service` | 待收敛：分配算法入核，评测数据源经端口 |
-| `src/router/code-retrieval-router.ts` | `pi-agent/pi-agent-adapter` | 待收敛：检索决策入核，工具执行留外围 |
+| ~~`src/router/code-retrieval-router.ts`~~ <!-- doc-caliber:absent: src/router/code-retrieval-router.ts --> | ~~`pi-agent/pi-agent-adapter`~~ | **已退役（2026-10-12）**：全仓零消费者 + retriever 未注入（死代码，轮 7 审计 §4.2），按规则 4 归档 `archive/src/_archive/code-retrieval-router-removed.ts`，棘轮在册面 -1 |
 
 ## 7. 待办（后续增量）
 

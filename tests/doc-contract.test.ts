@@ -465,6 +465,8 @@ describe("D3 文档引用存活", () => {
       "docs/TEST-STRATEGY-2026-08-21.md",
       // 2026-10-03 多机测试框架退役：ADR-008 引用的 PCDA 分布式调度器按墓碑口径点名。
       "docs/decisions/ADR-008-laya-decision-chain.md",
+      // 2026-10-12 code-retrieval-router 退役（轮 7 审计死代码归档）：ADR-013 §6 在册表按墓碑口径点名。
+      "docs/decisions/ADR-013-kernel-periphery-partition.md",
       "docs/functional-check-2026-08-16-sensenova.md",
       "docs/plans/2026-08-11-frontend-aesthetic-repair.md",
     ]);
