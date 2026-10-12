@@ -1779,3 +1779,10 @@
 - **修复**：新增 per-model `modelEmitted`（chunk 回调置位）；外层 catch 在 `modelEmitted` 时 `break` 换下一模型（跳过同模型退避重试）；AC-1b 回归用例锁定（maxRetries=3 下 nativeAttempts=1、tokens 仅 ["partial-"]、buffered 不调用）。
 - **验证**：红→绿实测（修前 attempts 1/3→2/3→3/3 同模型烧满，修后 attempt 1 即换模型）；tests/router 全目录 52/0；tsc rc=0。
 - **Commit**：`8edde3db`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(router): dynamic-model-assigner eval provider 惰性自注入（轮 7 一梯队遗留）
+
+- **任务**：`setModelEvalProvider` 此前只在 POST /eval/assign 与 CLI 两条入口被调用——startAutoRefresh 每 6h 的 runAssignment 等其他调用方静默得到空报告，行为随"是否有人先调过 /eval/assign"漂移。分级 **T2**。
+- **修复**：`ensureEvalProvider()` 惰性自注入——runAssignment 入口发现未注入时动态 import 外围 eval 服务（router→eval 内核→外围方向按本仓惯例走 lazy import 防循环依赖）；显式 `setModelEvalProvider(null)` 仍可禁用（测试隔离语义保留）；注入失败记 warn 降级空报告。
+- **验证**：测试双注入后 runAssignment evaluatedModels=1（provider 路径激活）；显式 null 走降级路径；tsc rc=0；tests/router+decision 全绿。注：本机 runAssignment 实测 evaluatedModels=0 属数据态（data/model-eval.db 0 行 + runFullEvaluation 需 OPENROUTER_API_KEY），非注入缺陷。
+- **Commit**：`<占位-回填B>`
