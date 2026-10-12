@@ -1878,4 +1878,4 @@
 - **任务**：轮 7 审计 §4.3 测试断言组。分级 **T1**。
 - **修复**：①laya-http 补 3 用例——退避间隔递增（时间戳计量，250/500ms 下界 + 递增）、429 重试成功补锁（文件头宣称无用例）、429/422 分级对照；②redis-auth 三用例 try/finally（断言失败也回收 socket/fake server，修泄漏）；③dre-tools persona_switch 条件断言钉存在性（"必须回 mode 或显式 success"）+ object 断言收紧 null。
 - **验证**：三文件 34/0；tsc rc=0。
-- **Commit**：`<占位-回填L2>`
+- **Commit**：`084720dd`（已推送，按规则 9 以本记录维护提交回填）
