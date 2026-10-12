@@ -118,4 +118,39 @@ describe("laya-calibrate —— 标定 harness", () => {
       cleanup();
     }
   });
+
+  test("choice 缺失而分布存在的用例计入 noDistribution（不扭曲命中率）", async () => {
+    // 轮 7 审计 H2 回归：hitRate 分子只数「choice===expected 且有分布」，分母 = 总数 − noDistribution；
+    // 若某用例有 probabilities 但 choice 缺失，它既非命中也非误判，必须与「完全缺分布」同口径剔除，
+    // 否则分母偏大 → 命中率被拉低 → 门槛建议被压成 null（误报「不可标定」）。
+    const { file, cleanup } = setup([
+      { id: "c1", domain: "triage", state: "s1", question: "q", criteria: ["auto", "reject"], expected: "auto" },
+      { id: "c2", domain: "triage", state: "s2", question: "q", criteria: ["auto", "reject"], expected: "auto" },
+    ]);
+    mockLaya((body) => ({
+      total: body.items.length,
+      ok: body.items.length,
+      failed: 0,
+      results: body.items.map((it) =>
+        it.id === "c2"
+          ? { id: it.id, ok: true, answers: { q: { type: "choice", probabilities: { auto: 0.7, reject: 0.3 } } } } // choice 缺失
+          : { id: it.id, ok: true, answers: { q: { type: "choice", choice: "auto", probabilities: { auto: 0.9, reject: 0.1 } } } },
+      ),
+    }));
+    try {
+      const out = join(file.replace(/\.json$/, "") + ".report.json");
+      const code = await runCalibration(["--cases", file, "--out", out]);
+      expect(code).toBe(0);
+      const report = JSON.parse(readFileSync(out, "utf8")) as {
+        domains: { triage: { hitRate: number; noDistribution: number; misses: unknown[] } };
+        thresholdSuggestions: { triage: number | null };
+      };
+      expect(report.domains.triage.noDistribution).toBe(1);
+      expect(report.domains.triage.hitRate).toBe(1); // 1/1，而非 1/2
+      expect(report.domains.triage.misses.length).toBe(0);
+      expect(report.thresholdSuggestions.triage).not.toBeNull(); // 不被无谓压成人工域
+    } finally {
+      cleanup();
+    }
+  });
 });

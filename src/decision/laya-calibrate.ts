@@ -47,7 +47,7 @@ interface DomainReport {
   /** 正确用例的 top1−top2 margin 分布（min/p50），门槛建议的依据 */
   marginMin: number;
   marginP50: number;
-  /** 服务端未回传 probabilities 的用例数（不参与 margin 统计与门槛建议） */
+  /** 服务端未回传可用 choice+分布（判据对齐 judgeDrift missing）的用例数（不参与 margin 统计与门槛建议） */
   noDistribution: number;
   misses: Array<{ id: string; expected: string; got: string; margin: number }>;
 }
@@ -133,14 +133,20 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     for (const c of list) {
       const r = byId.get(c.id);
       const ans = r?.answers?.[c.question];
-      const got = ans?.choice ?? "<none>";
-      if (!ans?.probabilities) {
-        // 缺分布：跳过 margin 统计（0 会把门槛拉向 0 / 1 会虚高），报告显式计数
+      if (
+        !ans ||
+        typeof ans.choice !== "string" ||
+        !ans.probabilities ||
+        Object.keys(ans.probabilities).length < 2
+      ) {
+        // 缺 choice/可用分布（判据对齐 judgeDrift 的 missing）：跳过 margin 与命中
+        // 统计，报告显式计数——既不进命中率分母，也不进 misses（"无判定"不是"误判"，
+        // got="<none>" 推入 misses 会把无答用例伪装成模型错判）。轮 7 审计 H2。
         noDistribution++;
-        if (got !== c.expected) misses.push({ id: c.id, expected: c.expected, got, margin: Number.NaN });
         continue;
       }
       const margin = marginOf(ans.probabilities);
+      const got = ans.choice;
       if (got === c.expected) correctMargins.push(margin);
       else misses.push({ id: c.id, expected: c.expected, got, margin });
     }

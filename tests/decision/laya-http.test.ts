@@ -145,13 +145,25 @@ describe("契约预校验（挡在出门前）", () => {
 });
 
 describe("layaDecideBatch —— 分块/保序/补跑", () => {
-  test("结果与输入严格同序；body 并发 ≤8", async () => {
+  test("结果与输入严格同序；在飞批请求峰值 ≤2（槽位真实计量）", async () => {
+    // 轮 7 审计 H1 测试面：旧断言只读请求体自报的 concurrency 字段（限流失效时恒绿）。
+    // 契约第五节：客户端在飞**批请求**槽 ≤2（条目级 ≤8 是 body.concurrency 契约义务，
+    // 由服务端执行）。这里用进入/退出计数计量真实峰值：37 条 → 单块（≤500）但受 2 槽
+    // 与单 worker 限制，峰值断言 ≤2；并保持 body.concurrency ≤8 的钳制义务断言。
+    let inflight = 0;
+    let peak = 0;
     fetchImpl = async (_url, init) => {
+      inflight++;
+      peak = Math.max(peak, inflight);
       const body = JSON.parse(String(init?.body)) as { items: Array<{ id: string }> };
-      return new Response(
+      const resp = new Response(
         JSON.stringify(batchResp(body.items.map((m) => ({ id: m.id, ok: true, answers: { q: { type: "noul", noul: 0.9 } } })))),
         { status: 200 },
       );
+      // 微任务让渡，保证两个 worker 真有机会重叠在飞（否则峰值恒 1 测不出超发）
+      await Promise.resolve();
+      inflight--;
+      return resp;
     };
     const items = Array.from({ length: 37 }, (_, i) => ({
       id: `i${i}`,
@@ -162,7 +174,9 @@ describe("layaDecideBatch —— 分块/保序/补跑", () => {
     expect(res.total).toBe(37);
     expect(res.ok).toBe(37);
     expect(res.results.map((r) => r.id)).toEqual(items.map((m) => m.id));
-    expect((fetchCalls[0].body as { concurrency: number }).concurrency).toBeLessThanOrEqual(8);
+    expect(peak).toBeGreaterThanOrEqual(1);
+    expect(peak).toBeLessThanOrEqual(2); // 真实在飞批请求峰值（契约第五节）
+    expect((fetchCalls[0].body as { concurrency: number }).concurrency).toBeLessThanOrEqual(8); // 钳制义务字段
   });
 
   test("超 500 条自动分块，多块结果保序拼接", async () => {

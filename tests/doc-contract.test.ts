@@ -197,8 +197,10 @@ describe("D0 口径扫描范围自证", () => {
     // （EDGE_RISK_MONITOR 默认关闭复核；含开关决策、测试矩阵与风险边界，证据性质）。
     // 65→66（2026-10-06）：docs/reviews/2026-10-06-p2-4-codeindex-db-split-review.md
     // （codeindex 独立 DB 迁移评估；含数据快照、方案比较与 ADR 前置条件，证据性质）。
+    // 66→67（2026-10-12）：docs/reviews/2026-10-12-audit-round7.md
+    // （规则 13 轮 7 全量审计报告；覆盖率账本/确定性专项/门禁实测读数，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(66);
+    expect(exempted.length).toBeLessThanOrEqual(67);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   });
 

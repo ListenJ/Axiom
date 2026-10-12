@@ -1712,3 +1712,12 @@
 - **操作**：新增 `docs/reviews/2026-10-12-audit-round7.md`（六段格式，25KB）；**零源码/测试/配置改动**（规则 13 只审核不代写修复）。
 - **验证**：车道覆盖 132/132=100%（82 findings 复核后 75 入册，High 6→维持 3：laya 并发闸语义/laya-calibrate 分子分母口径/源码 grep 断言；EPIPE 崩溃实验证伪降级、SSE cancel 不可达实验反驳）；门禁实测全绿：doc-contract 35/0、audit:runtime 16/16、tsc rc=0、全量 bun test 4721 pass/67 skip/0 fail、count-tools 189、arch-stats 454/121360、go vet rc=0、Go 确定性 5 进程×10 迭代逐字节一致、KAL runs=5 identical、CUDA bge-m3 N=5 SHA-256 全一致（RTX 3050 Ti）；native/ 删除面 22/22 全 D 零活跃引用；主张 18 条：一致 14/部分 1/不一致 1（README 场景数 21→实测 23）/未验证 2。
 - **Commit**：`968305ee`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(decision): 轮 7 审计 H2 修复 + H1 测试面诚实化
+
+- **任务**：落地 `docs/reviews/2026-10-12-audit-round7.md` 第一梯队两项无歧义修复。分级 **T2**（多文件缺陷修复 + 回归测试，规则 7 垂直切片红→绿）。
+- **根因**：①H2——`laya-calibrate.ts` 标定命中率口径失真：choice 缺失而分布存在的用例既不进分子（需 choice===expected）也不进 noDistribution（原判据只查 probabilities），分母虚大 → 命中率被拉低 → 门槛建议被误压成 null（"不可标定"）；且该用例以 `got="<none>"` 伪装成模型错判混入 misses。②H1 测试面——`laya-http.test.ts` "并发 ≤8" 用例只读请求体自报的 `concurrency` 字段，限流失效时恒绿（假绿）。
+- **修复**：①calibrate 缺答判据对齐 `judgeDrift` 的 missing（`!ans || typeof choice!=='string' || !probabilities || keys<2`）→ 只计 noDistribution，不进分子也不进 misses；`got` 局部化到命中分支。②并发用例改为进入/退出计数计量**真实在飞批请求峰值**（断言 ≤2，契约第五节批槽语义），保留 `body.concurrency ≤8` 钳制义务断言。
+- **验证**：垂直切片红→绿实测（新回归用例先 noDistribution=0/hitRate=0 红，修后 1/1 绿）；`bun test tests/decision/` 36/0；`bun test tests/doc-contract.test.ts` 35/0（首轮 1 fail = 豁免面 66→67 超上限——门抓到了轮 7 报告新证据件，按 D0 惯例登记 66→67 后绿）；tsc rc=0；邻居回归 config-center-hardening/dre-tools-behavior 15/0。改动 4 文件全部任务必需（审计登记门修为验收链一环）。
+- **不做项**：acquireSlot 批槽→条目级语义重设计、code-retrieval-router 接线/删除（架构裁决，呈报用户）。
+- **Commit**：`<占位-本轮回填>`
