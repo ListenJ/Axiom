@@ -1864,4 +1864,4 @@
 - **任务**：全量回归 2 fail 均为门自证有效——①env 模板完整性门抓到 H1 新读取的 AXIOM_REPO_ROOT 未登记；②docs-consistency 棘轮抓行数漂移（120,858→120,898）。分级 **T1**。
 - **修复**：.env.example 补 AXIOM_REPO_ROOT（含默认探测说明：单 checkout 部署无需设置）；ARCHITECTURE.md 基线同步。
 - **验证**：env 门 + docs-consistency 22/0。
-- **Commit**：`<占位-回填H4>`
+- **Commit**：`35584e9a`（已推送，按规则 9 以本记录维护提交回填）
