@@ -1757,4 +1757,4 @@
 - **任务**：`src/routes/pipeline.ts` daemon 化时丢失旧实现的 300s 空闲自动关闭——daemon 端从不发 done 且无心跳时，并发打开的 /pipeline/stream 聚积为僵尸连接。分级 **T2**（SSE 生命周期语义，回归测试以实证实验替代——本路由无既有测试接缝，按规则 7 记录此发现）。
 - **修复**：pull 前重置 300s 空闲计时器；超时路径 `reader.cancel("idle-timeout")` + 关流（读挂在 upstream 无法主动打断，以 cancel 竞争收口）；cancel/done/error 均清计时器。
 - **验证**：tsc rc=0；独立 Bun 实验（/tmp，300ms 缩放）——静默上游下流于 ~301ms 关闭、上游连接归零（cancel 传播实证）。
-- **Commit**：`<占位-回填④>`
+- **Commit**：`f1053575`（已推送，按规则 9 以本记录维护提交回填）
