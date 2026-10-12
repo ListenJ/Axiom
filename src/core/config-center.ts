@@ -215,7 +215,9 @@ export class ConfigCenter {
   private maskValue(value: unknown, schema?: ConfigSchema): unknown {
     if (!schema?.sensitive) return value;
     const raw = String(value ?? "");
-    if (raw.length > 8) return raw.slice(0, 4) + "****" + raw.slice(-4);
+    // 轮 7 审计：9–11 字符 token 保留首尾 4+4 最多泄露 73%——短敏感值统一全掩码，
+    // 仅 ≥16 字符才做部分掩码（泄露率 ≤50%，且仍可辨识）。
+    if (raw.length >= 16) return raw.slice(0, 4) + "****" + raw.slice(-4);
     return raw ? "****" : "";
   }
 

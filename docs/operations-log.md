@@ -1793,3 +1793,10 @@
 - **修复**：①handler 包 try/catch 返回 `json({ok:false,error},500)`（对齐 /dre/run 既有纪律）；②openEvents 加 `AbortSignal.timeout(this.timeoutMs)`（仅建连阶段；读流阶段语义不变）。
 - **验证**：tsc rc=0；dre-daemon/dre-tools/runtime-host 三文件 29/0。
 - **Commit**：`8443449f`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(batch): calibrate 批量校验 + ingest 等长钳制 + maskValue 门槛（轮 7 Medium 批次 D）
+
+- **任务**：①calibrate drift 校验 `find` 只报第一条措辞不足命题即退（多条非法用户逐条修）；②`ingest-wind-raw.ts` dates/values 独立数组无等长钳制，错位期数静默渲染 "-"（L61 字段失配教训同型）；③`maskValue` 对 9–11 字符敏感值保留首尾 4+4（最多泄露 73%）。分级 **T1/T2 混合**。
+- **修复**：①改 `filter` 批量列出全部违规 id（对齐 unlabeled/badDomain 风格）；②按最小长度尾部配对渲染 + 失配显式提示行；③掩码门槛 `length>8 → ≥16`（短值全掩码，泄露率 ≤50%）。
+- **验证**：tsc rc=0；decision+config-center+dre-tools 合跑 53/0；ingest `bun build` 解析通过；AC-1 掩码用例随新门槛自然通过。
+- **Commit**：`<占位-回填D>`

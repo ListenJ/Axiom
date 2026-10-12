@@ -248,9 +248,15 @@ export async function runDrift(argv: string[]): Promise<number> {
     console.error("漂移套件为空");
     return 2;
   }
-  const single = suite.find((c) => (c.paraphrases?.length ?? 0) < 2);
-  if (single) {
-    console.error(`命题 ${single.id} 只有 ${single.paraphrases?.length ?? 0} 份措辞：漂移探针要求同命题 ≥2 份措辞（否则测不出漂移）`);
+  // 轮 7 审计：find 只报第一条即退——多条非法命题用户逐条修才能跑通；对齐
+  // unlabeled/badDomain 的批量校验风格，一次列出全部违规 id。
+  const undersized = suite.filter((c) => (c.paraphrases?.length ?? 0) < 2);
+  if (undersized.length > 0) {
+    console.error(
+      undersized
+        .map((c) => `命题 ${c.id} 只有 ${c.paraphrases?.length ?? 0} 份措辞（要求 ≥2，否则测不出漂移）`)
+        .join("\n") + `\n共 ${undersized.length} 条命题措辞数不足`,
+    );
     return 2;
   }
 

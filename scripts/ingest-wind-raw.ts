@@ -68,10 +68,17 @@ if (want("macro")) {
       console.log(`  ! ${name}: 原件里没有取到数值数组（dates=${dates.length}），跳过以免写入空表`);
       continue;
     }
-    const rows = dates.slice(-24).map((dt, i) => {
-      const vi = dates.length - 24 + i;
-      return `| ${dt} | ${fx(values[vi])} |`;
-    });
+    // 轮 7 审计：values（ind.data）与 dates 是独立数组，长度可能不等（上面守卫
+    // 只查 values 非空）——错位期数会静默渲染 "-"（L61 教训同型：字段失配）。
+    // 按最小长度尾部配对渲染，失配时显式提示。
+    const pairN = Math.min(dates.length, values.length);
+    const rows: string[] = [];
+    for (let i = Math.max(0, pairN - 24); i < pairN; i++) {
+      rows.push(`| ${dates[i]} | ${fx(values[i])} |`);
+    }
+    if (dates.length !== values.length) {
+      console.log(`  ! ${name}: dates(${dates.length}) 与 values(${values.length}) 不等长，按尾部 ${pairN} 期配对渲染`);
+    }
     const body = [
       `# 宏观指标：${name}`,
       ``,
