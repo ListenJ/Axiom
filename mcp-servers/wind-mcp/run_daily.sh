@@ -32,7 +32,15 @@ log "采集退出码=$collect_rc"
 
 log "③ 原件 → 知识库副本"
 cd "$REPO" || exit 1
+INGEST_RC=0
 AXIOM_EMBEDDING_CONSENT=yes LOCAL_EMBED_API_KEY=local \
-  timeout 1800 bun run scripts/ingest-wind-raw.ts --all
+  timeout 1800 bun run scripts/ingest-wind-raw.ts --all || INGEST_RC=$?
+# 真实退出码：②采集/③摄取任一失败必须让 cron/监控侧可见（轮 7 审计——
+# 原 unconditional exit 0 使采集中断静默丢数）。
+# ①成分股刷新失败已按设计降级（沿用上次清单），不计入失败。
+if [ "$collect_rc" -ne 0 ] || [ "$INGEST_RC" -ne 0 ]; then
+  log "完成（有失败：collect=$collect_rc ingest=$INGEST_RC）"
+  exit 1
+fi
 log "完成"
 exit 0

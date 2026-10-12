@@ -1744,3 +1744,10 @@
 - **修复**：`getNumber` 对原始存储值判空（`raw===null|undefined|""` 或转换 NaN）时回退 `CONFIG_SCHEMA` 登记的 `default`；未登记键保持旧行为返回 0；正常显式值路径不变。首版只查 `Number.isFinite` 漏掉 null（Number(null)=0 有限）——回归测试抓住后改判原始值。
 - **验证**：AC-6 回归用例红→绿（null→27124/1000、set(null)→default、显式 500 生效、未登记键仍 0）；`bun test tests/unit/config-center-hardening.test.ts + docs-consistency` 17/0；tsc rc=0。docs-consistency 棘轮两次抓 ARCHITECTURE.md 行数漂移（本轮改 src +6 行），同步 120,783→120,791。
 - **Commit**：`<占位-回填①>`
+
+## 2026-10-12 — fix(ops): run_daily.sh 真实退出码 + smoke 门 6 判定修复（轮 7 二梯队②③）
+
+- **任务**：①`run_daily.sh` 无条件 `exit 0`——②采集/③摄取失败对 cron/监控不可见（静默丢数）；②`smoke-linux.sh` 门 6 对 400/401/500 执行 `gate 0` 计 PASS——契约再回归为恒 400 时门形同虚设（09-29 修复只改了载荷没改判定）。分级 **T1**（脚本逻辑，验证命令替代测试接缝）。
+- **修复**：①捕获 INGEST_RC，`collect_rc≠0 || INGEST_RC≠0 → exit 1`（①成分股刷新失败按设计降级不计入）；②门 6 非 2xx 一律 `gate 1`（400=路由/schema 坏、401=鉴权链坏、5xx=服务端错误——服务"已响应"不是通过门禁的理由）。
+- **验证**：`bash -n` 双通过；退出码矩阵实测（collect-fail→1 / ingest-fail→1 / both-ok→0）。
+- **Commit**：`<占位-回填②>`

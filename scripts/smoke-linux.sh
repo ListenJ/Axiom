@@ -189,11 +189,12 @@ CHAT_HTTP=$(curl -s -o /tmp/axiom-smoke-chat.json -w '%{http_code}' -H "$AUTH_HE
   "http://127.0.0.1:${PORT}/chat" 2>/dev/null) || true
 if [ "$CHAT_HTTP" = "200" ] || [ "$CHAT_HTTP" = "202" ]; then
   log "聊天往返 HTTP=$CHAT_HTTP（结构化响应 OK）"
-elif [ "$CHAT_HTTP" = "400" ] || [ "$CHAT_HTTP" = "401" ] || [ "$CHAT_HTTP" = "500" ]; then
-  log "聊天往返 HTTP=$CHAT_HTTP（服务端已响应但非 2xx，不阻塞门禁）：$(head -c 200 /tmp/axiom-smoke-chat.json 2>/dev/null)"
-  gate "聊天往返" 0
 else
-  log "聊天往返 HTTP=$CHAT_HTTP（非预期，但不视为阻塞门禁）"
+  # 轮 7 审计：400/401/500 曾被 gate 0 计 PASS——契约再回归为恒 400 时此门依旧放行
+  #（门形同虚设：只修了载荷没修判定）。真实契约载荷下，服务端已响应但非 2xx
+  # 同样是门 6 失败：400 即路由/schema 坏、401 即鉴权链坏、5xx 即服务端错误。
+  log "聊天往返 HTTP=$CHAT_HTTP（非 2xx，门 6 FAIL）：$(head -c 200 /tmp/axiom-smoke-chat.json 2>/dev/null)"
+  gate "聊天往返" 1
 fi
 
 # ---------- 7. 汇总 ----------
