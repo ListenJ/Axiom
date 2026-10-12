@@ -123,6 +123,23 @@ logger.info("[ComponentKernel] Native Day0 components initialized", {
 });
 
 // ════════════════════════════════════════════════════════════════
+// 组合根注入：DynamicModelAssigner 的 eval provider（轮 7 审计——
+// 原只在 /eval/assign 与 CLI 入口注入，定时刷新等其余调用方静默空报告）。
+// main 是组合根：eval 属外围，此处的动态 import 是组合根职责而非内核依赖
+//（ADR-013 分域门只扫 src/router|dre|memory|core 等内核目录）。
+// ════════════════════════════════════════════════════════════════
+try {
+  const { setModelEvalProvider } = await import("./router/dynamic-model-assigner.js");
+  const { getModelEvalService } = await import("./eval/model-eval-service.js");
+  setModelEvalProvider(getModelEvalService());
+  logger.info("[CompositionRoot] ModelEvalProvider injected into DynamicModelAssigner");
+} catch (err) {
+  logger.warn("[CompositionRoot] ModelEvalProvider injection failed (assignment reports will be empty)", {
+    error: err instanceof Error ? err.message : String(err),
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
 // DRE 确定性推理引擎 — 主服务宿主集成 (P2)
 // 单进程内初始化 Kernel，与 /pipeline/stream、/dre/run 共享同一 eventBus，
 // 观测链路天然打通。失败不阻断主服务（DRE 是增强能力，非核心依赖）；

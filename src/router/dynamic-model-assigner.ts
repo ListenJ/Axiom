@@ -54,25 +54,11 @@ export function setModelEvalProvider(p: ModelEvalProvider | null): void {
   _modelEvalProvider = p;
 }
 
-/**
- * 轮 7 审计：eval provider 此前只在 /eval/assign 与 CLI 两条入口注入——
- * startAutoRefresh 每 6h 的 runAssignment 等其他调用方静默得到空报告，
- * 且行为随"是否有人调过 /eval/assign"漂移。此处按 **惰性自注入** 收口：
- * runAssignment 入口发现未注入时动态 import 外围 eval 服务（对齐本仓
- * "lazy import to avoid circular dependency" 惯例，router→eval 属内核→外围
- * 方向，不能静态依赖）；显式 setModelEvalProvider(null) 仍可禁用（测试隔离）。
- */
-async function ensureEvalProvider(): Promise<void> {
-  if (_modelEvalProvider !== null) return;
-  try {
-    const { getModelEvalService } = await import("../eval/model-eval-service.js");
-    _modelEvalProvider = getModelEvalService();
-  } catch (err) {
-    logger.warn("[DynamicAssigner] eval 服务动态注入失败（报告将为空）", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
+// 轮 7 审计修正（二稿）：初稿曾尝试 runAssignment 内 lazy import eval 服务自注入——
+// 被 ADR-013 内核↔外围分域门拦截（动态 import 同样是被扫描的内核→外围依赖，
+// 违反"内核不得依赖外围"的架构铁律）。正确修法 = **组合根一次性注入**（eval-routes
+// /CLI 的 handler 内注入移除，改由 src/main.ts 启动序列注入一次），router 侧保持
+// 纯端口（本文件无任何外围 import）。
 
 // ========== 类型定义 ==========
 
@@ -326,7 +312,6 @@ export class DynamicModelAssigner {
     includeBenchmarks?: boolean;
   }): Promise<AssignmentReport> {
     const startTime = performance.now();
-    await ensureEvalProvider();
     const evalService = _modelEvalProvider;
     if (!evalService) {
       logger.warn("[DynamicAssigner] 未注入模型评估 provider（eval 属外围，需组合根注入），返回空报告");

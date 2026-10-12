@@ -188,9 +188,9 @@ export async function handleEvalAssign(ctx: RouteContext): Promise<Response | nu
       let body: Record<string, unknown> = {};
       try { body = await ctx.req.json(); } catch { /* empty body ok */ }
 
-      const { getDynamicModelAssigner, setModelEvalProvider } = await import("../router/dynamic-model-assigner.js");
-      const { getModelEvalService } = await import("../eval/model-eval-service.js");
-      setModelEvalProvider(getModelEvalService());
+      // 轮 7 审计二稿：eval provider 注入已上收组合根（src/main.ts 启动序列一次注入），
+      // handler 不再重复 set（CLI 入口同理保留——独立进程必须自带注入）。
+      const { getDynamicModelAssigner } = await import("../router/dynamic-model-assigner.js");
       const assigner = getDynamicModelAssigner();
 
       const report = await assigner.runAssignment({

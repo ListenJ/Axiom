@@ -1807,3 +1807,11 @@
 - **修复**：①`require_cuda = ... and not allow_cpu`（用户显式接受 CPU 即放行）+ 错误提示补指引；②`total_tokens = await run_in_threadpool(encoder.count_tokens, texts)` 对齐 encode 的卸载模式。
 - **验证**：`python3 -m py_compile` 通过；门逻辑真值复现（ALLOW_CPU=1 → require_cuda=False）；源码断言双修在位。
 - **Commit**：`f23b5903`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(router): eval provider 注入上收组合根（二稿——分域门拦截初稿方案）
+
+- **任务**：同前条（dynamic-model-assigner eval provider 注入漂移）。**二稿原因**：初稿在 runAssignment 内 lazy import eval 服务自注入——全量回归被 **ADR-013 内核↔外围分域门**拦截（`await import("../eval/...")` 同样是被 AST 扫描的内核→外围依赖，违反"内核不得依赖外围"铁律）。门的拦截正确，初稿方案违反架构，回退。
+- **二稿修复**：①assigner 侧移除 lazy import（恢复纯端口，router 零外围 import）；②组合根 `src/main.ts` 启动序列一次性注入（动态 import 在组合根是职责而非内核依赖——分域门只扫内核目录）；③eval-routes handler 侧冗余 set 移除（CLI 独立进程保留自带注入）。
+- **验证**：kernel-periphery-boundary 2/0（在册面回到仅 search-port 例外）；docs-consistency 棘轮同步 120,858 行；tsc rc=0；router+decision+config-center 合跑 98/0。
+- **教训登记**：修复架构类审计发现前先读分域门/棘轮基线的扫描口径——"修复"本身可能构成新的违规形态。
+- **Commit**：`<占位-回填B2>`
