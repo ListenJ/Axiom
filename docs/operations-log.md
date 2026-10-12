@@ -1764,4 +1764,4 @@
 - **任务**：bun test 单进程顺序执行下，4 个测试文件的 process.env 改写/delete 跨文件泄漏（dre-tools-behavior 3 键 + 不可逆删 DEEPSEEK_API_KEY；dre-daemon 两 describe 各漏部分；laya-drift/laya-calibrate delete-only LAYA_DECISION_URL）——与历史 resource-sync flaky 簇同型。分级 **T1**（测试基础设施，验证命令替代接缝）。
 - **修复**：新增 `tests/helpers/env-snapshot.ts`（snapshotEnv(keys) → 恢复函数，undefined 语义正确还原 delete）；4 文件按键清单接入 afterAll/afterEach。
 - **验证**：4 文件 + decision 目录合跑 63 tests / 0 fail；tsc rc=0。
-- **Commit**：`<占位-回填⑤>`
+- **Commit**：`60f31d9e`（已推送，按规则 9 以本记录维护提交回填）
