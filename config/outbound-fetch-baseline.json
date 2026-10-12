@@ -10,7 +10,7 @@
       "fetch(...) 直接调用（Identifier callee）",
       "globalThis.fetch 的任意引用（含赋值给变量的别名形态）"
     ],
-    "$note": "AST 计数，不用 grep。grep 版口径把 Bun.serve 的 fetch 处理器、方法声明、注释文本都算成出网点（实测 26 文件），AST 版是 23 文件。别名形态必须计入引用：只扫 fetch( 会漏掉整个 frontend-review.ts。"
+    "$note": "AST 计数，不用 grep。grep 版口径把 Bun.serve 的 fetch 处理器、方法声明、注释文本都算成出网点（实测 26 文件），AST 版是 24 文件（2026-10-12 轮 7 审计核对 totals.files 同步）。别名形态必须计入引用：只扫 fetch( 会漏掉整个 frontend-review.ts。"
   },
   "totals": {
     "files": 24,

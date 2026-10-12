@@ -12,7 +12,9 @@ Wind 每日增量采集（2026-10-07）
   故 Wind 承担日常增量，AkShare 只作免费兜底。
 
 ## 三条硬性质
-1. **额度硬闸**：每次调用前查当日用量，达 `WIND_DAILY_CAP`（默认 270，账号实际 300，留 30 余量）即停。
+1. **额度硬闸**：每次调用前按当日积分账本扣减核对，达 `WIND_DAILY_CREDITS`（默认
+   `DEFAULT_CREDIT_BUDGET`=270 积分，账号免费档 300/日，留 30 余量）即停。
+   注意口径是**积分**不是调用次数——各工具单价差数量级（TOOL_COST_CREDITS）。
 2. **原件优先**：每次成功取数**先把原始 JSON 落盘**（`data/raw/quant/wind/<tool>/<key>.json`），
    再记账（`data/wind-usage.jsonl`）。落盘失败即视为该次失败——**不允许只记账不留原件**。
 3. **可续跑**：进度记 `data/wind-rotation.json`（按品类分键），跨天接着来、不重采（`--force` 可重取）。
@@ -45,7 +47,6 @@ USAGE_FILE = DATA / "wind-usage.jsonl"
 RAW_DIR = DATA / "raw" / "quant" / "wind"
 
 CST = timezone(timedelta(hours=8))
-DEFAULT_CAP = 270
 INDEXES = [("000300", "沪深300"), ("000905", "中证500"), ("000852", "中证1000")]
 
 # ═══════════════════════════════════════════════════════════════════════════

@@ -613,14 +613,12 @@ export class DREngine {
     };
   }
 
-  /**
-   * 获取引擎状态
-   */
   /** 暴露底层 SQLite 连接（供组合层装配端口等；不改变引擎内部语义） */
   getDb(): Database {
     return this.db;
   }
 
+  /** 获取引擎状态 */
   getStatus(): {
     vfs: { mounts: string[] };
     knowledge: { nodes: number; edges: number };
