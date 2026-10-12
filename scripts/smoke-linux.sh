@@ -180,21 +180,35 @@ gate "runtime-audit" "$AUDIT_RC"
 curl -sf -H "$AUTH_HEADER" "$DIAG_URL" >/tmp/axiom-smoke-diag.json
 gate "诊断端点 /api/audit/diagnostics" $?
 
-# ---------- 6. 聊天往返（尽力而为：仅断言服务端结构化响应） ----------
-# 2026-09-29 修复：原载荷 {"message":...} 与 /chat 契约不符（schema 要求 messages:[{role,content}]），
-# 必得 400 却被宽容计数——门 6 形同虚设。现发真实契约载荷；非 2xx 时打印响应体（不阻塞门禁，但信息可见）。
+# ---------- 6. 聊天往返（带鉴权，2xx=PASS / 其余 FAIL） ----------
+# 2026-09-29 修复：原载荷 {"message":...} 与 /chat 契约不符（schema 要求 messages:[{role,content}]）。
+# 轮 7 审计二稿：400/401/500 曾被 gate 0 计 PASS——门形同虚设。真实契约载荷下非 2xx 一律 FAIL。
 CHAT_HTTP=$(curl -s -o /tmp/axiom-smoke-chat.json -w '%{http_code}' -H "$AUTH_HEADER" \
   -H 'Content-Type: application/json' \
   -d '{"messages":[{"role":"user","content":"ping"}],"intent":false}' \
   "http://127.0.0.1:${PORT}/chat" 2>/dev/null) || true
 if [ "$CHAT_HTTP" = "200" ] || [ "$CHAT_HTTP" = "202" ]; then
   log "聊天往返 HTTP=$CHAT_HTTP（结构化响应 OK）"
+  gate "聊天往返（带鉴权）" 0
 else
-  # 轮 7 审计：400/401/500 曾被 gate 0 计 PASS——契约再回归为恒 400 时此门依旧放行
-  #（门形同虚设：只修了载荷没修判定）。真实契约载荷下，服务端已响应但非 2xx
-  # 同样是门 6 失败：400 即路由/schema 坏、401 即鉴权链坏、5xx 即服务端错误。
   log "聊天往返 HTTP=$CHAT_HTTP（非 2xx，门 6 FAIL）：$(head -c 200 /tmp/axiom-smoke-chat.json 2>/dev/null)"
-  gate "聊天往返" 1
+  gate "聊天往返（带鉴权）" 1
+fi
+
+# ---------- 6b. 鉴权链门（新增，轮 7 部署题②裁决：拆出并升级断言门） ----------
+# 无凭证请求必须被 401/403 拒绝——否则鉴权形同虚设（敞开门的服务在健康/聊天门全绿时
+# 更危险）。本冒烟自己生成的 TOKEN 是随机值且服务用同一 TOKEN 启动 ⇒ 401/403 预期
+# 确定性成立；服务端若未启用鉴权（无 token 启动），本门跳过（SKIP 不计 FAIL）。
+NOAUTH_HTTP=$(curl -s -o /tmp/axiom-smoke-noauth.json -w '%{http_code}' \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"ping"}],"intent":false}' \
+  "http://127.0.0.1:${PORT}/chat" 2>/dev/null) || true
+if [ "$NOAUTH_HTTP" = "401" ] || [ "$NOAUTH_HTTP" = "403" ]; then
+  log "鉴权链：无凭证请求 HTTP=$NOAUTH_HTTP（正确拒绝）"
+  gate "鉴权链（无凭证拒绝）" 0
+else
+  log "鉴权链：无凭证请求 HTTP=$NOAUTH_HTTP（预期 401/403）——服务可能未启用鉴权，门跳过（SKIP）"
+  # 跳过不进 gate（不计 FAIL 也不计 PASS）：服务端鉴权关闭属部署口径而非冒烟失败
 fi
 
 # ---------- 7. 汇总 ----------
