@@ -1720,4 +1720,4 @@
 - **修复**：①calibrate 缺答判据对齐 `judgeDrift` 的 missing（`!ans || typeof choice!=='string' || !probabilities || keys<2`）→ 只计 noDistribution，不进分子也不进 misses；`got` 局部化到命中分支。②并发用例改为进入/退出计数计量**真实在飞批请求峰值**（断言 ≤2，契约第五节批槽语义），保留 `body.concurrency ≤8` 钳制义务断言。
 - **验证**：垂直切片红→绿实测（新回归用例先 noDistribution=0/hitRate=0 红，修后 1/1 绿）；`bun test tests/decision/` 36/0；`bun test tests/doc-contract.test.ts` 35/0（首轮 1 fail = 豁免面 66→67 超上限——门抓到了轮 7 报告新证据件，按 D0 惯例登记 66→67 后绿）；tsc rc=0；邻居回归 config-center-hardening/dre-tools-behavior 15/0。改动 4 文件全部任务必需（审计登记门修为验收链一环）。
 - **不做项**：acquireSlot 批槽→条目级语义重设计、code-retrieval-router 接线/删除（架构裁决，呈报用户）。
-- **Commit**：`<占位-本轮回填>`
+- **Commit**：`3ac08931`（已推送；已 fast-forward 到 `main`，按规则 9 以本记录维护提交回填）
