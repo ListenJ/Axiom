@@ -1704,3 +1704,11 @@
 - **P1-2 / P1-3 未能执行的原因（如实登记）**：systemd 安装启停需 root（`sudo -n` 不可用）；runtime-go 拓扑取值属部署侧 `${LAN_*}`（规则 11 不入库）。
 - **验证**：脚本 `bash -n` 通过；六道门 host 模式实跑 PASS（退出码 0）；复跑后端口 0 残留；短 token 守卫 exit 2；doc-contract 35/0。
 - **Commit**：`f30bce9e`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — audit(review): 规则 13 轮 7 全量审计（OCR 车道并行 + 三缺口收口）
+
+- **任务**：承接轮 1–6，按规则 13 对 `d8d5ab65..8a8d9747`（243 提交修复轮）做全量对抗审计；OCR v1.9.9 delegate 模式做确定性变更选择/规则分组，10 车道子代理并行审查，主会话负责 High 复核、门禁实测与覆盖率账本。分级 **T1**（只读审查，报告即完成证据；用户裁定 Act 边界=只读）。
+- **工具**：ocr delegate preview/rule（变更面 132 reviewable + 198 excluded + 31 工具缺口普查闭合）、10 并行审查子代理、bun/bun test、tsc、go test/vet、uvicorn CUDA 实测、Bun.serve 独立实验 ×2。
+- **操作**：新增 `docs/reviews/2026-10-12-audit-round7.md`（六段格式，25KB）；**零源码/测试/配置改动**（规则 13 只审核不代写修复）。
+- **验证**：车道覆盖 132/132=100%（82 findings 复核后 75 入册，High 6→维持 3：laya 并发闸语义/laya-calibrate 分子分母口径/源码 grep 断言；EPIPE 崩溃实验证伪降级、SSE cancel 不可达实验反驳）；门禁实测全绿：doc-contract 35/0、audit:runtime 16/16、tsc rc=0、全量 bun test 4721 pass/67 skip/0 fail、count-tools 189、arch-stats 454/121360、go vet rc=0、Go 确定性 5 进程×10 迭代逐字节一致、KAL runs=5 identical、CUDA bge-m3 N=5 SHA-256 全一致（RTX 3050 Ti）；native/ 删除面 22/22 全 D 零活跃引用；主张 18 条：一致 14/部分 1/不一致 1（README 场景数 21→实测 23）/未验证 2。
+- **Commit**：`<占位-本轮回填>`
