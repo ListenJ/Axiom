@@ -44,6 +44,8 @@ export class Kernel {
   /** 在途 tick（含手动 tick）；shutdown 在关引擎前等待它们全部结束 */
   private _inFlightTicks = new Set<Promise<void>>();
   private _running = false;
+  /** shutdown 已启动：此后 tick() 快速拒绝（防快照后到达的手动 tick 与 engine.close 并发） */
+  private _shutdownStarted = false;
 
   constructor(config: KernelConfig) {
     this.config = config;
@@ -87,6 +89,12 @@ export class Kernel {
    * 驱动循环 — 所有子系统的驱动点
    */
   async tick(source: string = "manual"): Promise<void> {
+    // 轮 7 审计：shutdown 快照 _inFlightTicks 之后到达的手动 tick（如停机瞬间的
+    // HTTP /dre/tick）此前会与 engine.close() 并发访问 actor/db——实测时间窗重叠。
+    // 停止闸：shutdown 一旦启动，新 tick 一律快速拒绝（fail-loud 而非静默并发）。
+    if (this._shutdownStarted) {
+      throw new Error(`Kernel is shutting down; tick(${source}) rejected`);
+    }
     const run = this.runTick(source);
     this._inFlightTicks.add(run);
     try {
@@ -235,6 +243,9 @@ export class Kernel {
   getEngine(): DREngine { return this.engine; }
 
   async shutdown(): Promise<void> {
+    // 停止闸先行：快照与 close 之间到达的手动 tick 会被 tick() 入口拒绝，
+    // 而非与 engine.close() 并发（轮 7 审计：实测并发窗口真实存在）。
+    this._shutdownStarted = true;
     this._state = "stopped";
     // 先停循环，再等在途 tick（含手动 tick）全部结束，最后才关引擎——
     // 避免 engine.close() 与在途 tick 并发关闭 actor/db。

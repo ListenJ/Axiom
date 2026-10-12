@@ -1815,3 +1815,11 @@
 - **验证**：kernel-periphery-boundary 2/0（在册面回到仅 search-port 例外）；docs-consistency 棘轮同步 120,858 行；tsc rc=0；router+decision+config-center 合跑 98/0。
 - **教训登记**：修复架构类审计发现前先读分域门/棘轮基线的扫描口径——"修复"本身可能构成新的违规形态。
 - **Commit**：`4f3bc3e4`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(dre): kernel shutdown 停止闸（轮 7 Medium：shutdown 在途 tick 竞态）
+
+- **任务**：shutdown 快照 `_inFlightTicks` 后到达的手动 tick（如停机瞬间的 HTTP /dre/tick）会与 `engine.close()` 并发访问 actor/db。分级 **T2**（并发语义 + 实证）。
+- **实证**：探针实测并发窗口真实存在——engine.close 50ms 窗口内 late tick 完整运行（overlap=true）；stopTickLoop 快路径 1ms 无 lost-wakeup（lane3b 的 Race A 描述在 JS 单线程下不成立，未改）。
+- **修复**：`_shutdownStarted` 停止闸——shutdown 入口先行置位；`tick()` 对 shutting 状态快速拒绝（fail-loud 抛错而非静默并发）；现网无外部手动 tick 调用方（拒绝路径为 /dre/tick 预留）。
+- **验证**：修复后 late tick 被 gate 拒绝（hazard closed）；start/stop 循环 ×50 无死锁；Race A/B 快路径不变；dre 四文件 123/0；tsc rc=0。
+- **Commit**：`<占位-回填K1>`
