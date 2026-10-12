@@ -1765,3 +1765,10 @@
 - **修复**：新增 `tests/helpers/env-snapshot.ts`（snapshotEnv(keys) → 恢复函数，undefined 语义正确还原 delete）；4 文件按键清单接入 afterAll/afterEach。
 - **验证**：4 文件 + decision 目录合跑 63 tests / 0 fail；tsc rc=0。
 - **Commit**：`60f31d9e`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — test(cleanup): source-grep 断言清理 3 处（轮 7 三梯队⑥/H3）
+
+- **任务**：断言私有实现源码文本的用例（runtime-host-lifecycle AC-4/AC-5 后半 + config-center-hardening "静态接线"）——内部改名即误报、行为回归仍假绿、依赖 cwd=仓库根。分级 **T1**。
+- **修复**：AC-4/静态接线整用例删除（AC-4 是注释文本锁定无行为价值；静态接线的原子写行为已由相邻用例锁定）；AC-5 保留前半行为断言（双 complete 幂等）并更名；未用 readFileSync import 清理。
+- **验证**：tsc rc=0；两文件 10/0；cwd 无关性实证（src/ 子目录运行 4/0）。
+- **Commit**：`<占位-回填⑥>`

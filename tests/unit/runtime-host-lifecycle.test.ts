@@ -9,7 +9,6 @@
  *   - src/runtime/types.ts:87 文档写“6 个方法”，实际 4 个必需 + 2 个可选。
  */
 import { describe, test, expect } from "bun:test";
-import { readFileSync } from "node:fs";
 import { createRuntimeHost } from "../../src/runtime/host.js";
 import type { AgentAdapter, RuntimeContext, RuntimeResult, RuntimeTask } from "../../src/runtime/types.js";
 
@@ -99,14 +98,12 @@ describe("Step 5 — RuntimeHost 生命周期", () => {
     expect(a.destroyCtx).toBeDefined();
   });
 
-  test("AC-4 文档计数与接口一致（4 必需 + 2 可选）", () => {
-    const src = readFileSync("src/runtime/types.ts", "utf8");
-    expect(src).toContain("最少需实现 4 个方法");
-    expect(src).not.toContain("第三方只需实现 6 个方法");
-    expect(src).toContain("healthCheck 与 destroy 为可选");
-  });
+  // 轮 7 审计三梯队⑥（H3）：原 AC-4/AC-5 后半段 readFileSync 实现源码断言
+  // （toContain 中文注释文本 / 正则匹配私有签名）已删除——断言私有实现文本
+  // 而非公共行为：内部变量改名即误报、行为回归仍假绿，且依赖 cwd=仓库根。
+  // AC-5 前半段的行为断言（双 complete 不抛、result 被接受）保留在下一用例。
 
-  test("AC-5 默认 scheduler complete 接受 result；无未读 running Set", () => {
+  test("AC-5 默认 scheduler complete 接受 result（行为断言，双 complete 幂等）", () => {
     const host = createRuntimeHost();
     const sched = host.getContext().scheduler;
     const { id } = sched.submit({ name: "task", priority: "normal", payload: null, maxRetries: 0, dependencies: [] });
@@ -114,9 +111,5 @@ describe("Step 5 — RuntimeHost 生命周期", () => {
     expect(next?.id).toBe(id);
     expect(() => sched.complete(id, { ok: true })).not.toThrow();
     expect(() => sched.complete(id, { ok: true })).not.toThrow();
-
-    const src = readFileSync("src/runtime/host.ts", "utf8");
-    expect(src).not.toContain("const running = new Set");
-    expect(src).toMatch(/complete\(_?id: string, _?result\??: unknown\)/);
   });
 });

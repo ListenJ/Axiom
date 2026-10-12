@@ -72,11 +72,9 @@ describe("Step 4 — ConfigCenter 加固", () => {
     fs.rmSync(yamlPath, { force: true });
   });
 
-  test("AC-3 静态接线：saveYaml 使用 renameSync(tmpPath)", () => {
-    const src = fs.readFileSync("src/core/config-center.ts", "utf8");
-    expect(src).toContain("renameSync(tmpPath");
-    expect(src).toContain(".tmp");
-  });
+  // 轮 7 审计三梯队⑥：原"AC-3 静态接线"用例 grep 实现源码（toContain('renameSync(tmpPath')
+  // 可被注释命中、toContain('.tmp') 近恒真）——原子写退化时假绿、重构改写即误报。
+  // 行为由上一用例锁定（写入落盘 + 无 .tmp 残留），源码文本断言按 H3 裁决删除。
 
   test("AC-4 未闭合 ${VAR 不抛异常且按字面保留（OCR 发现未复现，守卫锁定）", () => {
     // Bun 会自动加载仓库 .env，OBSIDIAN_VAULT_PATH 会覆盖 YAML；本用例只验证 resolveEnvVars
