@@ -72,6 +72,10 @@ import {
   handleKnowledgeStats,
 } from "./cli/commands/knowledge.js";
 
+// ADR-013：装配代码索引端口（轮 7 审计：自 import 间移至 import 块后——ESM 静态
+// import 总是先于语句求值，原位置依赖隐式求值序且降低可读性）。
+installCodeIndexPort();
+
 const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 
 const commands: Record<string, { desc: string; run: (args: string[]) => Promise<void> | void }> = {

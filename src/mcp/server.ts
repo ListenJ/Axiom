@@ -6,9 +6,6 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { installCodeIndexPort } from "../codeindex/codegraph-port.js";
-
-// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）
-installCodeIndexPort();
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { Database } from "bun:sqlite";
@@ -76,6 +73,10 @@ const dbPath = readString("DATABASE_PATH", "./data/agent.db");
 const db = new Database(dbPath);
 // 多进程写基线：MCP 与主服务可能同时写 agent.db，须 busy_timeout 防 SQLITE_BUSY（见 src/utils/sqlite-pragmas.ts）
 applySqliteConcurrencyPragmas(db);
+// ADR-013：装配代码索引端口（外围 codeindex 实现注入内核 memory 的接口槽）。
+// 轮 7 审计：自 import 间移至 db 装配区——原位置在模块求值极早期拉起
+// codeindex→local-index→bun:sqlite 依赖链，先于 DATABASE_PATH 读取。
+installCodeIndexPort();
 // 写入侧语义索引装配（2026-09-21）：未授权/无路由时零成本；详见 services/knowledge-embedding-index.ts
 enableKnowledgeEmbeddingIndex(db);
 

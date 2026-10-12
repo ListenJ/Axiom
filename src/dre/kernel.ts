@@ -38,6 +38,8 @@ export class Kernel {
   private _startTime = 0;
   /** 自动 tick 循环体 promise；stopTickLoop 等待它真正退出（含在途 tick） */
   private _loopPromise: Promise<void> | null = null;
+  /** tick 间隔缺省值（轮 7 审计：worldState 与 startTickLoop 两处复制硬编码 5000 → 单一来源） */
+  private static readonly DEFAULT_TICK_INTERVAL_MS = 5000;
   /** 当前睡眠的定时器与唤醒句柄；stopTickLoop 用它即时取消睡眠，不必等满 interval */
   private _sleepTimer: ReturnType<typeof setTimeout> | null = null;
   private _sleepResolve: (() => void) | null = null;
@@ -61,7 +63,7 @@ export class Kernel {
     worldState.set("system.kernel", {
       version: APP_VERSION,
       startedAt: this._startTime,
-      tickInterval: this.config.tickInterval ?? 5000,
+      tickInterval: this.config.tickInterval ?? Kernel.DEFAULT_TICK_INTERVAL_MS,
     });
 
     this._state = "idle";
@@ -175,7 +177,7 @@ export class Kernel {
   startTickLoop(): void {
     if (this._running) return;
     this._running = true;
-    const interval = this.config.tickInterval ?? 5000;
+    const interval = this.config.tickInterval ?? Kernel.DEFAULT_TICK_INTERVAL_MS;
     // 单一驱动：while 循环串行 tick；睡眠用可取消的 sleep（stopTickLoop 即时唤醒）。
     this._loopPromise = (async () => {
       while (this._running) {

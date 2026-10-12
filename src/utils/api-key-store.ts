@@ -76,6 +76,8 @@ const PROVIDER_CONFIG: Record<string, ProviderEntry> = {
   },
   "local-embed": {
     apiKeyEnv: "LOCAL_EMBED_API_KEY",
+    // 轮 7 审计：端点可经 LOCAL_EMBED_BASE_URL 覆盖（getEffectiveBaseURL 的
+    // *_API_KEY→*_BASE_URL 通用派生已支持）；此处为默认值而非硬编码墙。
     baseURL: "http://127.0.0.1:9001/v1",
     adapter: "openai",
     region: "domestic",

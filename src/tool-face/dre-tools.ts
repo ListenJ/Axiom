@@ -109,6 +109,11 @@ export interface DreToolRegistrationOptions {
 }
 
 export function registerDreTools(registry: DreToolRegistryLike, opts?: DreToolRegistrationOptions): void {
+  // 轮 7 审计：cognitive_pipeline_run(_full)/cognitive_loop(_full) 四处 setToolExecutor
+  // 原各自由 registry.buildHttpHandlers() 全量重建 handler 映射（每次工具调用重复构建
+  // ×4）。handlers 形态由 collector 注册后的 registry 决定，与注册时点无关——顶部
+  // 构建一次，四处闭包共享（同时消除重复代码）。
+  const dreHandlers = registry.buildHttpHandlers();
   // 先经 collector 收集规格（保留字面量注册形态，供 D10 能力声明抽取器识别），
   // 再按运行模式注册：本地执行（daemon）或远程转发（MCP）。
   const collector = {
@@ -405,7 +410,7 @@ export function registerDreTools(registry: DreToolRegistryLike, opts?: DreToolRe
       const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
-        const handlers = registry.buildHttpHandlers();
+        const handlers = dreHandlers;
         const handler = handlers[toolName];
         if (!handler) throw new Error('Tool not found: ' + toolName);
         return handler(args);
@@ -425,7 +430,7 @@ export function registerDreTools(registry: DreToolRegistryLike, opts?: DreToolRe
       const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
-        const handlers = registry.buildHttpHandlers();
+        const handlers = dreHandlers;
         const handler = handlers[toolName];
         if (!handler) throw new Error('Tool not found: ' + toolName);
         return handler(args);
@@ -787,7 +792,7 @@ export function registerDreTools(registry: DreToolRegistryLike, opts?: DreToolRe
       const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
-        const handlers = registry.buildHttpHandlers();
+        const handlers = dreHandlers;
         const handler = handlers[toolName];
         if (!handler) throw new Error('Tool not found: ' + toolName);
         return handler(args);
@@ -808,7 +813,7 @@ export function registerDreTools(registry: DreToolRegistryLike, opts?: DreToolRe
       const dre = (await getEngine());
       const pipeline = new CognitivePipeline(dre);
       pipeline.setToolExecutor(async (toolName, args) => {
-        const handlers = registry.buildHttpHandlers();
+        const handlers = dreHandlers;
         const handler = handlers[toolName];
         if (!handler) throw new Error('Tool not found: ' + toolName);
         return handler(args);

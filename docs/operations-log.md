@@ -1886,3 +1886,10 @@
 - **修复**：①3 workflows 各移除未使用的 `actions: write` 授权（最小权限；upload-artifact 用默认 GITHUB_TOKEN，stress-runner/run-visual-gate/frontend-audit.sh 均无 GitHub API 调用）；②smoke-linux kill-by-port 兜底加 cmdline 校验（匹配 dist/main.js|axiom|smoke 才强杀，无关进程跳过防误伤）。
 - **验证**：YAML 解析 3/3 OK；grep 复核 0 残留；`bash -n` 通过。
 - **Commit**：`410eea1a`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — refactor(chore): Low 积压④代码清理批（4 项）
+
+- **任务**：轮 7 审计 §4.3 代码清理组。分级 **T1/T2 混合**。
+- **修复**：①dre-tools 四处 setToolExecutor 的 buildHttpHandlers() 全量重建 → registerDreTools 顶部构建一次共享（重复计算×4 消除，行为测试 9/0）；②kernel DEFAULT_TICK_INTERVAL_MS 常量抽取（worldState 与 startTickLoop 双写 5000 单源）；③api-key-store local-embed 端点补注释——**发现原 finding 部分过期**：getEffectiveBaseURL 的 `*_API_KEY→*_BASE_URL` 通用派生已支持 LOCAL_EMBED_BASE_URL env 覆盖（实测 9999 生效），补注释澄清"默认值非硬编码墙"；④cli.ts/mcp/server.ts installCodeIndexPort 自 import 间移位（cli 移 import 块后、mcp 移 db 装配区——后者的早期求值依赖链问题同步消除）。
+- **验证**：tsc rc=0；mcp-config/dre-tools/docs-consistency/doc-contract 合跑（棘轮同步 120,910 后 0 fail）；`bun build`/解析路径复核。
+- **Commit**：`<占位-回填L4>`
