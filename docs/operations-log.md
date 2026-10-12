@@ -1893,3 +1893,10 @@
 - **修复**：①dre-tools 四处 setToolExecutor 的 buildHttpHandlers() 全量重建 → registerDreTools 顶部构建一次共享（重复计算×4 消除，行为测试 9/0）；②kernel DEFAULT_TICK_INTERVAL_MS 常量抽取（worldState 与 startTickLoop 双写 5000 单源）；③api-key-store local-embed 端点补注释——**发现原 finding 部分过期**：getEffectiveBaseURL 的 `*_API_KEY→*_BASE_URL` 通用派生已支持 LOCAL_EMBED_BASE_URL env 覆盖（实测 9999 生效），补注释澄清"默认值非硬编码墙"；④cli.ts/mcp/server.ts installCodeIndexPort 自 import 间移位（cli 移 import 块后、mcp 移 db 装配区——后者的早期求值依赖链问题同步消除）。
 - **验证**：tsc rc=0；mcp-config/dre-tools/docs-consistency/doc-contract 合跑（棘轮同步 120,910 后 0 fail）；`bun build`/解析路径复核。
 - **Commit**：`2b36258f`（已推送，按规则 9 以本记录维护提交回填）
+
+## 2026-10-12 — fix(final): Low 积压最终批 5 项
+
+- **任务**：轮 7 审计 §4.3 剩余最后 5 项。分级 **T1**。
+- **修复**：①capability-isolation 运行时二进制 AXIOM_RUNTIME_BIN env 化（默认 bun 兼容）；②install-systemd.sh 实例用户 SUDO_USER 推导 + REPO 位置推导（对齐 install-wind-collect 模式）；③mind-tools 双写入口收口——registerMindTools 的 engineProvider 改局部闭包（不再写模块全局），双模并传显式告警，handler 改走 getRegisteredEngine（跨模块注入口 setMindEngineProvider 保留为唯一全局路）；④model-router embedding 回环豁免——local-embed + 127.0.0.1 端点时 LOCAL_EMBED_API_KEY 缺失不再抛 Missing API key（探针：过 key 门到 fetch 层），消除 embedding 角色静默消失；⑤invokeRemoteDreTool 非 JSON 响应结构化错误（text→parse 失败构造含 status+body 前 200 字符的 Error，诊断链路不再断）。
+- **验证**：tsc rc=0；dre-tools/dre-daemon 25/0；env 门（新变量已登记）；embed 探针实证豁免生效。
+- **Commit**：`<占位-回填LF>`

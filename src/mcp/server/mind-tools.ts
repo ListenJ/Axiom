@@ -44,7 +44,22 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
       return this;
     },
   };
-  if (opts?.engineProvider) injectedEngine = opts.engineProvider;
+  // 轮 7 审计：opts.engineProvider 原来直接写模块级全局——与 setMindEngineProvider
+  // 形成双写入口且经注册路径无法清除。收口：engineProvider 仅存局部闭包（本模块
+  // 内 handler 用），全局注入只保留 setMindEngineProvider 一条路（双模并存时后者
+  // 优先级语义不变——registered provider 是本模块的私域，全局是跨模块注入口）。
+  // 同时 engineProvider+forward 并传属配置错误（forward 模式 handler 不用引擎），
+  // 显式告警防静默错配。
+  if (opts?.engineProvider && opts?.forward) {
+    logger.warn("[MindTools] engineProvider 与 forward 并传：forward 模式下 engineProvider 被忽略（本地引擎只在 daemon 侧有意义）");
+  }
+  const registeredEngineProvider = opts?.engineProvider ?? null;
+  const getRegisteredEngine = (): SynapseEngine => {
+    if (!registeredEngineProvider) {
+      throw new Error("mind-tools: 引擎未装配（daemon 应注入 engineProvider；MCP 应走 forward）");
+    }
+    return registeredEngineProvider();
+  };
 
   collector.add({
     name: "mind_synapse_create",
@@ -58,7 +73,7 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
       weight: z.number().min(0).max(1).optional().default(0.5).describe("基础强度 0-1"),
     },
     handler: async (args: Record<string, unknown>) => {
-      const s = getEngine().createSynapse(args.sourceId as string, args.targetId as string, {
+      const s = getRegisteredEngine().createSynapse(args.sourceId as string, args.targetId as string, {
         sourceType: args.sourceType as SynapseNodeType | undefined,
         targetType: args.targetType as SynapseNodeType | undefined,
         weight: args.weight as number | undefined,
@@ -76,7 +91,7 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
       event: z.string().default("manual").describe("触发事件描述"),
     },
     handler: async (args: Record<string, unknown>) => {
-      const enhanced = getEngine().activate(args.sourceId as string, (args.event as string | undefined) ?? "manual");
+      const enhanced = getRegisteredEngine().activate(args.sourceId as string, (args.event as string | undefined) ?? "manual");
       return { enhanced: enhanced.map((s) => ({ id: s.id, targetId: s.targetId, weight: s.weight, activationCount: s.activationCount })) };
     },
   });
@@ -91,7 +106,7 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
       maxHops: z.number().int().min(1).max(5).optional().default(3).describe("最大跳数"),
     },
     handler: async (args: Record<string, unknown>) => {
-      const result = getEngine().spreadActivation(args.seedIds as string[], (args.event as string | undefined) ?? "spread", { maxHops: args.maxHops as number | undefined });
+      const result = getRegisteredEngine().spreadActivation(args.seedIds as string[], (args.event as string | undefined) ?? "spread", { maxHops: args.maxHops as number | undefined });
       return { activated: result.activated, totalActivation: result.totalActivation };
     },
   });
@@ -118,7 +133,7 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
     description: "校验突触数据完整性（重算哈希比对 + 验证链完整性），返回可追溯结论",
     inputSchema: { synapseId: z.string().describe("突触 id") },
     handler: async (args: Record<string, unknown>) => {
-      const verdict = getEngine().verify(args.synapseId as string);
+      const verdict = getRegisteredEngine().verify(args.synapseId as string);
       return { valid: verdict.valid, reason: verdict.reason };
     },
   });
@@ -129,7 +144,7 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
     description: "追溯突触的完整验证链（创建/激活/扩散/衰减/建议记录）",
     inputSchema: { synapseId: z.string().describe("突触 id") },
     handler: async (args: Record<string, unknown>) => {
-      const traces = getEngine().trace(args.synapseId as string);
+      const traces = getRegisteredEngine().trace(args.synapseId as string);
       return { traces };
     },
   });

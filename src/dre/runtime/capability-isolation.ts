@@ -10,6 +10,7 @@
  * 任何"声明了隔离却缺可执行体"的情形都在此处**拒绝**，绝不静默降级到 in-process。
  */
 import { executeInSandbox } from "../../sandbox/index.js";
+import { readString } from "../../utils/env.js";
 import type { CapabilityProvider } from "./capability-registry.js";
 
 export class CapabilityIsolationError extends Error {
@@ -40,7 +41,10 @@ async function runWorker(
   if (!w?.entry) {
     throw new CapabilityIsolationError(`provider '${provider.id}' 声明 worker 隔离但缺 worker.entry`);
   }
-  const proc = Bun.spawn(["bun", "run", w.entry, ...(w.args ?? [])], {
+  // 轮 7 审计：运行时可执行体写死 "bun"——宿主为 node/打包二进制时 worker 形态
+  // 直接不可用且报错难读。AXIOM_RUNTIME_BIN 可覆盖，默认保持 bun 兼容。
+  const runtimeBin = readString("AXIOM_RUNTIME_BIN", "bun");
+  const proc = Bun.spawn([runtimeBin, "run", w.entry, ...(w.args ?? [])], {
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",

@@ -96,7 +96,18 @@ export async function invokeRemoteDreTool(name: string, args: Record<string, unk
     headers,
     body: JSON.stringify({ name, args }),
   });
-  const body = (await res.json()) as { ok?: boolean; result?: unknown; error?: string };
+  // 轮 7 审计：res.json() 对非 JSON 响应（daemon 5xx 返回 HTML/纯文本、网关超时页）
+  // 抛 SyntaxError 且丢失 HTTP 状态与响应体——诊断链路断。先 text 再 parse，
+  // 失败时构造含 status 与 body 前 200 字符的结构化错误。
+  const raw = await res.text();
+  let body: { ok?: boolean; result?: unknown; error?: string };
+  try {
+    body = JSON.parse(raw) as { ok?: boolean; result?: unknown; error?: string };
+  } catch {
+    throw new Error(
+      `DRE daemon tool "${name}": non-JSON response (HTTP ${res.status}): ${raw.slice(0, 200) || "(empty body)"}`,
+    );
+  }
   if (!res.ok || body.ok === false) throw new Error(body.error ?? `DRE daemon tool "${name}" failed (HTTP ${res.status})`);
   return body.result;
 }
