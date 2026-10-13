@@ -1941,4 +1941,4 @@
   3. `bunfig.toml` 加 `timeout = 15000` 系统级默认超时（对齐 test-full.ts，防裸 `bun test` 5s 默认误杀）。
   4. `docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md` §七验收总表回填完成状态：Step 1-7/10/11/12 ✅，Step 8/9 ⏸ blocked（需 sudo）。
 - **验证**：tsc rc=0；`bun run test` 4666/0 fail/67 skip/33.81s（全绿）。
-- **Commit**：待提交
+- **Commit**：`ea9de96a`
