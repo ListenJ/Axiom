@@ -106,12 +106,23 @@ export class DreDaemonClient {
   async openEvents(): Promise<Response> {
     try {
       // 建连阶段受 timeoutMs 保护（轮 7 审计：裸 fetch 在 daemon 端口假死/半开时
-      // 无限挂起；读流阶段本就不受 timeoutMs 限制，语义不变）。
-      return await fetch(`${this.baseUrl}/events`, {
-        method: "GET",
-        headers: this.headers(),
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
+      // 无限挂起）。轮 8 审计：AbortSignal.timeout 会在 timeoutMs 后截断整个 fetch
+      // 含 body 流——SSE 长连接被过早 sever。改用手动 controller：fetch resolve
+      //（headers 到达）即清除超时，body 流不受限。
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), this.timeoutMs);
+      try {
+        const res = await fetch(`${this.baseUrl}/events`, {
+          method: "GET",
+          headers: this.headers(),
+          signal: ac.signal,
+        });
+        clearTimeout(timer);
+        return res;
+      } catch (err) {
+        clearTimeout(timer);
+        throw err;
+      }
     } catch (err) {
       throw new DreDaemonUnavailableError(`DRE daemon events unreachable at ${this.baseUrl}: ${(err as Error).message}`);
     }

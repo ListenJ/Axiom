@@ -176,6 +176,9 @@ export class Kernel {
 
   startTickLoop(): void {
     if (this._running) return;
+    // 轮 8 审计：shutdown 置 _shutdownStarted=true 后永不复位——若 kernel 重启
+    //（shutdown → startTickLoop），tick() 永远抛"shutting down"。此处复位。
+    this._shutdownStarted = false;
     this._running = true;
     const interval = this.config.tickInterval ?? Kernel.DEFAULT_TICK_INTERVAL_MS;
     // 单一驱动：while 循环串行 tick；睡眠用可取消的 sleep（stopTickLoop 即时唤醒）。

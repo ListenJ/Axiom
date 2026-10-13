@@ -204,7 +204,11 @@ export async function startDreDaemon(opts?: { port?: number; hostname?: string }
           const result = await handler(args);
           return json({ ok: true, result });
         } catch (err) {
-          return json({ ok: false, error: (err as Error).message }, 500);
+          // 轮 8 审计：仅返回客户端结构化体不够——服务端须留日志带栈，
+          // 否则 daemon 侧异常彻底不可观测（轮 7 catch 引入的观测盲区）。
+          logger.error(`[dre-daemon] tool "${name}" failed`, err as Error);
+          const msg = err instanceof Error ? err.message : String(err);
+          return json({ ok: false, error: msg }, 500);
         }
       }
 

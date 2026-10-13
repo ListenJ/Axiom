@@ -41,14 +41,16 @@ export async function handlePipelineStream(ctx: RouteContext): Promise<Response 
     async pull(controller) {
       clearTimeout(idleTimer);
       idleTimer = setTimeout(() => {
-        try { void reader.cancel("idle-timeout"); } catch { /* 已关闭 */ }
+        // 轮 8 审计：void + try/catch 不捕获异步拒绝 → unhandled rejection。
+        reader.cancel("idle-timeout").catch(() => { /* 已关闭 */ });
         try { controller.close(); } catch { /* 已关闭 */ }
       }, IDLE_TIMEOUT_MS);
       try {
         const { done, value } = await reader.read();
         if (done) {
           clearTimeout(idleTimer);
-          controller.close();
+          // 轮 8 审计：idle timer 可能已先关 controller → 二次 close 抛 TypeError。
+          try { controller.close(); } catch { /* 已关闭 */ }
           return;
         }
         controller.enqueue(value);

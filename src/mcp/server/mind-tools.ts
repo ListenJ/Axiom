@@ -53,7 +53,9 @@ export function registerMindTools(registry: ToolRegistry, opts?: MindToolRegistr
   if (opts?.engineProvider && opts?.forward) {
     logger.warn("[MindTools] engineProvider 与 forward 并传：forward 模式下 engineProvider 被忽略（本地引擎只在 daemon 侧有意义）");
   }
-  const registeredEngineProvider = opts?.engineProvider ?? null;
+  // 轮 8 审计：forward 模式实际不用本地引擎——原代码无条件捕获 engineProvider，
+  // 警告说"忽略"但 getRegisteredEngine() 仍会调用它，言行不一。forward 时置 null。
+  const registeredEngineProvider = (opts?.forward ? null : opts?.engineProvider) ?? null;
   const getRegisteredEngine = (): SynapseEngine => {
     if (!registeredEngineProvider) {
       throw new Error("mind-tools: 引擎未装配（daemon 应注入 engineProvider；MCP 应走 forward）");

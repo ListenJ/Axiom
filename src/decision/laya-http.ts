@@ -257,8 +257,9 @@ function releaseItems(n: number): void {
   inflight = Math.max(0, inflight - n);
   // 级联唤醒：释放的额度可能连续满足多个排队 waiter（每个醒来自查推进/续眠），
   // 只唤醒一个会让剩余 waiter 空等到下一次 release（慢请求下吞吐浪费）。
-  // 上限 = waiter 数，防外部 release 误调用导致的异常自旋。
-  for (let i = 0; i < waiters.length; i++) {
+  // 轮 8 审计：原 for+shift 双向收敛只唤醒一半 waiter（i++ 与 length-- 在中间相遇），
+  // 末尾 waiter 永久挂起 → 死锁。改 while-drain 全唤醒。
+  while (waiters.length > 0) {
     const next = waiters.shift();
     if (next) next();
   }
