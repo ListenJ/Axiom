@@ -1954,4 +1954,4 @@
   1. **Step 8 — git-lfs**：`git lfs version` = 3.8.0；`git lfs ls-files | wc -l` = 100；抽样 PNG 为真实像素（非 LFS 指针）；`git push internal main` 无 hook 报错；`git lfs env` endpoint 指向 internal/gitea（`http://192.168.0.10:3000/agent/Axiom.git/info/lfs`）。
   2. **Step 9 — systemd**：`deploy/systemd/axiom@.service` 模板已修正（`User=%i`、实际路径、Axiom 品牌）；`systemd-analyze verify` rc=0；`axiom@listen` active(running) since 2026-10-11；`is-enabled` = enabled；`GET /health` = `{"status":"ok","version":"4.0.0"}`；`/api/audit/diagnostics` = 401（需认证，预期行为）；`.env` 未入仓库。
 - **验证**：Step 8 AC-1~4 全绿；Step 9 AC-1~5 全绿。
-- **Commit**：待提交
+- **Commit**：`47ea982c`
