@@ -1942,3 +1942,16 @@
   4. `docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md` §七验收总表回填完成状态：Step 1-7/10/11/12 ✅，Step 8/9 ⏸ blocked（需 sudo）。
 - **验证**：tsc rc=0；`bun run test` 4666/0 fail/67 skip/33.81s（全绿）。
 - **Commit**：`ea9de96a`
+
+---
+
+### 2026-10-13 — Step 8/9 解阻塞：git-lfs + systemd 验证
+
+- **时间**：2026-10-13
+- **任务**：用户安装 git-lfs + systemd 后，验证 Step 8（LFS 工具链）和 Step 9（systemd 常驻）的验收标准。
+- **工具**：git lfs / systemctl / curl
+- **操作**：
+  1. **Step 8 — git-lfs**：`git lfs version` = 3.8.0；`git lfs ls-files | wc -l` = 100；抽样 PNG 为真实像素（非 LFS 指针）；`git push internal main` 无 hook 报错；`git lfs env` endpoint 指向 internal/gitea（`http://192.168.0.10:3000/agent/Axiom.git/info/lfs`）。
+  2. **Step 9 — systemd**：`deploy/systemd/axiom@.service` 模板已修正（`User=%i`、实际路径、Axiom 品牌）；`systemd-analyze verify` rc=0；`axiom@listen` active(running) since 2026-10-11；`is-enabled` = enabled；`GET /health` = `{"status":"ok","version":"4.0.0"}`；`/api/audit/diagnostics` = 401（需认证，预期行为）；`.env` 未入仓库。
+- **验证**：Step 8 AC-1~4 全绿；Step 9 AC-1~5 全绿。
+- **Commit**：待提交
