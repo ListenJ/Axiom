@@ -118,7 +118,7 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     expect(Number(m![1]), "声明模块数应等于实测").toBe(s.srcModules);
     expect(Number(m![2]), "声明文件数应等于实测").toBe(s.srcFiles);
     expect(Number(m![3].replace(/,/g, "")), "声明行数应等于实测").toBe(s.srcLines);
-  });
+  }, 30_000); // I/O 密集：archStats() 遍历 src/+tests/ 全树 ~950 readFileSync
 
   test("Limitations 章节应披露确定性检索口径（FTS5+关键词，余弦仅可选语义层与可选 LLM）", () => {
     const arch = readFileSync("docs/ARCHITECTURE.md", "utf8");

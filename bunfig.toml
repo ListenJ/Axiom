@@ -1,3 +1,6 @@
 [test]
 # Enable DOM for frontend React tests
 dom = true
+# 系统级默认超时：raw `bun test` 不经 scripts/test-full.ts 时仍需合理超时
+# （test-full.ts 自带 --timeout 15000，此值与之对齐，防裸跑 5s 默认误杀 I/O 密集测试）
+timeout = 15000

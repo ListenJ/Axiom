@@ -199,10 +199,12 @@ describe("D0 口径扫描范围自证", () => {
     // （codeindex 独立 DB 迁移评估；含数据快照、方案比较与 ADR 前置条件，证据性质）。
     // 66→67（2026-10-12）：docs/reviews/2026-10-12-audit-round7.md
     // （规则 13 轮 7 全量审计报告；覆盖率账本/确定性专项/门禁实测读数，证据性质）。
+    // 67→68（2026-10-13）：docs/reviews/2026-10-13-audit-round8.md
+    // （轮 8 自审报告；9 findings 处置 + 零回归验证，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(67);
+    expect(exempted.length).toBeLessThanOrEqual(68);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
-  });
+  }, 30_000); // I/O 密集：遍历 docs/ 全树 + caliberDocs，全量负载下需 >15s
 
   it("`preview` 一类名字不得被当成 review 蒙进豁免面", () => {
     // 名字豁免的固有极限：只有以路径分段出现的证据件名词才算数（`preview` 不是 review），

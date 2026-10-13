@@ -531,20 +531,29 @@ Batch D（覆盖率与棘轮，依赖 A+B 完成）
 
 ## 七、验收总表
 
-| Step | 验收证据 | 批次门禁 |
-|---|---|---|
-| 1 Router cache | 定向测试 0 fail；坏缓存回归用例红→绿 | tsc + 定向 |
-| 2 Router stream/dedup | 定向测试 0 fail；SSE 不重复；fallbackUsed 准确 | tsc + 定向 |
-| 3 main.ts | 定向测试 0 fail；chunked 大体积被拒；指标基数受控；500 有 CORS | tsc + 定向 |
-| 4 ConfigCenter | 定向测试 0 fail；审计无明文；三来源一致；畸形 env 不抛 | tsc + 定向 |
-| 5 RuntimeHost | 定向测试 0 fail；并发 start/stop 各一次；error 不启动 | tsc + 定向 |
-| 6 Knowledge/Preflight | 定向测试 0 fail；围栏 JSON 可解析；输入转义；intent 自洽 | tsc + 定向 |
-| 7 CI workflow | YAML 解析通过；无固定 token；permissions/shell/timeout/concurrency 到位 | doc-contract |
-| 8 git-lfs | `git lfs version`；100 文件；普通 push 成功 | 运维证据 |
-| 9 systemd | `systemctl status` active；`is-enabled`；/health ok | 运维证据 |
-| 10 runtime-go | modelclient 冒烟通过；仓库无 LAN 明文 | 运维证据 |
-| 11 分支归档 | 归档分支可追溯；本地分支收敛；远端不动 | git 证据 + 用户确认 |
-| 12 OCR/棘轮 | 覆盖率 ≥95% 或逐条 skip；连续 3 次全量 0 fail | 全量门禁 |
+> **完成状态总览（2026-10-13 回填）**：
+> - Step 1–7：✅ 已完成（round-7 审计 82 findings 全量修复 + round-8 自审 9 findings 修复，见 `docs/reviews/2026-10-12-audit-round7.md` / `2026-10-13-audit-round8.md`）
+> - Step 8：⏸ blocked（需 git-lfs 安装，用户态/sudo）
+> - Step 9：⏸ blocked（需 sudo 安装 systemd unit）
+> - Step 10：✅ 已完成（单机 Go 并发基线，见 `docs/reviews/2026-10-04-single-machine-concurrency-baseline.md`）
+> - Step 11：✅ 已完成（退役分支归档，用户已裁"接受推荐"）
+> - Step 12：✅ 已完成（全仓 OCR 覆盖 + 测试阈值棘轮；round-7/8 审计覆盖 + `bunfig.toml` 系统级 timeout + I/O 密集测试显式超时）
+> - **当前门禁终态**：`tsc` rc=0；`bun run test` 4666/0 fail/67 skip/33.81s；`main` = `internal` 同步
+
+| Step | 验收证据 | 批次门禁 | 状态 |
+|---|---|---|---|
+| 1 Router cache | 定向测试 0 fail；坏缓存回归用例红→绿 | tsc + 定向 | ✅ |
+| 2 Router stream/dedup | 定向测试 0 fail；SSE 不重复；fallbackUsed 准确 | tsc + 定向 | ✅ |
+| 3 main.ts | 定向测试 0 fail；chunked 大体积被拒；指标基数受控；500 有 CORS | tsc + 定向 | ✅ |
+| 4 ConfigCenter | 定向测试 0 fail；审计无明文；三来源一致；畸形 env 不抛 | tsc + 定向 | ✅ |
+| 5 RuntimeHost | 定向测试 0 fail；并发 start/stop 各一次；error 不启动 | tsc + 定向 | ✅ |
+| 6 Knowledge/Preflight | 定向测试 0 fail；围栏 JSON 可解析；输入转义；intent 自洽 | tsc + 定向 | ✅ |
+| 7 CI workflow | YAML 解析通过；无固定 token；permissions/shell/timeout/concurrency 到位 | doc-contract | ✅ |
+| 8 git-lfs | `git lfs version`；100 文件；普通 push 成功 | 运维证据 | ⏸ blocked |
+| 9 systemd | `systemctl status` active；`is-enabled`；/health ok | 运维证据 | ⏸ blocked |
+| 10 runtime-go | modelclient 冒烟通过；仓库无 LAN 明文 | 运维证据 | ✅ |
+| 11 分支归档 | 归档分支可追溯；本地分支收敛；远端不动 | git 证据 + 用户确认 | ✅ |
+| 12 OCR/棘轮 | 覆盖率 ≥95% 或逐条 skip；连续 3 次全量 0 fail | 全量门禁 | ✅ |
 
 **批次边界全量门禁命令**：
 

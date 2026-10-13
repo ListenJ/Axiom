@@ -1927,3 +1927,18 @@
 - **验证**：tsc rc=0；变更文件测试 76/0；kernel/pipeline/arch 185/0；全量 4869/4（修改前同样 4 fail — 零回归）；4 fail 均为预存 flaky（cdpUrl 需浏览器 / S5 全量负载 timeout 单独 3/3 pass / arch stats 竞态 / chat-title 需 DOM）。
 - **未修复**：F8 tick-loop 竞态已被 .catch() 兜底（SAFE）；F9 calibrate misses 排除 no-distribution 为设计选择。
 - **Commit**：`f6a08ba0`
+
+---
+
+### 2026-10-13 — 测试稳定性加固 + 计划追踪回填
+
+- **时间**：2026-10-13
+- **任务**：消除 `bun run test` 中 2 个 I/O 密集测试的 flaky 失败 + 回填 post-unify 计划完成状态。
+- **工具**：subagent 并行调查根因 + 定向修复
+- **操作**：
+  1. `tests/doc-contract.test.ts` D0 "在册面不塌方" 测试加 `}, 30_000)` 显式超时（I/O 密集：遍历 docs/ 全树）；豁免面上限 67→68（轮 8 审计报告为新证据件）。
+  2. `tests/unit/docs-consistency.test.ts` Task16 "ARCHITECTURE.md §1 基线统计" 测试加 `}, 30_000)` 显式超时（archStats() 遍历 ~950 文件）；ARCHITECTURE.md 行数 120,940→120,963（round-8 修复后同步）。
+  3. `bunfig.toml` 加 `timeout = 15000` 系统级默认超时（对齐 test-full.ts，防裸 `bun test` 5s 默认误杀）。
+  4. `docs/superpowers/plans/2026-10-02-post-unify-remediation-plan.md` §七验收总表回填完成状态：Step 1-7/10/11/12 ✅，Step 8/9 ⏸ blocked（需 sudo）。
+- **验证**：tsc rc=0；`bun run test` 4666/0 fail/67 skip/33.81s（全绿）。
+- **Commit**：待提交
