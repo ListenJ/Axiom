@@ -1908,3 +1908,22 @@
 - **验证**：release-path-dev-models 9/0（闸门契约恢复）；tsc rc=0；laya-http/dre-tools 31/0。
 - **教训**：修"看似静默"的行为前先 grep 测试面是否存在**故意锁定该行为**的闸门——lane4b 当时只看了路由器没看发布面测试。
 - **Commit**：`4c83007f`（已推送，按规则 9 以本记录维护提交回填）
+
+---
+
+### 2026-10-13 — Round 8 自审修复（7 findings fixed）
+
+- **时间**：2026-10-13
+- **任务**：PCDA-Check 阶段——对 round-7 修复 diff 做 round-8 自审，发现 9 findings（1H/5M/3L），修复 7 项。
+- **工具**：5 路并行 subagent 审查（codearts/GLM-5.2）
+- **操作**：
+  1. `laya-http.ts` releaseItems 级联唤醒 for+shift 只唤醒半数 → while-drain-all [HIGH]
+  2. `client.ts` openEvents SSE AbortSignal.timeout 中断 body stream → 手动 AbortController [MEDIUM]
+  3. `mind-tools.ts` forward 模式 engineProvider 声称忽略但实际捕获 → 显式 null [MEDIUM]
+  4. `dre-daemon.ts` catch 块无服务端日志 → 加 logger.error + 非 Error 防护 [MEDIUM]
+  5. `pipeline.ts` reader.cancel() 异步拒绝未捕获 → .catch() [MEDIUM]
+  6. `pipeline.ts` done 分支 controller.close() 缺 try/catch → 包裹 [LOW]
+  7. `kernel.ts` _shutdownStarted 永不重置 → startTickLoop 中重置 [LOW]
+- **验证**：tsc rc=0；变更文件测试 76/0；kernel/pipeline/arch 185/0；全量 4869/4（修改前同样 4 fail — 零回归）；4 fail 均为预存 flaky（cdpUrl 需浏览器 / S5 全量负载 timeout 单独 3/3 pass / arch stats 竞态 / chat-title 需 DOM）。
+- **未修复**：F8 tick-loop 竞态已被 .catch() 兜底（SAFE）；F9 calibrate misses 排除 no-distribution 为设计选择。
+- **Commit**：`f6a08ba0`
