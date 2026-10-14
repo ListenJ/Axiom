@@ -1955,3 +1955,16 @@
   2. **Step 9 — systemd**：`deploy/systemd/axiom@.service` 模板已修正（`User=%i`、实际路径、Axiom 品牌）；`systemd-analyze verify` rc=0；`axiom@listen` active(running) since 2026-10-11；`is-enabled` = enabled；`GET /health` = `{"status":"ok","version":"4.0.0"}`；`/api/audit/diagnostics` = 401（需认证，预期行为）；`.env` 未入仓库。
 - **验证**：Step 8 AC-1~4 全绿；Step 9 AC-1~5 全绿。
 - **Commit**：`47ea982c`
+
+---
+
+### 2026-10-13 — 架构前进：CI 安全阻断化 + 多运行时边界门禁
+
+- **时间**：2026-10-13
+- **任务**：推进架构下一阶段——修复 45 个供应链漏洞、CI 安全门阻断化、多运行时边界契约测试。
+- **工具**：bun audit fix / 手工编写边界测试
+- **操作**：
+  1. **CI 安全加固**：`bun audit fix` 修复 45/46 漏洞（hono 4.13.7, fast-uri 3.1.8, proxy-addr 2.0.8, ip-address 10.7.1, qs 6.16.0, body-parser 2.3.0, @xmldom/xmldom 0.8.15 等）；ci.yml 移除 `continue-on-error: true`，`bun audit --ignore GHSA-hp3w-g68c-fv3c` 现为阻断性门禁（剩余 1 个为 sprintf-js 无上游修复）。
+  2. **多运行时边界门禁**：新增 `tests/multi-runtime-boundary.test.ts`（7 tests）——Go 编译验证 + Python 语法验证 + :9001 端点卫生检查 + runtime-go/runtime-embed 路径引用检查。把 src/ 已证明的机器检查纪律延伸到多运行时边界。
+- **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/37.65s（+7 新测试，零回归）。
+- **Commit**：待提交
