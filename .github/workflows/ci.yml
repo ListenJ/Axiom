@@ -333,6 +333,17 @@ jobs:
         # 2026-10-13: 45/46 漏洞已通过 bun audit fix 修复，剩余 1 个为等待上游修复的已知豁免。
         # 新漏洞将阻断 CI——不再 continue-on-error。
 
+      - name: Semgrep SAST
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: >-
+            p/typescript
+            p/security-audit
+        # 2026-10-14: SAST 静态分析（代码级漏洞扫描）。
+        # 规则集: p/typescript（TS 专项）+ p/security-audit（通用安全审计）。
+        # 初期 report-only（continue-on-error），确认零误报后可改为阻断。
+        continue-on-error: true
+
       - name: Check for secrets
         uses: trufflesecurity/trufflehog@main
         with:

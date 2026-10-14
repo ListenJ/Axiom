@@ -1,5 +1,8 @@
 -- ============================================================
--- Axiom Runtime PostgreSQL + pgvector Schema v1.0
+-- ⚠️ DEPRECATED (H-M1-03, 2026-09-20): PostgreSQL 已移除，SQLite 为唯一数据库。
+--    此文件仅作历史参考保留，无任何代码消费。db:init 脚本已为 no-op。
+-- ============================================================
+-- Axiom Runtime PostgreSQL + pgvector Schema v1.0 (HISTORICAL)
 --
 -- 四层架构:
 --   L0: 代码图谱 (Code Graph) — 文件/节点/边/向量
