@@ -2020,4 +2020,4 @@
   5. **确定性披露**：`docs/LIMITATIONS.md` §5.2/§5.2.1 登记 meta-cognitive-loop.ts 的 10 处 Date.now()（汇总 37 文件 / 268 处）。
   6. **文档同步**：`docs/ARCHITECTURE.md` 基线统计、`.env.example` 补登 META_COGNITIVE_LOOP_* 配置、`tests/unit/determinism-disclosure.test.ts` 期望值同步、`tests/doc-contract.test.ts` 豁免面阈值 71→74。
 - **验证**：tsc rc=0；相关测试 103/103 pass, 0 fail（架构完整性 25/25 + 确定性披露 G-04 + 文档契约 D0-D12 + env 模板 + docs-consistency + 传动轴单元测试 + 认知管线测试）。
-- **Commit**：待提交
+- **Commit**：`3d0c501a`
