@@ -326,9 +326,12 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Run audit
-        run: bun audit
-        continue-on-error: true
+      - name: Run audit (blocking)
+        run: bun audit --ignore GHSA-hp3w-g68c-fv3c
+        # GHSA-hp3w-g68c-fv3c: sprintf-js@1.0.3 DoS via unbounded precision (mammoth > argparse > sprintf-js)
+        # 无上游修复（sprintf-js 1.0.3 是最新版）；mammoth 仅用于 .docx 解析，非网络暴露面。
+        # 2026-10-13: 45/46 漏洞已通过 bun audit fix 修复，剩余 1 个为等待上游修复的已知豁免。
+        # 新漏洞将阻断 CI——不再 continue-on-error。
 
       - name: Check for secrets
         uses: trufflesecurity/trufflehog@main
