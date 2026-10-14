@@ -1968,3 +1968,16 @@
   2. **多运行时边界门禁**：新增 `tests/multi-runtime-boundary.test.ts`（7 tests）——Go 编译验证 + Python 语法验证 + :9001 端点卫生检查 + runtime-go/runtime-embed 路径引用检查。把 src/ 已证明的机器检查纪律延伸到多运行时边界。
 - **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/37.65s（+7 新测试，零回归）。
 - **Commit**：`5170a31e`
+
+---
+
+### 2026-10-14 — 架构前进：SAST 门禁 + 文档导航索引 + 残留工件标记
+
+- **时间**：2026-10-14
+- **任务**：继续推进架构——CI 添加 SAST 静态分析、文档 sprawl 治理、残留工件清理。
+- **操作**：
+  1. **CI SAST**：ci.yml 添加 Semgrep 步骤（`p/typescript` + `p/security-audit` 规则集），初期 report-only。
+  2. **文档导航索引**：新增 `docs/INDEX.md`——75 条目分类导航（架构/指南/决策/审计/实验/归档），不移动文件。
+  3. **残留工件**：`src/db/pg-schema.sql` 添加 DEPRECATED 标记（H-M1-03, PostgreSQL 已移除）。
+- **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/26.32s（零回归）。
+- **Commit**：`fa0e277e`
