@@ -2021,3 +2021,18 @@
   6. **文档同步**：`docs/ARCHITECTURE.md` 基线统计、`.env.example` 补登 META_COGNITIVE_LOOP_* 配置、`tests/unit/determinism-disclosure.test.ts` 期望值同步、`tests/doc-contract.test.ts` 豁免面阈值 71→74。
 - **验证**：tsc rc=0；相关测试 103/103 pass, 0 fail（架构完整性 25/25 + 确定性披露 G-04 + 文档契约 D0-D12 + env 模板 + docs-consistency + 传动轴单元测试 + 认知管线测试）。
 - **Commit**：`3d0c501a`
+
+---
+
+### 2026-10-14 — 传动轴联动审查（发现 + 修复 Bridge C 死代码）
+
+- **时间**：2026-10-14
+- **任务**：对传动轴跨文件集成做联动审查——不只跑单测 mock，而是实证每条链路是否真的打通。
+- **审查方法**：读实现全貌 → 核对三处集成面真实签名（eventBus.subscribe / ruleEngine.learn / pipeline completed 载荷）→ 端到端事件流探针 → 影子退场路径探针 → Bridge C 参数链路探针。
+- **发现 1（实质缺陷）**：**Bridge C 静默死代码**。`cognitive-pipeline.ts` 调 `mentalModels.predict()` 时传 `classification.domain`（实际取值 general/debug/development/maintenance/quality/discovery/research/operations/version-control），而 `predict(modelId, ...)` 首参必须是已注册 MentalModel 的 id（git-conflict/code-refactor/auth-flow/database-tx）。`models.get()` 恒 miss → 恒返回 null → `meta.loop.c.consult` 永不发布。注释宣称"心智模型预测→行动咨询"实际从未生效。
+- **修复**：新增 `DOMAIN_TO_MODEL` 映射表，key 与 `classify()` 实际产出的 domain 字面量对齐（`version-control`→`git-conflict`，`development`→`code-refactor`）；无对应模型的 domain 返回 undefined 跳过预测，不产生噪声事件。
+- **实证**：`version-control`→`git-conflict`→predict 命中 `state=merging p=1`；`development`→`code-refactor`→命中 `state=analyzing p=1`。其余 domain 无模型正确跳过。
+- **审查通过项**：A 桥事件流到达安全门（shadow-mode 2/50）；影子退场后 A 桥真实写入 ruleEngine（+2 条 auto-gap/auto-concurrency 规则，source=learned）；D 桥 pattern 追踪与阈值触发正常；lesson 去重生效（2 条不同 lesson → seen=2）；单例一致性（ruleEngine/eventBus 均为模块级单例导出）；fail-safe 降级（synapse/predict 失败均不阻塞主管道）。
+- **附带发现（预置，未处理）**：`initRules()` 在 src 中无任何调用者——既有情况，不影响 Bridge A（learn() 走 addRule 独立路径）。
+- **验证**：tsc rc=0；91/91 pass（cognitive-pipeline + meta-cognitive-loop + 架构完整性 + G-04 确定性披露 + D0-D12 文档契约）。
+- **Commit**：`5998c9f6`
