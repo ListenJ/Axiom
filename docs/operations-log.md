@@ -1981,3 +1981,16 @@
   3. **残留工件**：`src/db/pg-schema.sql` 添加 DEPRECATED 标记（H-M1-03, PostgreSQL 已移除）。
 - **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/26.32s（零回归）。
 - **Commit**：`fa0e277e`
+
+---
+
+### 2026-10-14 — 路线图 P2-3/P2-5 评估完结
+
+- **时间**：2026-10-14
+- **任务**：完成路线图剩余 P2 项评估——EDGE_RISK_MONITOR 灰区复核 + 测试并行化探索。
+- **操作**：
+  1. **P2-3**：评估 EDGE_RISK_MONITOR 默认关闭的灰区风险。结论：默认关闭正确（L1 硬底线 + L2 确定性序列始终开，L3 需外部端点）。修复 `risk-monitor.ts:193` 注释 bug（"默认开"→"默认关"）。
+  2. **P2-5**：实测 `--parallel=2` 产生 98 failures（F7 跨文件污染实锤）。结论：26s 串行已快，并行化 ROI 不足。
+  3. **路线图**：P2-3/P2-5 标记 ✅ 已评估。doc-contract 阈值 68→70。
+- **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/19.92s（零回归）。
+- **Commit**：`aa8e2e4c`
