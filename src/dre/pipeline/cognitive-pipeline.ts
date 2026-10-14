@@ -20,7 +20,7 @@ import { TaskGraph } from "./task-graph.js";
 import type { ToolExecutor } from "./task-graph.js";
 import { eventBus } from "../runtime/event-bus.js";
 import { worldState } from "../runtime/world-state.js";
-import { readString, readInt } from "../../utils/env.js";
+import { readString, readInt, readBool } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
 
 // ========== 流水线类型 ==========
@@ -258,9 +258,54 @@ export class CognitivePipeline {
         `${classification.intent} ${classification.domain} ${classification.entities.join(" ")} ${input}`,
         { minConfidence: 0.2, limit: 8 }
       );
-      const knowledge = searchResult.knowledgeNodes;
+      let knowledge = searchResult.knowledgeNodes;
+
+      // 传动轴 Bridge B：突触建议 → 知识注入
+      // 确定性搜索结果为主，突触建议为辅（加法合并，非替换）
+      // 突触 score 权重 ≤0.3——永不喧宾夺主
+      let synapseHints = 0;
+      if (this.engine.synapse && readBool("AXIOM_META_LOOP_B", true)) {
+        try {
+          const suggestions = await this.engine.synapse.suggestNextSteps(
+            classification.domain || "general",
+            classification.intent || input.slice(0, 100),
+            { limit: 3 },
+          );
+          for (const suggestion of suggestions) {
+            if (suggestion.score < 0.3) continue; // 低分跳过
+            // 尝试按 targetId 加载知识节点
+            const synapseResult = this.engine.searchData(suggestion.targetId, {
+              minConfidence: 0.1,
+              limit: 2,
+            });
+            if (synapseResult.knowledgeNodes.length > 0) {
+              // 去重：避免与确定性结果重复
+              const existingIds = new Set(knowledge.map((n) => n.nodeId));
+              for (const node of synapseResult.knowledgeNodes) {
+                if (!existingIds.has(node.nodeId)) {
+                  knowledge.push(node);
+                  synapseHints++;
+                  existingIds.add(node.nodeId);
+                }
+              }
+            }
+          }
+          if (synapseHints > 0) {
+            eventBus.publish({
+              type: "meta.loop.b.hint",
+              source: "cognitive-pipeline",
+              data: { hints: synapseHints, fromSuggestions: suggestions.length },
+              priority: "low",
+            });
+          }
+        } catch {
+          // 突触失败不影响主管道——fail-safe 降级
+        }
+      }
+
       track("knowledge", `${knowledge.length} nodes loaded`, {
         count: knowledge.length,
+        synapseHints,
         domains: [...new Set(knowledge.map((n) => n.domain))],
         paradigms: [...new Set(knowledge.map((n) => n.paradigm))],
       }, t2);
@@ -298,7 +343,44 @@ export class CognitivePipeline {
       if (constraintPassed && conclusionNode) {
         recommendedAction = classification.action ?? conclusionNode.content.slice(0, 80);
       }
-      track("action", recommendedAction ?? "no action", { recommended: recommendedAction }, t5);
+
+      // 传动轴 Bridge C：心智模型预测 → 行动咨询
+      // 咨询而非覆盖——预测与推荐行动一致则提升置信度，不一致则标记差异供审计
+      let predictionConsulted = false;
+      let predictionAligned = false;
+      if (recommendedAction && readBool("AXIOM_META_LOOP_C", true)) {
+        try {
+          const prediction = this.engine.mentalModels.predict(
+            classification.domain || "general",
+            input.slice(0, 200),
+          );
+          if (prediction && prediction.probability >= 0.7) {
+            predictionConsulted = true;
+            predictionAligned = prediction.predictedState.toLowerCase().includes(
+              recommendedAction.slice(0, 30).toLowerCase(),
+            );
+            eventBus.publish({
+              type: "meta.loop.c.consult",
+              source: "cognitive-pipeline",
+              data: {
+                predictedState: prediction.predictedState,
+                recommendedAction: recommendedAction.slice(0, 80),
+                probability: prediction.probability,
+                aligned: predictionAligned,
+              },
+              priority: "low",
+            });
+          }
+        } catch {
+          // 预测失败不影响主管道——fail-safe 降级
+        }
+      }
+
+      track("action", recommendedAction ?? "no action", {
+        recommended: recommendedAction,
+        predictionConsulted,
+        predictionAligned,
+      }, t5);
 
       // ── Step 6: Reflection (意识流反思) ──
       const t6 = performance.now();
@@ -343,6 +425,7 @@ export class CognitivePipeline {
       };
 
       // 发布完成状态到 WorldState (用户可见的思考结果)
+      // 传动轴数据源：lessons + issues 供 MetaCognitiveLoop 消费（闭合反馈环 A/D）
       eventBus.publish({
         type: "cognitive.pipeline.completed",
         source: "cognitive-pipeline",
@@ -354,6 +437,10 @@ export class CognitivePipeline {
           recommendedAction: result.recommendedAction,
           steps: result.trace.length,
           totalMs: result.totalDurationMs,
+          // 传动轴：反馈环数据
+          input: input.slice(0, 200),
+          lessons: lessons.length > 0 ? lessons.slice(0, 10) : undefined,
+          issues: reflectResult?.issues?.slice(0, 10) ?? undefined,
         },
         priority: "normal",
       });

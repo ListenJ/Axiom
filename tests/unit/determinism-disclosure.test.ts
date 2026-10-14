@@ -132,7 +132,7 @@ describe("G-04 确定性边界披露 — docs/LIMITATIONS.md §5 防漂移", () 
   test("§5.2 汇总表数字与实测一致（文件数/命中处数；处数=命中行数）", () => {
     // 期望值直接写在断言中：任何一侧漂移都会失败，迫使披露与代码同时更新。
     const expected: Record<string, Hit> = {
-      "Date.now()": { files: 34, lines: 181 },
+      "Date.now()": { files: 35, lines: 191 },
       "performance.now()/process.hrtime": { files: 5, lines: 39 },
       "Math.random()": { files: 10, lines: 20 },
       "randomUUID()": { files: 3, lines: 7 },
@@ -143,17 +143,17 @@ describe("G-04 确定性边界披露 — docs/LIMITATIONS.md §5 防漂移", () 
       const got = bySource.get(label)!;
       expect({ label, ...got }).toEqual({ label, ...exp });
     }
-    expect(hitFiles.size).toBe(36);
+    expect(hitFiles.size).toBe(37);
     const totalLines = [...bySource.values()].reduce((a, h) => a + h.lines, 0);
-    expect(totalLines).toBe(258);
+    expect(totalLines).toBe(268);
   });
 
-  test("§5.2 汇总表文本声明的合计与实际一致（36 文件 / 258 处）", () => {
+  test("§5.2 汇总表文本声明的合计与实际一致（37 文件 / 268 处）", () => {
     const summary = doc.split("#### 5.2.1")[0];
-    expect(summary).toContain("| `Date.now()` | 34 | 181 |");
+    expect(summary).toContain("| `Date.now()` | 35 | 191 |");
     expect(summary).toContain("| `Math.random()` | 10 | 20 |");
     expect(summary).toContain("| `randomUUID()` | 3 | 7 |");
-    expect(summary).toContain("**36 个文件（并集）**");
-    expect(summary).toContain("**258 处**");
+    expect(summary).toContain("**37 个文件（并集）**");
+    expect(summary).toContain("**268 处**");
   });
 });

@@ -2005,3 +2005,19 @@
 - **审计矩阵**：12 项全绿（FIXME=0, 类型错误=0, 循环依赖=0, eval=0, :any=2, 硬编码密钥=0, 测试 4673/0 fail）。
 - **与 Round-8 对比**：测试 4666→4673（+7 边界测试），新发现 0→0。
 - **Commit**：`92223630`
+
+---
+
+### 2026-10-14 — 传动轴（MetaCognitiveLoop）实现
+
+- **时间**：2026-10-14
+- **任务**：在 DRE 五个孤立子系统（Synapse / Reasoning / Knowledge / Prediction / Action）之间架设传动轴，实现跨子系统闭环反馈。
+- **操作**：
+  1. **核心实现**：新增 `src/dre/runtime/meta-cognitive-loop.ts`（15KB）——4 座桥连接 5 子系统：Bridge A（synapse→reasoning，异常模式注入假设）、Bridge B（synapse→knowledge，事件转知识节点）、Bridge C（prediction→action，偏差生成约束）、Bridge D（lessons→rules，经验提升为规则）。含 SafetyGate 窗口限流与 EventBus 事件驱动。
+  2. **引擎集成**：`src/dre/engine.ts` 暴露 SynapseEngine 并启动 MetaCognitiveLoop。
+  3. **管线集成**：`src/dre/pipeline/cognitive-pipeline.ts` 接线 Bridge B/C，completed 事件携带 lessons/issues。
+  4. **单元测试**：新增 `meta-cognitive-loop.test.ts`（5/5 pass）。
+  5. **确定性披露**：`docs/LIMITATIONS.md` §5.2/§5.2.1 登记 meta-cognitive-loop.ts 的 10 处 Date.now()（汇总 37 文件 / 268 处）。
+  6. **文档同步**：`docs/ARCHITECTURE.md` 基线统计、`.env.example` 补登 META_COGNITIVE_LOOP_* 配置、`tests/unit/determinism-disclosure.test.ts` 期望值同步、`tests/doc-contract.test.ts` 豁免面阈值 71→74。
+- **验证**：tsc rc=0；相关测试 103/103 pass, 0 fail（架构完整性 25/25 + 确定性披露 G-04 + 文档契约 D0-D12 + env 模板 + docs-consistency + 传动轴单元测试 + 认知管线测试）。
+- **Commit**：待提交

@@ -21,6 +21,10 @@ import { KnowledgeGraph, type KGNode } from "./kg/graph.js";
 import { LLMClient, type LLMConfig } from "./llm/client.js";
 
 import { MentalModelPool, GIT_CONFLICT_MODEL, CODE_REFACTOR_MODEL, AUTH_MODEL, DATABASE_MODEL } from "./mental-model/pool.js";
+
+import { SynapseEngine, createSynapseEngine } from "./synapse/index.js";
+
+import { getMetaCognitiveLoop } from "./runtime/meta-cognitive-loop.js";
 import { ReasoningGraph } from "./reasoning/graph.js";
 import { ConstraintSolver, RESOURCE_CONSTRAINTS, POLICY_CONSTRAINTS, TEMPORAL_CONSTRAINTS } from "./constraint/solver.js";
 import { ActorSystem } from "./actor/system.js";
@@ -31,6 +35,7 @@ import { DRE_DECISION_SYSTEM, isDreDecision, parseCloudDecisionOrThrow } from ".
 import { DRE_VERSION } from "./version.js";
 import { dataUnifier, type DataUnifier } from "./runtime/data-unifier.js";
 import { logger } from "../utils/logger.js";
+import { readString } from "../utils/env.js";
 
 // ── M10 云端降级上下文（P2-S5，docs/superpowers/specs/2026-08-30-p2-closeout-design.md §S5）──
 /** 云端降级注入的本地工作记忆条数默认值（可经 DREConfig.cloudContextMaxEntries 覆盖，0=禁用注入） */
@@ -180,6 +185,8 @@ export class DREngine {
   readonly actors: ActorSystem;
   readonly persona: PersonaLoader;
   readonly data: DataUnifier;
+  /** 传动轴 Bridge B：突触引擎——Hebbian 学习 + 扩散激活 → 管道知识注入 */
+  readonly synapse: SynapseEngine | null;
 
   private db: Database;
   private sqliteBackend: SqliteBackend;
@@ -251,6 +258,19 @@ export class DREngine {
       defaultPersona: "general",
     });
 
+    // 初始化突触引擎 (传动轴 Bridge B：Hebbian 学习 → 管道知识注入)
+    // 失败不阻塞引擎启动——突触是增强，非必需
+    try {
+      this.synapse = createSynapseEngine(
+        readString("AXIOM_SYNAPSE_DB", "./data/synapse.db"),
+      );
+    } catch (err) {
+      logger.warn("[DRE] Synapse engine init failed, feedback loop B disabled", {
+        error: (err as Error).message,
+      });
+      this.synapse = null;
+    }
+
     // 初始化 Actor 系统 (异步，不阻塞构造)
     this.actors = new ActorSystem();
     this.initActors();
@@ -279,6 +299,17 @@ export class DREngine {
     this.consciousness.on("reflection", (result: ReflectionResult) => {
       this.handleReflection(result);
     });
+
+    // 启动传动轴：闭合认知反馈环（lessons→rules + issues→adaptation）
+    // 订阅 cognitive.pipeline.completed 事件，不阻塞构造
+    try {
+      getMetaCognitiveLoop().start();
+      logger.info("[DRE] MetaCognitiveLoop started (feedback loop A/D)");
+    } catch (err) {
+      logger.warn("[DRE] MetaCognitiveLoop start failed, feedback loops disabled", {
+        error: (err as Error).message,
+      });
+    }
 
     logger.info("[DRE] Engine initialized", {
       dbPath: config.dbPath,
