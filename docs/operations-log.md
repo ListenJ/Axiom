@@ -1967,4 +1967,4 @@
   1. **CI 安全加固**：`bun audit fix` 修复 45/46 漏洞（hono 4.13.7, fast-uri 3.1.8, proxy-addr 2.0.8, ip-address 10.7.1, qs 6.16.0, body-parser 2.3.0, @xmldom/xmldom 0.8.15 等）；ci.yml 移除 `continue-on-error: true`，`bun audit --ignore GHSA-hp3w-g68c-fv3c` 现为阻断性门禁（剩余 1 个为 sprintf-js 无上游修复）。
   2. **多运行时边界门禁**：新增 `tests/multi-runtime-boundary.test.ts`（7 tests）——Go 编译验证 + Python 语法验证 + :9001 端点卫生检查 + runtime-go/runtime-embed 路径引用检查。把 src/ 已证明的机器检查纪律延伸到多运行时边界。
 - **验证**：tsc rc=0；`bun run test` 4673/0 fail/67 skip/37.65s（+7 新测试，零回归）。
-- **Commit**：待提交
+- **Commit**：`5170a31e`
