@@ -190,7 +190,7 @@ export interface RiskMonitorDeps {
  * `fs.read` 在 `CAPABILITY_PAYLOAD` 里（判定层要用它取目标路径、序列层要用它记
  * L2 半链），但**不进初筛**：读负载只有一个路径字符串，越界与锚点已由
  * `decideFilesystem` 确定性裁决，剩下的灰区为空；每次读盘再问一遍小模型
- * （`EDGE_RISK_MONITOR` 默认开）只有延迟没有信号。`fs.glob` 不在豁免内 ——
+ * （`EDGE_RISK_MONITOR` 默认关——需显式设 =1 并配置 GLM_FLASH 端点）只有延迟没有信号。`fs.glob` 不在豁免内 ——
  * 递归模式串无法逐条裁决（一条模式可命中整个 `.env` 家族），是枚举泄漏唯一的人可把关点。
  */
 const NOT_SCREENED: ReadonlySet<Capability> = new Set<Capability>(["fs.read"]);

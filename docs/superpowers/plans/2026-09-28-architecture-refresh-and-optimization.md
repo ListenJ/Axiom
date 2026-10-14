@@ -101,9 +101,9 @@ capability 判定内核（`permission-middleware.checkToolPermission` 空能力�
 |---|---|---|---|
 | P2-1 | embedding 提供方接入 | 发布默认零语义召回（SiliconFlow devOnly；LIMITATIONS #6） | 用户自配端点，或 local-llm 侧起本地 bge-m3 服务；接入后跑 `lexical-vs-semantic-recall` 基准 |
 | P2-2 | `wiki_links` 持久化表 | LIMITATIONS #1（跨存储引用未闭环） | vault wiki-link 图落 SQLite + 增量维护 |
-| P2-3 | EDGE_RISK_MONITOR 灰区复核 | LIMITATIONS #4 | 评估默认关闭的灰区风险敞口，给出开/关建议与实测 |
+| P2-3 | EDGE_RISK_MONITOR 灰区复核 ✅ | LIMITATIONS #4 | 评估完成：默认关闭正确（L1+L2 足够，L3 需外部端点）；见 `docs/knowledge/p2-3-edge-risk-monitor-assessment-2026-10-14.md` |
 | P2-4 | codeindex 索引库独立 | codeindex 产物占 agent.db 大头（56K 行） | 评估迁独立 `codegraph.db`（archive/.codegraph 旧例），agent.db 回归纯业务库 |
-| P2-5 | 测试并行化探索 | 串行 127s；但 F7 证明跨文件单例/桩污染真实存在 | 谨慎：先 P0-4 收口再评估按目录分片，不动门禁语义 |
+| P2-5 | 测试并行化探索 ✅ | 串行 127s→26s；但 F7 证明跨文件单例/桩污染真实存在 | 评估完成：--parallel=2 产生 98 fail，当前不并行化；见 `docs/knowledge/p2-5-test-parallelization-assessment-2026-10-14.md` |
 
 ### 执行序与不做项
 
