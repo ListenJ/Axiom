@@ -23,6 +23,25 @@ import { worldState } from "../runtime/world-state.js";
 import { readString, readInt, readBool } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
 
+// ========== 传动轴 Bridge C：domain → MentalModel id 映射 ==========
+
+/**
+ * 分类 domain → 已注册 MentalModel 的 id。
+ *
+ * predict() 的入参是 model id 而非 domain；没有这张表，MentalModelPool.get()
+ * 恒 miss → 预测恒 null → Bridge C 静默失效（联动审查 2026-10-14 实证）。
+ *
+ * key 必须与 classify() 实际产出的 domain 字面量一致（general / debug /
+ * development / maintenance / quality / discovery / research / operations /
+ * version-control），否则仍是死映射。MentalModelPool 只注册了 4 个模型
+ * （git-conflict / code-refactor / auth-flow / database-tx），故多数 domain
+ * 无对应模型 → 返回 undefined → 跳过预测，不产生噪声事件。
+ */
+const DOMAIN_TO_MODEL: Record<string, string> = {
+  "version-control": "git-conflict", // merge/git 意图 → git-conflict 模型
+  development: "code-refactor",      // 重构/创建意图 → code-refactor 模型
+};
+
 // ========== 流水线类型 ==========
 
 /** 单步可追踪记录 */
@@ -346,14 +365,17 @@ export class CognitivePipeline {
 
       // 传动轴 Bridge C：心智模型预测 → 行动咨询
       // 咨询而非覆盖——预测与推荐行动一致则提升置信度，不一致则标记差异供审计
+      // 注：predict() 的第一个参数是 MentalModel 的 id（如 "git-conflict"），
+      // 不是分类 domain（如 "general"）。未做映射时 models.get() 恒 miss → 预测
+      // 永远返回 null，本桥静默失效（联动审查实证）。故此处显式映射，无匹配则跳过。
       let predictionConsulted = false;
       let predictionAligned = false;
       if (recommendedAction && readBool("AXIOM_META_LOOP_C", true)) {
+        const modelId = DOMAIN_TO_MODEL[classification.domain ?? ""];
         try {
-          const prediction = this.engine.mentalModels.predict(
-            classification.domain || "general",
-            input.slice(0, 200),
-          );
+          const prediction = modelId
+            ? this.engine.mentalModels.predict(modelId, input.slice(0, 200))
+            : null;
           if (prediction && prediction.probability >= 0.7) {
             predictionConsulted = true;
             predictionAligned = prediction.predictedState.toLowerCase().includes(
@@ -363,6 +385,7 @@ export class CognitivePipeline {
               type: "meta.loop.c.consult",
               source: "cognitive-pipeline",
               data: {
+                modelId,
                 predictedState: prediction.predictedState,
                 recommendedAction: recommendedAction.slice(0, 80),
                 probability: prediction.probability,
