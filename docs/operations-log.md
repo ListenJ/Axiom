@@ -2051,3 +2051,19 @@
 - **已验证干净**：`eval`/`new Function` 0 处；命令注入无未受控面（`shell:true` 3 处均常量或服务端白名单）；SSRF 防护扎实（协议/回环/RFC1918/IPv6/整数变体 + DNS 二次校验）；路由鉴权双层无缺口；回环免鉴权 fail-closed 正确；122 处空 catch 安全关键项均 fail-safe；定时器全 `.unref()`；模块级无界增长 0；67 skip 全为条件跳过；确定性有跨进程强制门；LLM 转型有 fail-safe 兜底。
 - **验证**：`bun run test:full` → 4,673 用例 / 4,606 pass / 67 skip / **0 fail** / 125.8s；doc-contract + docs-consistency + 架构完整性 70/70 pass（豁免面按约定 74→75 登记新证据件）。
 - **Commit**：`34456244`
+
+---
+
+### 2026-10-14 — 全仓审核 4 项发现处置
+
+- **时间**：2026-10-14
+- **任务**：按审核报告建议顺序处置全部 4 项发现（发现 1→3→2→4）。
+- **发现 1（high）前端审计门假绿 — 已修**：`totals` 增 `errored` 计数（捕获失败不再被吞进 `issues`）；`computeBlockingSeverity` 在"0 页成功捕获"时按页数阻断；汇总表增「捕获失败」列；脚本输出基础设施故障诊断。**实证**：同一场景（9/9 页截图失败）blocking `0 → 9`、exit `0 → 1`，并打印"这是基础设施故障…不是页面干净"。测试新增 3 条回归断言（全失败阻断 / 部分失败不误伤 / 零页不阻断）。
+- **发现 3（medium）§1 基线漂移 — 已修**：断言扩展到 `*.test.ts` 文件数（488→**499** 修正）；用例数改为引用实跑输出不再手抄（与文档 §4 自述口径一致）。自检保留：正则不命中即红。
+- **发现 2（high）安全开关登记表不完备 — 已修（仅可见化）**：新增 `SECURITY_GAPS` 缺口登记表，登记 4 个 fail-open 开关（`AXIOM_ENFORCE_MODE_APPROVAL`/`AXIOM_SECOND_FACTOR_TOKEN`/`EDGE_RISK_FAIL_CLOSED`/`AXIOM_ALLOW_REMOTE_CDP`），每项含影响与关闭方案；`config/security-defaults.json` 增 `gaps` 章节 + 两侧一致性断言；S-6 增完备性断言（扫描源码安全语义开关，**字面量 `readBool("X")` 与常量定义 `const X_ENV = "X"` 两种形态**），未登记即红。
+  - **反向自检**：临时移除 `EDGE_RISK_FAIL_CLOSED` 登记 → 门禁立即红；恢复 → 绿。证明门禁非空转。
+  - **边界（重要）**：只让缺口**可见且受门禁约束**，**不擅自收紧默认值**——收紧会影响既有部署，属需显式决策的变更。关闭方案已写入 `gaps[].closingChange` 供后续决策。
+  - **过程修正**：首版扫描只认字面量形态，自检断言 `AXIOM_ALLOW_LOCAL_BYPASS` 未命中（该开关经 `localBypassEnabled(process.env)` 常量式读取）——自检捕获了脚本自身缺陷并已补第二种形态。
+- **发现 4（low-medium）容器无淘汰上限 — 已修**：`meta-cognitive-loop.ts` 的 `seenLessons`/`patterns` 与 `read-optimizer.ts` 的 `rateLimiters` 各加 1000 上限（FIFO 淘汰最旧）。测试：1500 条互异事件后容器 ≤1000，并断言 `totalCompleted ≥ 1500` 防"没超限是因为没跑"。
+- **验证**：tsc rc=0；`bun run test:full` → **4,679 用例 / 4,612 pass / 67 skip / 0 fail** / 120.6s；受影响门禁 144/144 pass（capability-invariants + frontend-audit + docs-consistency + doc-contract + 架构完整性 + meta-cognitive-loop + 确定性披露）。
+- **Commit**：`2db43680`
