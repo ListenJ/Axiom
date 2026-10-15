@@ -210,8 +210,10 @@ describe("D0 口径扫描范围自证", () => {
     // + docs/reviews/2026-10-14-divergent-thinking-runtime-model-self-bootstrap.md
     // + docs/reviews/2026-10-14-driveshaft-design.md
     // （架构评审 + 发散思考 + 传动轴设计；含源码实证与改进方向，证据性质）。
+    // 74→75（2026-10-14）：docs/reviews/2026-10-14-full-repo-deep-audit.md
+    // （全仓深度审核报告；4 项发现含现场复现与运行时代码实测，证据性质）。
     expect(spec.length).toBeGreaterThanOrEqual(60);
-    expect(exempted.length).toBeLessThanOrEqual(74);
+    expect(exempted.length).toBeLessThanOrEqual(75);
     expect(spec.concat(exempted).sort()).toEqual([...new Set(spec.concat(exempted))].sort());
   }, 30_000); // I/O 密集：遍历 docs/ 全树 + caliberDocs，全量负载下需 >15s
 

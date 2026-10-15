@@ -2036,3 +2036,18 @@
 - **附带发现（预置，未处理）**：`initRules()` 在 src 中无任何调用者——既有情况，不影响 Bridge A（learn() 走 addRule 独立路径）。
 - **验证**：tsc rc=0；91/91 pass（cognitive-pipeline + meta-cognitive-loop + 架构完整性 + G-04 确定性披露 + D0-D12 文档契约）。
 - **Commit**：`5998c9f6`
+
+---
+
+### 2026-10-14 — 全仓深度代码审核（4 项发现）
+
+- **时间**：2026-10-14
+- **任务**：对 `src/` 全部 455 文件 / 121,734 行 + 门禁脚本 + 测试完整性做深度审核。
+- **方法**：先 workflow 扇出 5 维度子代理 → **5 个全部超时返回 null**；该结果不可解读为"干净"，改为直接实证审计（静态普查 + 逐条读证 + 可复现探针）。过程中修正一次自身误判（发现 4 严重度降级），保留记录以标明口径。
+- **发现 1（high）— 前端审计门假绿**：`frontend-audit.ts:136` 捕获失败只累加 `issues` 不进严重度计数，`scripts/frontend-audit.ts:61` 只读 critical/major/minor → 9/9 页面截图失败仍 `blocking=0` exit 0（现场复现）。基础设施故障与"全站干净"在门禁层面不可区分。
+- **发现 2（high）— 安全开关登记表不完备**：`config/security-defaults.json` 声明"审批/豁免开关未配置一律按安全侧解释"，但只登记 2 个；S-6 门（`capability-invariants.test.ts:524`）只校验已登记项、无完备性检查。4 个 fail-open 开关（`AXIOM_ENFORCE_MODE_APPROVAL`/`AXIOM_SECOND_FACTOR_TOKEN`/`EDGE_RISK_FAIL_CLOSED`/`AXIOM_ALLOW_REMOTE_CDP`）不可见。实测：agent 模式下 `needsApproval("terminal_exec")=true` 但 env 未设 → `tool-registry.ts:56` 短路，`terminal_exec` **不触发审批**；`MODE_CONFIGS.agent.requireApproval=true` 成误导性死标志。
+- **发现 3（medium）— §1 基线漂移**：生成器 `testFiles=499`，`ARCHITECTURE.md:17` 写 488；棘轮门（`docs-consistency.test.ts:114`）只断言同行的"模块/文件/行"，测试文件数与用例数从未校验。文档 `:158` 自称"用例数不手抄"却在 `:17` 手抄。
+- **发现 4（low-medium，潜在）— 容器无淘汰上限**：`meta-cognitive-loop.ts:180/265`、`read-optimizer.ts:98` 只增不删；探针复现 500 条互异事件 → 两容器各 500。**诚实降级**：追溯基数来源为 `consciousness/stream.ts:268-326` 的 3 个硬编码触发器（无 LLM 自由文本），当前唯一值约 5 条，未构成实际泄漏；探针用合成互异文本夸大了风险。
+- **已验证干净**：`eval`/`new Function` 0 处；命令注入无未受控面（`shell:true` 3 处均常量或服务端白名单）；SSRF 防护扎实（协议/回环/RFC1918/IPv6/整数变体 + DNS 二次校验）；路由鉴权双层无缺口；回环免鉴权 fail-closed 正确；122 处空 catch 安全关键项均 fail-safe；定时器全 `.unref()`；模块级无界增长 0；67 skip 全为条件跳过；确定性有跨进程强制门；LLM 转型有 fail-safe 兜底。
+- **验证**：`bun run test:full` → 4,673 用例 / 4,606 pass / 67 skip / **0 fail** / 125.8s；doc-contract + docs-consistency + 架构完整性 70/70 pass（豁免面按约定 74→75 登记新证据件）。
+- **Commit**：待提交
