@@ -118,6 +118,13 @@ describe("docs-consistency Task16 — 文档一致性", () => {
     expect(Number(m![1]), "声明模块数应等于实测").toBe(s.srcModules);
     expect(Number(m![2]), "声明文件数应等于实测").toBe(s.srcFiles);
     expect(Number(m![3].replace(/,/g, "")), "声明行数应等于实测").toBe(s.srcLines);
+
+    // ── 测试文件数棘轮（2026-10-14 全仓审核发现 3）──────────────────────
+    // 此前本门只断言上面那组，§1「测试」行的 *.test.ts 数从未被校验，
+    // 已实测漂移到 488 vs 生成器 499。以下断言锁死该字段不得再漂。
+    const t = arch.match(/\*\*(\d+) 个 `\*\.test\.ts`\*\*/);
+    expect(t, "ARCHITECTURE.md §1 应含 `N 个 *.test.ts` 声明").not.toBeNull();
+    expect(Number(t![1]), "声明测试文件数应等于生成器实测").toBe(s.testFiles);
   }, 30_000); // I/O 密集：archStats() 遍历 src/+tests/ 全树 ~950 readFileSync
 
   test("Limitations 章节应披露确定性检索口径（FTS5+关键词，余弦仅可选语义层与可选 LLM）", () => {

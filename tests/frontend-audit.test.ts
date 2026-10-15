@@ -44,7 +44,7 @@ describe("auditFrontendPages — 聚合", () => {
     expect(report.totals.info).toBe(3);
   });
 
-  it("单页失败 → issues 计数 + error 记录，不中断", async () => {
+  it("单页失败 → issues + errored 计数 + error 记录，不中断", async () => {
     const report = await auditFrontendPages("http://x", [
       { path: "/ok", label: "OK" },
       { path: "/bad", label: "BAD" },
@@ -53,6 +53,7 @@ describe("auditFrontendPages — 聚合", () => {
       review: mockReview("pass", []),
     });
     expect(report.totals.issues).toBe(1);
+    expect(report.totals.errored).toBe(1);
     const bad = report.pages.find((p) => p.path === "/bad")!;
     expect(bad.error).toContain("screenshot failed");
   });
@@ -82,7 +83,7 @@ describe("renderAuditReportMarkdown", () => {
 });
 
 describe("computeBlockingSeverity — 门禁阈值", () => {
-  const totals = { pages: 3, pass: 0, issues: 3, critical: 1, major: 2, minor: 4, info: 1 };
+  const totals = { pages: 3, pass: 0, issues: 3, critical: 1, major: 2, minor: 4, info: 1, errored: 0 };
 
   it("critical 阈值只拦 critical（默认，抗 LLM 对比度过度标记）", () => {
     expect(computeBlockingSeverity(totals, "critical")).toBe(1);
@@ -92,5 +93,26 @@ describe("computeBlockingSeverity — 门禁阈值", () => {
   });
   it("minor 阈值全拦（含 minor）", () => {
     expect(computeBlockingSeverity(totals, "minor")).toBe(7);
+  });
+
+  // ── 回归防线（2026-10-14 全仓审核发现 1）──────────────────────────────
+  // 此前「全部页面捕获失败」只累加 issues，不进任何严重度计数 → blocking=0
+  // → exit 0 判通过。基础设施故障与"全站干净"在门禁层面不可区分。以下断言
+  // 锁死该假绿不得复发。
+  it("全部页面捕获失败 → 必须阻断（不得在零证据下判绿）", () => {
+    const allFailed = { pages: 9, pass: 0, issues: 9, critical: 0, major: 0, minor: 0, info: 0, errored: 9 };
+    expect(computeBlockingSeverity(allFailed, "critical")).toBe(9);
+    expect(computeBlockingSeverity(allFailed, "major")).toBe(9);
+    expect(computeBlockingSeverity(allFailed, "minor")).toBe(9);
+  });
+
+  it("部分页面捕获失败但仍有成功页 → 按实际 findings 判定（不误伤）", () => {
+    const partial = { pages: 9, pass: 5, issues: 4, critical: 0, major: 0, minor: 0, info: 0, errored: 4 };
+    expect(computeBlockingSeverity(partial, "critical")).toBe(0);
+  });
+
+  it("零页清单 → 不阻断（无页可审，非故障）", () => {
+    const empty = { pages: 0, pass: 0, issues: 0, critical: 0, major: 0, minor: 0, info: 0, errored: 0 };
+    expect(computeBlockingSeverity(empty, "critical")).toBe(0);
   });
 });

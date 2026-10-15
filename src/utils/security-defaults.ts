@@ -17,10 +17,37 @@ export const PTY_APPROVAL_MODE_ENV = "AXIOM_PTY_APPROVAL_MODE";
 /** PTY 审批的安全侧默认：未配置时不是 off，而是 risky */
 export const PTY_APPROVAL_DEFAULT_MODE = "risky" as const;
 
-/** 已登记开关的安全侧默认值（键为环境变量名） */
+/**
+ * 已登记开关的安全侧默认值（键为环境变量名）。
+ *
+ * 不变式（由 S-6 门禁锁死）：本表每项 == config/security-defaults.json 的
+ * `secureDefault`，且 == 代码实际行为。即"登记在此 = 默认即安全侧"。
+ */
 export const SECURITY_DEFAULTS: Readonly<Record<string, string | boolean>> = {
   [LOCAL_BYPASS_ENV]: false,
   [PTY_APPROVAL_MODE_ENV]: PTY_APPROVAL_DEFAULT_MODE,
+};
+
+/**
+ * 已知 fail-open 缺口登记表（2026-10-14 全仓审核发现 2）。
+ *
+ * 这些开关**当前实际默认值是 fail-open**（未配置 = 放行），与本仓库
+ * "审批/豁免类开关未配置一律按安全侧解释"的声明口径不符。此前它们既不在
+ * SECURITY_DEFAULTS、也无任何门禁可见，属静默缺口。
+ *
+ * 处置边界：本表只让缺口**可见且受门禁约束**，不改变运行时行为——收紧默认值
+ * 会影响既有部署，属需要显式决策的变更。新增 fail-open 安全开关必须登记于此，
+ * 否则 capability-invariants 的 S-6 完备性断言会红。
+ */
+export const SECURITY_GAPS: Readonly<Record<string, string>> = {
+  AXIOM_ENFORCE_MODE_APPROVAL:
+    "默认 0 → agent 模式下 caution/destructive 工具不触发审批（src/mcp/tool-registry.ts:58 短路）",
+  AXIOM_SECOND_FACTOR_TOKEN:
+    "未配置 → 终端/git/health 写路由的第二因子放行（src/routes/terminal.ts:23 等）",
+  EDGE_RISK_FAIL_CLOSED:
+    "默认 0 → 风险初筛不可用时不升级为强制审批（src/agents/risk-monitor.ts:62）",
+  AXIOM_ALLOW_REMOTE_CDP:
+    "默认 0 → 拒绝远程 CDP（此项默认即安全侧，登记以纳入完备性门禁）",
 };
 
 /**

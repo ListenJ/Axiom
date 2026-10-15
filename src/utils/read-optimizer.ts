@@ -92,6 +92,8 @@ interface BlackboardLike {
 // ═══════════════════════════════════════════════════════════════
 
 export class ReadOptimizerFacade {
+  /** rateLimiters 容器上限（见 RateLimitInterceptor 内的说明） */
+  static readonly MAX_RATE_LIMITERS = 1000;
   private interceptors: Interceptor[] = [];
   private cache: Cache<unknown>;
   private blackboard?: BlackboardLike;
@@ -416,6 +418,14 @@ export class ReadOptimizerFacade {
 
         if (!this.rateLimiters.has(key)) {
           this.rateLimiters.set(key, new TokenBucket(60, 10)); // 60/min, burst 10
+          // 上限保护（2026-10-14 全仓审核发现 4）：key = agentId:resource，原本
+          // 只增不删；agentId/resource 基数增长时会在长驻进程中无界累积。
+          // Map 保持插入序，超限淘汰最旧桶（FIFO）——被淘汰的桶下次调用重建，
+          // 仅损失一次限流计数窗口，不构成安全回退。
+          if (this.rateLimiters.size > ReadOptimizerFacade.MAX_RATE_LIMITERS) {
+            const oldest = this.rateLimiters.keys().next().value;
+            if (oldest !== undefined) this.rateLimiters.delete(oldest);
+          }
         }
 
         const bucket = this.rateLimiters.get(key)!;

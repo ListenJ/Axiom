@@ -534,6 +534,64 @@ describe("S-6 安全开关默认值（封堵 L6/L8）", () => {
     }
   });
 
+  // ─── S-6 完备性（2026-10-14 全仓审核发现 2）──────────────────────────
+  // 此前 S-6 只校验"已登记项一致"，未登记的开关对门禁完全不可见 —— 于是
+  // 4 个 fail-open 安全开关（ENFORCE_MODE_APPROVAL / SECOND_FACTOR_TOKEN /
+  // EDGE_RISK_FAIL_CLOSED / ALLOW_REMOTE_CDP）长期静默存在。以下断言扫描
+  // 源码中全部安全语义开关，未登记（SECURITY_DEFAULTS ∪ SECURITY_GAPS）即红。
+  it("安全语义开关必须全部登记：未登记即红（防静默缺口）", async () => {
+    const { SECURITY_DEFAULTS, SECURITY_GAPS } = await import("../src/utils/security-defaults.js");
+    const known = new Set([...Object.keys(SECURITY_DEFAULTS), ...Object.keys(SECURITY_GAPS)]);
+
+    // 安全语义命名模式：审批/豁免/强制/失败侧/第二因子/远程放行
+    const SECURITY_NAME = /(ENFORCE|APPROVAL|BYPASS|FAIL_CLOSED|FAILCLOSED|SECOND_FACTOR|ALLOW_REMOTE)/;
+    const found = new Set<string>();
+    for (const rel of walkTs("src")) {
+      if (rel.endsWith(".test.ts")) continue;
+      const src = read(rel);
+      // 形态 1：字面量读取 readBool/readString/readInt("NAME")
+      for (const m of src.matchAll(/read(?:Bool|String|Int)\(\s*"([A-Z0-9_]+)"/g)) {
+        if (SECURITY_NAME.test(m[1])) found.add(m[1]);
+      }
+      // 形态 2：常量定义式 export const X_ENV = "NAME"（如 LOCAL_BYPASS_ENV，
+      // 经 localBypassEnabled() 读取，不出现字面量 readBool 调用）
+      for (const m of src.matchAll(/(?:const|let)\s+\w*_ENV\s*=\s*"([A-Z0-9_]+)"/g)) {
+        if (SECURITY_NAME.test(m[1])) found.add(m[1]);
+      }
+    }
+    // 自检：两种形态都必须能命中已知开关，否则"零命中"是假绿
+    expect(found.has("AXIOM_ENFORCE_MODE_APPROVAL"), "字面量形态扫描应命中").toBe(true);
+    expect(found.has("AXIOM_ALLOW_LOCAL_BYPASS"), "常量定义形态扫描应命中").toBe(true);
+
+    const unregistered = [...found].filter((v) => !known.has(v)).sort();
+    expect(unregistered, `以下安全开关未登记（加入 SECURITY_DEFAULTS 或 SECURITY_GAPS）：\n${unregistered.join("\n")}`).toEqual([]);
+  });
+
+  it("SECURITY_GAPS 登记项必须带非空说明且确实存在于源码", async () => {
+    const { SECURITY_GAPS } = await import("../src/utils/security-defaults.js");
+    const allSrc = walkTs("src").filter((r) => !r.endsWith(".test.ts")).map(read).join("\n");
+    for (const [env, why] of Object.entries(SECURITY_GAPS)) {
+      expect(why.length, `${env} 的缺口说明不得为空`).toBeGreaterThan(10);
+      // 登记了源码里根本不存在的开关 = 错登记，会掩盖真实缺口
+      expect(allSrc.includes(env), `${env} 应在源码中被实际读取`).toBe(true);
+    }
+  });
+
+  it("缺口声明侧（config/security-defaults.json gaps）与代码侧 SECURITY_GAPS 一致", async () => {
+    const { SECURITY_GAPS } = await import("../src/utils/security-defaults.js");
+    const cfg = JSON.parse(read("config/security-defaults.json")) as {
+      gaps?: Array<{ env: string; currentDefault: boolean | string; secureDefault: boolean | string; impact: string }>;
+    };
+    expect(Array.isArray(cfg.gaps), "config 应含 gaps 章节").toBe(true);
+    const cfgEnvs = (cfg.gaps ?? []).map((g) => g.env).sort();
+    const codeEnvs = Object.keys(SECURITY_GAPS).sort();
+    expect(cfgEnvs, "两侧登记的缺口开关集合必须一致").toEqual(codeEnvs);
+    for (const g of cfg.gaps ?? []) {
+      expect(g.impact.length, `${g.env} 应说明影响`).toBeGreaterThan(10);
+      expect(typeof g.currentDefault, `${g.env} 应记录当前实际默认值`).not.toBe("undefined");
+    }
+  });
+
   it("回环豁免与网络暴露叠加时启动留痕（不静默）", async () => {
     const { bypassExposureWarning } = await import("../src/utils/security-defaults.js");
     expect(bypassExposureWarning(false, "0.0.0.0")).toBeNull();

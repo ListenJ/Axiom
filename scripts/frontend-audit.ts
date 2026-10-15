@@ -59,5 +59,11 @@ if (withKnowledge) {
 }
 
 const blocking = computeBlockingSeverity(report.totals, blockOn);
+const captured = report.totals.pages - report.totals.errored;
 console.log(`[FrontendAudit] block-on=${blockOn} blocking=${blocking}`);
+if (report.totals.pages > 0 && captured === 0) {
+  console.error(
+    `[FrontendAudit] 阻断：0/${report.totals.pages} 页成功捕获——这是基础设施故障（playwright 缺失/网关未起/全站白屏），不是"页面干净"。门禁不得在零证据下判绿。`,
+  );
+}
 process.exit(blocking > 0 ? 1 : 0);

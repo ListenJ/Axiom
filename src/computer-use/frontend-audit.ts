@@ -40,7 +40,7 @@ export interface FrontendAuditReport {
   baseUrl: string;
   auditedAt: number;
   pages: PageAuditResult[];
-  totals: { pages: number; pass: number; issues: number; critical: number; major: number; minor: number; info: number };
+  totals: { pages: number; pass: number; issues: number; critical: number; major: number; minor: number; info: number; errored: number };
   markdown: string;
 }
 
@@ -131,9 +131,12 @@ export async function auditFrontendPages(
 
   await Promise.all(Array.from({ length: Math.min(concurrency, pages.length) }, worker));
 
-  const totals = { pages: pages.length, pass: 0, issues: 0, critical: 0, major: 0, minor: 0, info: 0 };
+  const totals = { pages: pages.length, pass: 0, issues: 0, critical: 0, major: 0, minor: 0, info: 0, errored: 0 };
   for (const r of results) {
-    if (r.error) { totals.issues++; continue; }
+    // 捕获/审核失败必须单独计数：此前只累加 issues，而 computeBlockingSeverity
+    // 只读 critical/major/minor，导致「全部页面截图失败」仍判 blocking=0 通过
+    // （门禁假绿，2026-10-14 全仓审核发现 1）。errored 让基础设施故障可见。
+    if (r.error) { totals.issues++; totals.errored++; continue; }
     if (r.verdict === "pass") totals.pass++;
     else totals.issues++;
     for (const f of r.findings) {
@@ -158,9 +161,9 @@ export function renderAuditReportMarkdown(report: FrontendAuditReport): string {
     ``,
     `## 汇总`,
     ``,
-    `| 页面数 | 通过 | 有问题 | Critical | Major | Minor | Info |`,
-    `| --- | --- | --- | --- | --- | --- | --- |`,
-    `| ${report.totals.pages} | ${report.totals.pass} | ${report.totals.issues} | ${report.totals.critical} | ${report.totals.major} | ${report.totals.minor} | ${report.totals.info} |`,
+    `| 页面数 | 通过 | 有问题 | 捕获失败 | Critical | Major | Minor | Info |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- |`,
+    `| ${report.totals.pages} | ${report.totals.pass} | ${report.totals.issues} | ${report.totals.errored} | ${report.totals.critical} | ${report.totals.major} | ${report.totals.minor} | ${report.totals.info} |`,
     ``,
     `## 明细`,
     ``,
@@ -189,6 +192,12 @@ export function computeBlockingSeverity(
   totals: FrontendAuditReport["totals"],
   blockOn: "critical" | "major" | "minor" = "critical",
 ): number {
+  // 捕获覆盖率保护（2026-10-14 全仓审核发现 1）：若没有任何页面成功捕获，
+  // 说明是基础设施故障（playwright 缺失 / 网关未起 / 全站白屏）而非"页面干净"。
+  // 此时按页数计为阻断，使门禁无法在零证据下判绿。
+  const captured = totals.pages - totals.errored;
+  if (totals.pages > 0 && captured === 0) return totals.pages;
+
   const base = totals.critical + totals.major;
   if (blockOn === "critical") return totals.critical;
   if (blockOn === "major") return base;

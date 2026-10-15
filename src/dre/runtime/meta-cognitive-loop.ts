@@ -178,6 +178,15 @@ function parseLesson(lesson: string): {
 class LessonsToRulesBridge {
   private gate: SafetyGate;
   private seenLessons = new Set<string>();
+  /**
+   * 去重集合上限（2026-10-14 全仓审核发现 4）。
+   *
+   * 当前 lesson 仅由 consciousness 的 3 个硬编码触发器产出（约 5 种形态），
+   * 基数实际有界，故这不是已发生的泄漏。但容器原本无任何上限：一旦 lesson
+   * 转为 LLM 生成自由文本，长驻进程将无界增长。Set 保持插入序，超限即删
+   * 最旧条目（FIFO），保证内存占用恒定。
+   */
+  private readonly maxSeenLessons = 1000;
 
   constructor(gate: SafetyGate) {
     this.gate = gate;
@@ -189,6 +198,11 @@ class LessonsToRulesBridge {
       const lessonKey = lesson.slice(0, 100);
       if (this.seenLessons.has(lessonKey)) continue;
       this.seenLessons.add(lessonKey);
+      if (this.seenLessons.size > this.maxSeenLessons) {
+        // Set 迭代顺序 = 插入顺序，首个即最旧
+        const oldest = this.seenLessons.values().next().value;
+        if (oldest !== undefined) this.seenLessons.delete(oldest);
+      }
 
       const parsed = parseLesson(lesson);
       if (!parsed) {
@@ -265,6 +279,13 @@ class IssuesToAdaptationBridge {
   private patterns = new Map<string, IssuePattern>();
   /** 同一 issue 类型需要重复出现多少次才触发适应 */
   private readonly patternThreshold = 3;
+  /**
+   * 追踪模式上限（2026-10-14 全仓审核发现 4）。
+   *
+   * 同 seenLessons：当前 issue 由硬编码触发器产出（约 4 类），基数有界，
+   * 未构成实际泄漏；但容器原本无上限。Map 保持插入序，超限淘汰最旧 key。
+   */
+  private readonly maxPatterns = 1000;
 
   constructor(gate: SafetyGate) {
     this.gate = gate;
@@ -286,6 +307,11 @@ class IssuesToAdaptationBridge {
           lastSeen: Date.now(),
           proposedAdjustment: this.proposeAdjustment(issue),
         });
+        if (this.patterns.size > this.maxPatterns) {
+          // Map 迭代顺序 = 插入顺序，首个即最旧
+          const oldestKey = this.patterns.keys().next().value;
+          if (oldestKey !== undefined) this.patterns.delete(oldestKey);
+        }
       }
 
       // 模式检测：同一 issue 重复出现 ≥ threshold

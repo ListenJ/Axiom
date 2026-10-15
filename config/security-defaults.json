@@ -2,7 +2,9 @@
   "_readme": [
     "安全开关登记表（S3 / S-6 的声明侧）。运行时取值来自 src/utils/security-defaults.ts，",
     "本文件只登记「契约上应当为何」，由 tests/capability-invariants.test.ts 的 S-6 断言两者一致。",
-    "口径：豁免/审批类开关未配置时一律按安全侧解释，配置错误不得成为提权入口。"
+    "口径：豁免/审批类开关未配置时一律按安全侧解释，配置错误不得成为提权入口。",
+    "gaps 章节登记「实际默认值尚未达到安全侧」的开关（2026-10-14 全仓审核发现 2）：",
+    "它让缺口可见且受 S-6 完备性门禁约束，但不改变运行时行为——收紧默认值会影响既有部署。"
   ],
   "switches": [
     {
@@ -18,6 +20,40 @@
       "values": "off|risky|strict；未知值 fail-closed 按 strict",
       "rationale": "交互终端是 proc.exec 的最长链路。未配置即 off 等于「忘记设置 = 无审批」，故默认 risky：sanitizeCommand 判定为危险或白名单外的整行命令走 HITL 审批。",
       "enforcedAt": "src/terminal/command-gate.ts:parseApprovalMode"
+    }
+  ],
+  "gaps": [
+    {
+      "env": "AXIOM_ENFORCE_MODE_APPROVAL",
+      "currentDefault": false,
+      "secureDefault": true,
+      "impact": "agent 模式下 caution/destructive 工具（如 terminal_exec）不触发审批；MODE_CONFIGS.agent.requireApproval=true 成为误导性死标志。",
+      "enforcedAt": "src/mcp/tool-registry.ts:58",
+      "closingChange": "未配置时按安全侧 enforce，或删除 MODE_CONFIGS.*.requireApproval 以消除双事实源"
+    },
+    {
+      "env": "AXIOM_SECOND_FACTOR_TOKEN",
+      "currentDefault": false,
+      "secureDefault": true,
+      "impact": "未配置时终端 / git / health 等写路由的第二因子校验直接放行。",
+      "enforcedAt": "src/routes/terminal.ts:23 / src/routes/git.ts:24 / src/routes/health.ts:31",
+      "closingChange": "未配置时拒绝写路由（fail-closed），或把该开关纳入启动期强制检查"
+    },
+    {
+      "env": "EDGE_RISK_FAIL_CLOSED",
+      "currentDefault": false,
+      "secureDefault": true,
+      "impact": "风险初筛不可用/降级时不升级为强制审批，持有高危能力者可继续执行。",
+      "enforcedAt": "src/agents/risk-monitor.ts:62",
+      "closingChange": "默认 1（降级即审批），离线环境显式设 0 退出"
+    },
+    {
+      "env": "AXIOM_ALLOW_REMOTE_CDP",
+      "currentDefault": false,
+      "secureDefault": false,
+      "impact": "无缺口：默认即拒绝远程 CDP。登记目的是纳入 S-6 完备性门禁，防止未来被静默翻转。",
+      "enforcedAt": "src/utils/url-safety.ts:163 / src/mcp/server/browser-tools.ts:21 / src/routes/agents.ts:60",
+      "closingChange": "无需变更"
     }
   ]
 }
