@@ -2050,4 +2050,4 @@
 - **发现 4（low-medium，潜在）— 容器无淘汰上限**：`meta-cognitive-loop.ts:180/265`、`read-optimizer.ts:98` 只增不删；探针复现 500 条互异事件 → 两容器各 500。**诚实降级**：追溯基数来源为 `consciousness/stream.ts:268-326` 的 3 个硬编码触发器（无 LLM 自由文本），当前唯一值约 5 条，未构成实际泄漏；探针用合成互异文本夸大了风险。
 - **已验证干净**：`eval`/`new Function` 0 处；命令注入无未受控面（`shell:true` 3 处均常量或服务端白名单）；SSRF 防护扎实（协议/回环/RFC1918/IPv6/整数变体 + DNS 二次校验）；路由鉴权双层无缺口；回环免鉴权 fail-closed 正确；122 处空 catch 安全关键项均 fail-safe；定时器全 `.unref()`；模块级无界增长 0；67 skip 全为条件跳过；确定性有跨进程强制门；LLM 转型有 fail-safe 兜底。
 - **验证**：`bun run test:full` → 4,673 用例 / 4,606 pass / 67 skip / **0 fail** / 125.8s；doc-contract + docs-consistency + 架构完整性 70/70 pass（豁免面按约定 74→75 登记新证据件）。
-- **Commit**：待提交
+- **Commit**：`34456244`
