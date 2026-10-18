@@ -2097,3 +2097,17 @@
 - **发现（未处置，待另立条目）**：本机（Windows）全量 `bun test --timeout 15000 ./tests` = 4,770 用例 / 4,674 pass / 66 skip / **30 fail / 1 error**；同批 7 个失败文件在 `main`(015017a5) 与 A-0 分支失败数一致（26–27 pass / 29–30 fail），**属既存平台性失败，非本轮引入**。至少 `tests/utils/env-file-permissions.test.ts` 断言 `statSync().mode & 0o777 === 0o600`，在 Windows 上不可能成立。
 - **不做项**：未改任何运行时代码；未动 `origin`；未重启 data 服务器服务；未改 `bun.lock`。
 - **Commit**：`fee1bfc1`
+
+---
+
+## 2026-10-19 — docs(review): 联合审查落盘 + WSL 验证基线（Windows 侧 git）
+
+- **任务**：把本轮「远端收口 / 工具链统一 / 测试基线」审查结论固化为可复算的证据件；并按用户要求，git 操作全部留在 Windows，WSL 只做计算型验证。分级 **T1/T2（文档 + 门禁登记）**。
+- **新增**：`docs/reviews/2026-10-19-joint-audit-remote-toolchain-testbaseline.md` —— 11 节，含拓扑、提交滞留、LFS 假阳性、工具链 git 写拒绝、版本统一矩阵、Windows/WSL 测试对照、Linux 残余 5 项逐项定性、未验证项清单、复算命令。
+- **门禁登记**：新增证据件落在 `docs/reviews/` 属 HISTORY 豁免面，`tests/doc-contract.test.ts` D0 的豁免上限按既有惯例 **75→76** 并逐件点名。
+- **关键读数**：Windows `4770 用例 / 30 fail`；WSL Debian 13 同 bun 1.4.3 `4823 用例 / 5 fail`；同批 7 个失败文件 Windows 29–30 fail vs WSL 59 pass / 0 fail ⇒ 平台性。
+- **新发现（未修，已登记）**：`ARCHITECTURE.md` §1 的「41 模块」在干净克隆上实测为 40（文件 456 / 行 122,138 等其余四项一致）—— 成因是 `arch:stats` 统计 `src/` 目录数，而其中一个目录在 git 中无受跟踪文件；该棘轮在任何干净检出（含 CI）上都会红。修正属脚本/文档口径变更，另立任务。
+- **WSL 侧**：bun 1.4.3（与 data 同发布件、同 sha256）+ node 22.22.1（无 sudo，解到 `~/.local/node`）；工作树由 Windows 侧 git 克隆后打包传入，WSL 内不执行 git 写操作。
+- **验证**：`tests/doc-contract.test.ts` + `tests/unit/docs-consistency.test.ts` = **45 pass / 0 fail**。
+- **不做项**：未修 §1 模块数；未改运行时；未动 `origin`。
+- **Commit**：`PLACEHOLDER_REVIEW`
