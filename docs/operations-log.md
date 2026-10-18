@@ -2096,4 +2096,4 @@
 - **偏差记录（重要）**：首次批量替换把成对替换表传给 PowerShell 函数，参数绑定将 `@(@('a','b'))` 展平为两个字符串，`$p[0]/$p[1]` 退化成取首字符 → 8 个文件被逐字符污染（`"`→`p`、`T`→`y` 等，`git diff --stat` 一度显示整文件重写）。当轮即用 `git checkout --` 从 HEAD 全量恢复并复核回到原状，随后改用 hashtable 传参重做，最终 diff 为 8 文件各 1 行；`.tmp/backups/` 中的备份取自恢复后的干净版本。
 - **发现（未处置，待另立条目）**：本机（Windows）全量 `bun test --timeout 15000 ./tests` = 4,770 用例 / 4,674 pass / 66 skip / **30 fail / 1 error**；同批 7 个失败文件在 `main`(015017a5) 与 A-0 分支失败数一致（26–27 pass / 29–30 fail），**属既存平台性失败，非本轮引入**。至少 `tests/utils/env-file-permissions.test.ts` 断言 `statSync().mode & 0o777 === 0o600`，在 Windows 上不可能成立。
 - **不做项**：未改任何运行时代码；未动 `origin`；未重启 data 服务器服务；未改 `bun.lock`。
-- **Commit**：`PLACEHOLDER_ENV`
+- **Commit**：`fee1bfc1`
