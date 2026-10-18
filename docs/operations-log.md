@@ -2083,3 +2083,17 @@
 - **环境偏差（重要）**：本机 PATH 上的 `git` 是 DSH 工具链便携版，**任何本地写操作都被拒**（连空目录里 `git init` 都 `Permission denied`，读与推网可达）。故本地分支/提交改用另装的 MinGit `2.56.0.2`（`~/.axiom/tools/mingit`）；`bun run lint` 因 `node_modules/.bin/tsc` 未生成而失败，改用直调 tsc；Bun `1.4.3` 与 `package.json` 钉的 `1.3.14` 不同版本，本地绿不等价 CI 绿。
 - **不做项**：未改 A-0 行为语义（开关默认关闭）；未动 `origin`；未对 100 个 LFS 指针做任何写入；未改任何业务逻辑。
 - **Commit**：`11c15fc9`
+
+---
+
+## 2026-10-19 — chore(env): Bun 工具链统一到 1.4.3（声明面 + 内网 data 服务器）
+
+- **任务**：用户裁定本地与内网统一到当前 bun（1.4.3，官方稳定版，2026-10-10 发布），不再沿用 1.3.14 声明；滚动升级但只接受稳定版。分级 **T2（工具链/CI 声明面）**。
+- **事实基线**：开发机 `bun 1.4.3`；`package.json` 与三个 workflow 声明 `1.3.14`；`ARCHITECTURE.md` 写「Bun 1.4+」、`README(±en)` 写「Bun 1.3+」、`PROJECT-GUIDE.md` 写「1.3+」。内网 `data@192.168.0.10:2223` 实测 `bun 1.3.14`（仅 `~/.bun/bin/bun`，非交互 shell 不在 PATH）。
+- **改动（8 文件，各 1 行）**：`package.json` 的 `packageManager` 1.3.14→1.4.3；`ci.yml`/`frontend-audit.yml`/`visual-snapshot.yml` 的 `BUN_VERSION` 同步；`docs/ARCHITECTURE.md` §1、`README.md`、`README_en.md`、`docs/PROJECT-GUIDE.md` 运行时口径统一为「Bun 1.4.3+（统一基线，滚动升级至最新稳定版）」。
+- **内网同步**：`data` 服务器 `~/.bun/bin/bun` 由 1.3.14 升到 1.4.3（官方 linux-x64 发布件；传输后远端口算 sha256 `3e730528…` 与本地一致），旧版留 `~/.bun/bin/bun-1.3.14.bak`，`bunx` 软链随动。未重启任何服务：`dsh-web.service` 仍 active（进程持旧映像，下次重启才切换）。
+- **验证**：`tests/unit/docs-consistency.test.ts` + `tests/doc-contract.test.ts` = **45 pass / 0 fail**；`bun node_modules/typescript/bin/tsc --noEmit` **rc=0**。
+- **偏差记录（重要）**：首次批量替换把成对替换表传给 PowerShell 函数，参数绑定将 `@(@('a','b'))` 展平为两个字符串，`$p[0]/$p[1]` 退化成取首字符 → 8 个文件被逐字符污染（`"`→`p`、`T`→`y` 等，`git diff --stat` 一度显示整文件重写）。当轮即用 `git checkout --` 从 HEAD 全量恢复并复核回到原状，随后改用 hashtable 传参重做，最终 diff 为 8 文件各 1 行；`.tmp/backups/` 中的备份取自恢复后的干净版本。
+- **发现（未处置，待另立条目）**：本机（Windows）全量 `bun test --timeout 15000 ./tests` = 4,770 用例 / 4,674 pass / 66 skip / **30 fail / 1 error**；同批 7 个失败文件在 `main`(015017a5) 与 A-0 分支失败数一致（26–27 pass / 29–30 fail），**属既存平台性失败，非本轮引入**。至少 `tests/utils/env-file-permissions.test.ts` 断言 `statSync().mode & 0o777 === 0o600`，在 Windows 上不可能成立。
+- **不做项**：未改任何运行时代码；未动 `origin`；未重启 data 服务器服务；未改 `bun.lock`。
+- **Commit**：`PLACEHOLDER_ENV`

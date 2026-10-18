@@ -712,7 +712,7 @@ Hermes 安装后可通过 MCP 连接 Axiom 共享记忆库。
 
 ## 技术栈
 
-- **运行时**: Bun 1.3+
+- **运行时**: Bun 1.4.3+（统一基线，滚动升级至最新稳定版）
 - **语言**: TypeScript (ESM, strict)
 - **数据库**: SQLite (bun:sqlite) + Drizzle ORM Schema
 - **协议**: MCP (Model Context Protocol) v1.29

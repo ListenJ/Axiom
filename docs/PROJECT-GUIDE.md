@@ -356,7 +356,7 @@ event: error    → { type: "error", message }
 
 ### 6.1 前置要求
 
-- **Bun** 1.3+ (推荐最新)
+- **Bun** 1.4.3+（统一基线，滚动升级至最新稳定版）
 - **Node.js** 18+ (前端构建 / Playwright)
 - **Rust** (可选，native bridge 编译)
 - **SQLite** (Bun 内置，无需单独安装)

@@ -784,7 +784,7 @@ Once installed, Hermes can connect to the Axiom shared memory vault over MCP.
 
 ## Tech stack
 
-- **Runtime**: Bun 1.3+
+- **Runtime**: Bun 1.4.3+ (unified baseline, rolling upgrade to latest stable)
 - **Language**: TypeScript (ESM, strict)
 - **Database**: SQLite (bun:sqlite) + Drizzle ORM schema
 - **Protocol**: MCP (Model Context Protocol) v1.29
