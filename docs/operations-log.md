@@ -2082,4 +2082,4 @@
 - **验证**：`bun test tests/caliber-contract.test.ts` = **17 pass / 0 fail / 72 expect**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**（含 §1 基线棘轮）；`bun node_modules/typescript/bin/tsc --noEmit` **rc=0**。
 - **环境偏差（重要）**：本机 PATH 上的 `git` 是 DSH 工具链便携版，**任何本地写操作都被拒**（连空目录里 `git init` 都 `Permission denied`，读与推网可达）。故本地分支/提交改用另装的 MinGit `2.56.0.2`（`~/.axiom/tools/mingit`）；`bun run lint` 因 `node_modules/.bin/tsc` 未生成而失败，改用直调 tsc；Bun `1.4.3` 与 `package.json` 钉的 `1.3.14` 不同版本，本地绿不等价 CI 绿。
 - **不做项**：未改 A-0 行为语义（开关默认关闭）；未动 `origin`；未对 100 个 LFS 指针做任何写入；未改任何业务逻辑。
-- **Commit**：`d8975837`
+- **Commit**：`11c15fc9`
