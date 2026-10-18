@@ -22,14 +22,24 @@ jobs:
     runs-on: linux-amd64
     timeout-minutes: 20
     steps:
-      - name: 环境自述（不依赖任何外部 action）
+      # data / WSL 均无法访问 github.com，因此不引入任何 uses: 外部 action，
+      # 检出用 Gitea 自带的临时 token 走本机 HTTP。
+      - name: 检出代码
         run: |
-          echo "=== host ==="; uname -a
-          echo "=== workspace ==="; pwd; ls -A | head -20
-          echo "=== toolchain ==="
+          set -eu
+          echo "repo=${GITHUB_REPOSITORY} ref=${GITHUB_REF_NAME} sha=${GITHUB_SHA}"
+          git init -q .
+          git remote add origin "http://x-access-token:${GITHUB_TOKEN}@127.0.0.1:3000/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "${GITHUB_SHA}"
+          git checkout -q FETCH_HEAD
+          echo "HEAD=$(git rev-parse --short HEAD)"
+          ls -A | head -10
+
+      - name: 环境自述
+        run: |
+          uname -a
           command -v bun  && bun --version  || echo "bun MISSING"
           command -v node && node --version || echo "node MISSING"
-          command -v git  && git --version  || echo "git MISSING"
 
       - name: 依赖安装
         run: bun install --frozen-lockfile
