@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "codex/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 非交互 shell 不读 ~/.bashrc，工具链必须显式进 PATH
+  PATH: /home/data/.bun/bin:/home/data/.local/bin:/home/data/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+  NODE_ENV: test
+
+jobs:
+  verify:
+    name: typecheck + doc gates
+    runs-on: linux-amd64
+    timeout-minutes: 20
+    steps:
+      - name: 环境自述（不依赖任何外部 action）
+        run: |
+          echo "=== host ==="; uname -a
+          echo "=== workspace ==="; pwd; ls -A | head -20
+          echo "=== toolchain ==="
+          command -v bun  && bun --version  || echo "bun MISSING"
+          command -v node && node --version || echo "node MISSING"
+          command -v git  && git --version  || echo "git MISSING"
+
+      - name: 依赖安装
+        run: bun install --frozen-lockfile
+
+      - name: 类型检查
+        run: bun node_modules/typescript/bin/tsc --noEmit
+
+      - name: 文档与口径门禁
+        run: bun test tests/doc-contract.test.ts tests/unit/docs-consistency.test.ts
