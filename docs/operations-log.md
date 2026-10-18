@@ -2110,4 +2110,4 @@
 - **WSL 侧**：bun 1.4.3（与 data 同发布件、同 sha256）+ node 22.22.1（无 sudo，解到 `~/.local/node`）；工作树由 Windows 侧 git 克隆后打包传入，WSL 内不执行 git 写操作。
 - **验证**：`tests/doc-contract.test.ts` + `tests/unit/docs-consistency.test.ts` = **45 pass / 0 fail**。
 - **不做项**：未修 §1 模块数；未改运行时；未动 `origin`。
-- **Commit**：`PLACEHOLDER_REVIEW`
+- **Commit**：`71d748ea`
