@@ -2067,3 +2067,19 @@
 - **发现 4（low-medium）容器无淘汰上限 — 已修**：`meta-cognitive-loop.ts` 的 `seenLessons`/`patterns` 与 `read-optimizer.ts` 的 `rateLimiters` 各加 1000 上限（FIFO 淘汰最旧）。测试：1500 条互异事件后容器 ≤1000，并断言 `totalCompleted ≥ 1500` 防"没超限是因为没跑"。
 - **验证**：tsc rc=0；`bun run test:full` → **4,679 用例 / 4,612 pass / 67 skip / 0 fail** / 120.6s；受影响门禁 144/144 pass（capability-invariants + frontend-audit + docs-consistency + doc-contract + 架构完整性 + meta-cognitive-loop + 确定性披露）。
 - **Commit**：`2db43680`
+
+---
+
+## 2026-10-19 — chore(remote) + feat(caliber): 远端滞留推送收口 + A-0 口径契约入库
+
+- **任务**：用户授权联合检查本地与 Gitea 远端后收口。分级 **T2（多分支推送 + 新特性入库）**。
+- **远端事实**：Gitea `27.3.1`（Web/API `:3000`，Git 传输走 SSH `:2222`）；`internal`/`gitea` 同指 `agent/openclaw-fusion`；SSH 密钥鉴权通过，可读 heads 数 44→45。`origin`（GitHub）当前 `Permission denied (publickey)`，**未做比对、未推送**。
+- **推送前逐 ref 比对**：本地 16 分支 vs 远端 44 分支，**behind 全为 0**（零分叉、零覆盖、远端无本地缺失的提交）；`main` 领先 9 个提交未推送，9 个 `codex/*` 各领先 1–2 个（合计 11），`codex/r8-fixes-2026-10-13` 为本地独有。
+- **推送**：`main` `dfae8f0e..015017a5`；9 个 `codex/*` 逐条 fast-forward；`codex/r8-fixes-2026-10-13` 新建远端分支。合计 **20 个滞留提交落地**。推送后逐 ref 复核：**16/16 本地分支与远端 SHA 全等，0 不一致**。
+- **git-lfs 修复**：本机缺 git-lfs 时 `git status` 直接 fatal（`clean filter 'lfs' failed`）。按官方 v3.8.0 发布件安装，`sha256sums.asc` 校验 `b62e7b8c…` 一致，落 `~/.axiom/tools/git-lfs-3.8.0/` 并追加用户 PATH。
+- **假阳性澄清**：工作区 100 个 `*.png` 曾显示 `M`。逐件比对 LFS 指针 `oid sha256` 与磁盘实算 SHA-256：**100/100 匹配，零真实改动**（差异纯由缺 git-lfs 造成）。
+- **本次提交内容（A-0 口径契约；代码为前序工作区状态，本轮负责校验与入库）**：新增 `config/caliber.json`（17 条，CAL-01…CAL-17，5 域）、`src/semantic/caliber-registry.ts`、`tests/caliber-contract.test.ts`；`src/memory/bootstrap.ts` 接线 `renderCaliberSection()`（开关关闭返回空串，零行为变更）；`.env.example` 登记 `AXIOM_CALIBER_GLOSSARY`；`docs/ARCHITECTURE.md` §1 棘轮同步 455→456 文件 / 121,838→122,138 行 / 499→500 测试。
+- **验证**：`bun test tests/caliber-contract.test.ts` = **17 pass / 0 fail / 72 expect**；`bun test tests/unit/docs-consistency.test.ts` = **10 pass / 0 fail**（含 §1 基线棘轮）；`bun node_modules/typescript/bin/tsc --noEmit` **rc=0**。
+- **环境偏差（重要）**：本机 PATH 上的 `git` 是 DSH 工具链便携版，**任何本地写操作都被拒**（连空目录里 `git init` 都 `Permission denied`，读与推网可达）。故本地分支/提交改用另装的 MinGit `2.56.0.2`（`~/.axiom/tools/mingit`）；`bun run lint` 因 `node_modules/.bin/tsc` 未生成而失败，改用直调 tsc；Bun `1.4.3` 与 `package.json` 钉的 `1.3.14` 不同版本，本地绿不等价 CI 绿。
+- **不做项**：未改 A-0 行为语义（开关默认关闭）；未动 `origin`；未对 100 个 LFS 指针做任何写入；未改任何业务逻辑。
+- **Commit**：`d8975837`

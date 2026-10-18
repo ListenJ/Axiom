@@ -16,6 +16,7 @@ import { SQLiteMemory } from "./sqlite-memory.js";
 import { APP_VERSION } from "../version.js";
 import { logger } from "../utils/logger.js";
 import { readString } from "../utils/env.js";
+import { renderCaliberSection } from "../semantic/caliber-registry.js";
 
 interface BootstrapContext {
   /** Agent 人格定义 */
@@ -109,6 +110,13 @@ export class AgentBootstrap {
     lines.push(`Boot Time: ${context.bootTime}`);
     lines.push(`Vault Notes: ${context.systemStatus.vaultNotes}`);
     lines.push("");
+
+    // A-0 口径契约：仅当 AXIOM_CALIBER_GLOSSARY 显式开启时注入，默认返回空串（零行为变更）
+    const caliber = renderCaliberSection();
+    if (caliber) {
+      lines.push(caliber);
+      lines.push("");
+    }
 
     if (context.personality) {
       lines.push("--- PERSONALITY ---");
