@@ -25,11 +25,15 @@ jobs:
       # data / WSL 均无法访问 github.com，因此不引入任何 uses: 外部 action，
       # 检出用 Gitea 自带的临时 token 走本机 HTTP。
       - name: 检出代码
+        env:
+          # Gitea 的内置 token 不自动注入为 GITHUB_TOKEN 环境变量，必须显式取
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
+          : "${GH_TOKEN:?GITEA token not injected}"
           echo "repo=${GITHUB_REPOSITORY} ref=${GITHUB_REF_NAME} sha=${GITHUB_SHA}"
           git init -q .
-          git remote add origin "http://x-access-token:${GITHUB_TOKEN}@127.0.0.1:3000/${GITHUB_REPOSITORY}.git"
+          git remote add origin "http://x-access-token:${GH_TOKEN}@127.0.0.1:3000/${GITHUB_REPOSITORY}.git"
           git fetch -q --depth 1 origin "${GITHUB_SHA}"
           git checkout -q FETCH_HEAD
           echo "HEAD=$(git rev-parse --short HEAD)"
