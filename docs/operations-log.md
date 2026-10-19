@@ -2122,4 +2122,4 @@
 - **同步**：docs/ARCHITECTURE.md §1 由 41 模块 / 456 文件 / 122,138 行 更新为 40 模块 / 456 文件 / 122,148 行（+10 行为本次改动）。
 - **验证**：un test tests/unit/docs-consistency.test.ts = **10 pass / 0 fail**；un run arch:stats = 40 / 456 / 122,148 / 500 / 189。
 - **不做项**：未删除 src/data/（用户工作区的运行时目录，不属本任务）；未改其余统计口径。
-- **Commit**：`PLACEHOLDER_MODCOUNT`
+- **Commit**：`9b7423d4`
