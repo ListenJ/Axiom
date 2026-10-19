@@ -3,14 +3,14 @@
 # 运行: docker-compose up -d
 
 # ========== Stage 1: Dependencies ==========
-FROM oven/bun:1.3-alpine AS deps
+FROM oven/bun:1.4.3-alpine AS deps
 
 WORKDIR /app
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production --ignore-scripts  # postinstall(ensure-env.ts) 仅生成本地 .env，镜像构建不需要
 
 # ========== Stage 2: Build (optional bundling) ==========
-FROM oven/bun:1.3-alpine AS builder
+FROM oven/bun:1.4.3-alpine AS builder
 
 WORKDIR /app
 COPY package.json bun.lock ./
@@ -22,7 +22,7 @@ COPY src/ ./src/
 RUN bun build src/main.ts --outdir ./dist --target bun --minify
 
 # ========== Frontend stage: build SPA into dist/ ==========
-FROM oven/bun:1.3-alpine AS frontend-builder
+FROM oven/bun:1.4.3-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 COPY frontend/package.json frontend/bun.lock ./
@@ -31,7 +31,7 @@ COPY frontend/ ./
 RUN bun run build
 
 # ========== Stage 3: Production ==========
-FROM oven/bun:1.3-alpine AS runner
+FROM oven/bun:1.4.3-alpine AS runner
 
 WORKDIR /app
 
