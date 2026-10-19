@@ -155,6 +155,12 @@ core   → routes   ← agents        (路由注册)
 
 ## 4. 测试架构
 
+> **执行环境口径（2026-10-19 裁定）**：测试**只在 Linux 上执行**，Windows 只做编辑与 git 操作，不跑测试。
+> 依据：一批断言按 POSIX 语义编写（如 `statSync(p).mode & 0o777 === 0o600`），Windows 原理上不可满足；
+> 同一条提交在 Windows 上稳定多出约 30 项平台性红，把噪声当成信号。两个执行环境：
+> **本地 = WSL（Debian 13 + bun 1.4.3）**，**CI = data 服务器（Linux + bun 1.4.3，Gitea Actions host runner）**。
+> 合并前的"本地验证完成"指 WSL 全量结果，不是 Windows 结果。
+
 测试入口以 `package.json` 脚本为准；**用例数一律以实跑输出为准，不在本文手抄**（历史漂移留证：本表曾记 `test:full` 232 项/~13s，2026-09-29 实测串行全量为 4,675 用例 / 470 文件 / 约 115s）。
 
 | 脚本 | 内容 |

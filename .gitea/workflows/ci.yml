@@ -1,3 +1,7 @@
+# data 服务器上的 runner 为单通道（capacity=1）：同一时刻只跑一个 job。
+# 并发需求出现前不扩容——该机可用内存约 4.9GB，多 job 会互相抢 CPU/内存。
+# 排队语义：`concurrency.cancel-in-progress` 只取消同一 ref 的旧 run；
+# 不同分支之间是串行排队，不是并行。
 name: CI
 
 on:
