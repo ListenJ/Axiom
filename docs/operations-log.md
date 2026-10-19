@@ -2136,4 +2136,4 @@ readdirSync(src).filter(isDirectory) 数模块，把**未跟踪工作区目录**
 - **证据**：journald `Started gitea-runner.service` + `runner: data-host ... declare successfully`；run 1135 `completed/success`（检出 / 环境 / install / tsc / 文档门禁）。
 - **日志口径变更**：转 systemd 后日志走 journald（`journalctl -u gitea-runner`），原 `~/act-runner/runner.log` 不再更新。
 - **不做项**：未改 Gitea 容器内除 `[actions]` 外的任何配置；未改 runner 标签与并发度（capacity=1）。
-- **Commit**：`PLACEHOLDER_SYSTEMD`
+- **Commit**：`d7d19625`
