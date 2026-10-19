@@ -2124,3 +2124,16 @@ readdirSync(src).filter(isDirectory) 数模块，把**未跟踪工作区目录**
 - **验证**：bun test tests/unit/docs-consistency.test.ts = **10 pass / 0 fail**；bun run arch:stats = 40 / 456 / 122,148 / 500 / 189。
 - **不做项**：未删除 src/data/（用户工作区的运行时目录，不属本任务）；未改其余统计口径。
 - **Commit**：`9b7423d4`
+
+---
+
+## 2026-10-19 — ops(ci): Gitea Actions runner 转为 systemd 常驻并实证接管
+
+- **任务**：把 data 服务器上的 act_runner 从 nohup 临时进程转为 systemd 常驻服务（重启存活）。sudo 操作由用户执行，本 agent 负责验证与留痕。分级 **T3（运维，跨机）**。
+- **目标机**：`data@<gitea-host> -p 2223`（与 Gitea 容器同机）。
+- **unit**：`/etc/systemd/system/gitea-runner.service`，`User=data` / `WorkingDirectory=/home/data/act-runner` / `ExecStart=/home/data/bin/gitea-runner daemon --config /home/data/act-runner/config.yaml` / `Restart=always`。前置动作 `pkill -f "gitea-runner daemon"`（避免与 nohup 版争 `.runner.lock`）。
+- **接管验证（三项，非"看起来起来了"）**：① `is-enabled=enabled` / `is-active=active`；② `MainPID` 属主为 `data`，且 `pgrep` 只剩该进程（nohup 残留 0）；③ `workflow_dispatch` 触发 run 1135，`runner=data-host` 完成 5 步全绿。
+- **证据**：journald `Started gitea-runner.service` + `runner: data-host ... declare successfully`；run 1135 `completed/success`（检出 / 环境 / install / tsc / 文档门禁）。
+- **日志口径变更**：转 systemd 后日志走 journald（`journalctl -u gitea-runner`），原 `~/act-runner/runner.log` 不再更新。
+- **不做项**：未改 Gitea 容器内除 `[actions]` 外的任何配置；未改 runner 标签与并发度（capacity=1）。
+- **Commit**：`PLACEHOLDER_SYSTEMD`
