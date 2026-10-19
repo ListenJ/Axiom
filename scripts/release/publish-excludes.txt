@@ -16,8 +16,7 @@ eval/semantic-equivalence
 # —— 运行时数据与构建产物
 reports
 data
-public
-
+# public/ 保留：Dockerfile 的 COPY public/ 需要它，外界复现缺了会构建失败
 # —— 内部子服务配置
 mcp-servers
 
