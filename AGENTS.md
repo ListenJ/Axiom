@@ -216,7 +216,7 @@ Agent 是完整、独立的思考个体。任务约束是输入之一，不是�
 
 - 入库文档（含 AGENTS.md、README、docs/）不得包含真实密钥、密码、订阅 token、SSH 凭据或私有服务账号。
 - 真实凭据只存放于本地非仓库目录：Windows 为 `C:\Users\<user>\.axiom\axiom-secrets\`，Linux/macOS 为 `~/.axiom/axiom-secrets/`；仓库内只保留占位符（`${VAR}`）或 `.env.example` 模板。
-- 已发现并移出的敏感文件：`docs/services.md`（含 SSH 密码、1Panel 凭据、机场订阅 token）→ `C:\Users\18336\.axiom\axiom-secrets\services.credentials`。禁止以任何形式恢复为仓库可追踪文件。
+- 已发现并移出的敏感文件：`docs/services.md`（含 SSH 密码、1Panel 凭据、机场订阅 token）→ `~/.axiom/axiom-secrets/services.credentials`。禁止以任何形式恢复为仓库可追踪文件。
 - 每次审计需扫描 git 跟踪文件与本次新增文件中的高熵密钥模式（如 `sk-*`、`AKIA*`、`ghp_*`、`-----BEGIN *PRIVATE KEY-----`），逐条确认命中项仅为测试夹具或占位符。
 - **凭据泄露响应**：发现真实凭据进入仓库/工作区，立即停止传播并通知用户；轮换/吊销该凭据（移出仓库不等于失效）；清理工作区与必要的 git 历史；在 ops log 记录事件、影响面与补偿措施。凭据轮换需要权限时由用户执行，agent 不得擅自外传。
 - 报告、ops log、commit message 不得回显密钥明文；只记录凭据名称、位置与处置状态。
