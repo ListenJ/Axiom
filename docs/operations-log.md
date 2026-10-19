@@ -2145,4 +2145,4 @@ readdirSync(src).filter(isDirectory) 数模块，把**未跟踪工作区目录**
 - **改动**：`docs/ARCHITECTURE.md` §4 增加执行环境口径段（Windows 只做编辑与 git；本地验证 = WSL Debian 13 + bun 1.4.3；CI = data 服务器 Linux；"本地验证完成"指 WSL 全量结果）。`.gitea/workflows/ci.yml` 头部注明 runner `capacity=1` 的排队语义（同 ref 取消旧 run，不同分支串行）。
 - **依据**：同一条提交 Windows 稳定多出约 30 项平台性红（POSIX 权限断言等），WSL 同版本 bun 下为 5 项且已逐项定性。
 - **不做项**：未改 runner 硬件规格与 capacity（保持 1）；未改测试内容。
-- **Commit**：`PLACEHOLDER_ENVSPEC`
+- **Commit**：`f3fdf5a9`
