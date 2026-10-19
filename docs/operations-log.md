@@ -2111,3 +2111,15 @@
 - **验证**：`tests/doc-contract.test.ts` + `tests/unit/docs-consistency.test.ts` = **45 pass / 0 fail**。
 - **不做项**：未修 §1 模块数；未改运行时；未动 `origin`。
 - **Commit**：`71d748ea`
+
+---
+
+## 2026-10-19 — fix(tooling): 模块数口径与工作区解耦（CI 首红修复）
+
+- **任务**：Gitea Actions 首个工作流 run 1112 首红，docs-consistency 断言 Expected 40 / Received 41。分级 **T2（门禁口径）**。
+- **根因**：rchStats() 用 eaddirSync(src).filter(isDirectory) 数模块，把**未跟踪工作区目录** src/data/（仅 logs/agent.log，零受跟踪文件）算进模块数 → 开发机 41、干净克隆（含 CI）40，同一份提交两边不一致，棘轮必然一边假红。
+- **修法**：模块数改为「含至少一个 .ts 的顶层目录数」，与 srcFiles 同源同口径；实测本机与干净克隆均为 40。
+- **同步**：docs/ARCHITECTURE.md §1 由 41 模块 / 456 文件 / 122,138 行 更新为 40 模块 / 456 文件 / 122,148 行（+10 行为本次改动）。
+- **验证**：un test tests/unit/docs-consistency.test.ts = **10 pass / 0 fail**；un run arch:stats = 40 / 456 / 122,148 / 500 / 189。
+- **不做项**：未删除 src/data/（用户工作区的运行时目录，不属本任务）；未改其余统计口径。
+- **Commit**：`PLACEHOLDER_MODCOUNT`

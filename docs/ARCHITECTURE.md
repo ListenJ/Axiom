@@ -13,7 +13,7 @@ Axiom 是一个确定性认知运行时（Runtime）——生态位位于现有 
 | 属性 | 值（生成命令：`bun run scripts/count-arch-stats.mjs`；本节数字禁止手抄） |
 |------|-----|
 | 语言 / 运行时 | TypeScript 5.x / Bun 1.4.3（统一基线） |
-| src/ | **41 模块 / 456 文件 / 122,138 行**（`bun run arch:stats` 生成值，2026-10-16；A-0 口径契约（config/caliber.json + src/semantic/caliber-registry.ts + tests/caliber-contract.test.ts）后同步；数值由 docs-consistency 断言与实测精确相等） |
+| src/ | **40 模块 / 456 文件 / 122,148 行**（`bun run arch:stats` 生成值，2026-10-19；模块口径改为「含 .ts 的顶层目录」（排除 src/data 这类未跟踪目录）+ A-0 口径契约（config/caliber.json + src/semantic/caliber-registry.ts + tests/caliber-contract.test.ts）后同步；数值由 docs-consistency 断言与实测精确相等） |
 | 测试 | **500 个 `*.test.ts`**（`bun run arch:stats` 生成值，由 docs-consistency 断言与实测精确相等）；用例数以实跑输出为准，**本文不手抄**（见 §4） |
 | MCP 工具 | **189** 个去重工具（零重复）；单一事实源 `src/testing/tool-count.ts`，生成器 `scripts/count-tools.mjs` |
 | 代码质量门 | `as any` ≤ 25（2026-09-29 实测 8）、每文件 ≤ 5、`: any` ≤ 90、`@ts-expect-error` ≤ 1 |

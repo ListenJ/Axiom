@@ -40,11 +40,21 @@ function walk(dir: string): string[] {
 
 /** 统计当前工作树（cwd 为仓库根）。 */
 export function archStats(root = "."): ArchStats {
-  const srcTsfiles = walk(path.join(root, "src")).filter((f) => f.endsWith(".ts"));
+  const srcRoot = path.join(root, "src");
+  const srcTsfiles = walk(srcRoot).filter((f) => f.endsWith(".ts"));
   const srcLines = srcTsfiles.reduce((n, f) => n + fs.readFileSync(f, "utf8").split("\n").length - 1, 0);
-  const srcModules = fs
-    .readdirSync(path.join(root, "src"), { withFileTypes: true })
-    .filter((e) => e.isDirectory()).length;
+  // 模块数 = 含至少一个 .ts 的顶层目录数。
+  // 不用 `readdirSync(...).filter(isDirectory)`：那会把**工作区里未跟踪的目录**（空目录、
+  // 仅含运行时日志的目录）也算成模块，于是同一份提交在开发机与干净克隆（含 CI）上给出
+  // 不同数字，而该数字被 docs-consistency 棘轮逐值断言 —— 必然一边假红。
+  // 实测反例：`src/data/`（仅 `logs/agent.log`，零受跟踪文件）使本机 41、干净克隆 40。
+  const moduleNames = new Set<string>();
+  for (const f of srcTsfiles) {
+    const rel = path.relative(srcRoot, f);
+    const top = rel.split(path.sep)[0];
+    if (top && top !== rel) moduleNames.add(top);
+  }
+  const srcModules = moduleNames.size;
   const testFiles = walk(path.join(root, "tests")).filter((f) => f.endsWith(".test.ts"));
   const { total: mcpTools, duplicates } = countMcpTools();
   return {
