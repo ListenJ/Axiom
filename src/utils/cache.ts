@@ -379,7 +379,15 @@ export class Cache<V = unknown> {
       for (const [key, entry] of this.store) {
         if (now > entry.expiresAt) this.store.delete(key);
       }
-      this.db?.run("DELETE FROM cache_store WHERE expires_at < unixepoch()");
+      // 后台维护是**尽力而为**：调用方若绕过 destroy() 直接关闭 db（历史写法存在），
+      // 这里会对已关闭连接抛 `Database has closed`。清理失败不应把未捕获异常
+      // 甩给当时正在跑的无关测试（2026-10-19 修复），故吞掉——内存侧过期条目已删除，
+      // 持久层的过期行留给下次可用连接或 destroy 时的清理。
+      try {
+        this.db?.run("DELETE FROM cache_store WHERE expires_at < unixepoch()");
+      } catch {
+        /* 数据库已关闭或不可用：本轮持久层清理跳过 */
+      }
     }, 5 * 60 * 1000);
     this.cleanupTimer.unref?.();
   }

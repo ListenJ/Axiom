@@ -15,6 +15,17 @@ import {
 
 const TEST_AGENTS_DIR = "./tests/fixtures/agents";
 const TEST_INDEX_PATH = "./tests/fixtures/agents-index.json";
+/**
+ * 清理专用绝对路径（2026-10-19）。
+ * 实测：bun 1.4.3 在 win32 上对**以 `./` 开头的相对路径**调用 `fs.rmSync(..., {recursive:true})`
+ * 会**静默 no-op**（不抛错、也不删除）：`fs.rmSync("./.tmp/x")` 无效，而
+ * `fs.rmSync(".tmp/x")` / 绝对路径正常。后果是 `beforeEach` 清不掉上一个用例留下的夹具，
+ * 断言随之累积性失败（Expected 2 / Received 3）。
+ * 这类"删除静默失效"属测试夹具缺陷，**不是 Windows 平台能力缺失**，故不能加平台 skip；
+ * 正确做法是清理路径一律用绝对路径。业务代码仍使用上面的相对常量，语义不变。
+ */
+const TEST_AGENTS_DIR_ABS = path.resolve(TEST_AGENTS_DIR);
+const TEST_INDEX_PATH_ABS = path.resolve(TEST_INDEX_PATH);
 
 function createTestAgent(
   dir: string,
@@ -31,19 +42,19 @@ function createTestAgent(
 
 describe("AgentDiscovery", () => {
   beforeEach(() => {
-    // 清理并创建测试目录
-    fs.rmSync(TEST_AGENTS_DIR, { recursive: true, force: true });
+    // 清理并创建测试目录（清理用绝对路径，见 TEST_AGENTS_DIR_ABS 的说明）
+    fs.rmSync(TEST_AGENTS_DIR_ABS, { recursive: true, force: true });
     fs.mkdirSync(TEST_AGENTS_DIR, { recursive: true });
     // 清理索引文件
-    if (fs.existsSync(TEST_INDEX_PATH)) {
-      fs.unlinkSync(TEST_INDEX_PATH);
+    if (fs.existsSync(TEST_INDEX_PATH_ABS)) {
+      fs.unlinkSync(TEST_INDEX_PATH_ABS);
     }
   });
 
   afterEach(() => {
-    fs.rmSync(TEST_AGENTS_DIR, { recursive: true, force: true });
-    if (fs.existsSync(TEST_INDEX_PATH)) {
-      fs.unlinkSync(TEST_INDEX_PATH);
+    fs.rmSync(TEST_AGENTS_DIR_ABS, { recursive: true, force: true });
+    if (fs.existsSync(TEST_INDEX_PATH_ABS)) {
+      fs.unlinkSync(TEST_INDEX_PATH_ABS);
     }
   });
 

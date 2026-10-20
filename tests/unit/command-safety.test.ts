@@ -5,6 +5,7 @@ import { gitCommit, gitLog, gitBlame, gitDiff } from "../../src/mcp/tools/git";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { canInitGitRepo } from "../helpers/env-probe";
 
 describe("command-safety H-02 cmd /c bypass → whitelist fix", () => {
   const WL = "AXIOM_TERMINAL_WHITELIST";
@@ -98,7 +99,7 @@ describe("executeCommand args 数组通道（S3 非 shell 执行）", () => {
   }, 20000);
 });
 
-describe("git.ts 数组通道迁移（S3 注入中和，临时真实仓库）", () => {
+describe.skipIf(!canInitGitRepo())("git.ts 数组通道迁移（S3 注入中和，临时真实仓库）（skip：本机 git 无法创建仓库，E1）", () => {
   const injectMsg = process.platform === "win32"
     ? 'msg" & echo pwned > injected.txt & echo "'
     : 'msg"; echo pwned > injected.txt; echo "';

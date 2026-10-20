@@ -201,12 +201,13 @@ describe("E. LLM Cache 持久化 (L3 SQLite)", () => {
       provider: "p",
     }));
 
-    // L3 写入是去抖异步的（pendingL3 + setTimeout(0)）：显式调用 flush 钩子
-    // 落盘后再关库，不猜测时序。此处不走 destroy()（其自身语义由下方
-    // 回归测试覆盖），改为直接关闭 db 连接。
-    cache1.flushPendingWrites();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (cache1 as any).db?.close();
+    // L3 写入是去抖异步的（pendingL3 + setTimeout(0)）：destroy() 内部**先 flush 再关库**，
+    // 并清除 5 分钟清理定时器 —— 这正是必须走 destroy() 而非直接 db.close() 的原因：
+    // 直接关库会留下孤儿定时器，约 5 分钟后在 cache.ts 的清理回调里访问已关闭 db，
+    // 抛出的未捕获异常会被 bun 归咎给当时正在跑的**无关测试**。
+    // （2026-10-19 实测：全量无隔离时随机砸在 tests/stress/audit-regression-stress.test.ts 的 S2；
+    //  `--isolate` 全量 0/1 复现，时间差与 5 分钟周期吻合。）
+    cache1.destroy();
 
     // 新实例从同一 L3 恢复
     const cache2 = new Cache<CachedLLMResponse>({

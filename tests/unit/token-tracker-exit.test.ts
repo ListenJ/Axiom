@@ -26,6 +26,13 @@ const ROOT = path.resolve(import.meta.dir, "../..");
  */
 const TRACKER_URL = pathToFileURL(join(ROOT, "src", "router", "token-tracker.ts")).href;
 
+/**
+ * 用例预算（2026-10-19）：体内是**嵌套 bun 子进程**（冷启动实测约 10s）。
+ * bun 用例默认超时 5000ms 会在子进程完成前被杀 → 子进程 stdout 被截断 →
+ * 依赖 `res.status === 0` 的断言变成误导性失败。故显式声明，且严格大于 spawnSync 的 15s。
+ */
+const CASE_TIMEOUT_MS = 45_000;
+
 describe("TokenTracker 定时器 unref", () => {
   it("记一条用量后进程能自然退出（不靠 close()）", () => {
     const dir = mkdtempSync(join(tmpdir(), "tracker-exit-"));
@@ -61,5 +68,5 @@ describe("TokenTracker 定时器 unref", () => {
     } finally {
       try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
     }
-  });
+  }, CASE_TIMEOUT_MS);
 });

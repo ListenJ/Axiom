@@ -1,6 +1,9 @@
 [test]
 # Enable DOM for frontend React tests
 dom = true
-# 系统级默认超时：raw `bun test` 不经 scripts/test-full.ts 时仍需合理超时
-# （test-full.ts 自带 --timeout 15000，此值与之对齐，防裸跑 5s 默认误杀 I/O 密集测试）
-timeout = 15000
+# 注意：**不要**在此写 `timeout = ...`。2026-10-19 实测 bun 1.4.3 **不识别** bunfig 的
+# `[test] timeout`：仓内探针（6s 用例、不传 CLI 参数）仍按默认 5000ms 失败；同一探针
+# 加 `--timeout 15000` 才通过。有效的超时只有两条路：
+#   1) CLI `--timeout`（`scripts/test-full.ts` 用 15000）；
+#   2) 每个用例显式声明 `it(name, fn, ms)` 第三参数（嵌套子进程类用例**必须**用它）。
+# 原先这里的 `timeout = 15000` 是无效死配置，已移除以免误导（以为调大了其实没生效）。

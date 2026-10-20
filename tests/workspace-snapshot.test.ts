@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
+import { canInitGitRepo } from "./helpers/env-probe";
 
 const GIT_CFG = ["-c", "user.email=axiom@local", "-c", "user.name=Axiom"];
 
@@ -24,7 +25,7 @@ function git(cwd: string, args: string[]): string {
   return execFileSync("git", [...GIT_CFG, ...args], { cwd, encoding: "utf-8", stdio: "pipe" });
 }
 
-describe("snapshot_revert 不得写回执行锚点", () => {
+describe.skipIf(!canInitGitRepo())("snapshot_revert 不得写回执行锚点（skip：本机 git 无法创建仓库，E1 环境能力缺失）", () => {
   test("普通文件恢复，.env / CI 工作流拒写", async () => {
     const sandbox = mkdtempSync(path.join(tmpdir(), "axiom-snap-"));
     const snapshotDir = path.join(sandbox, ".axiom", "snapshots");
@@ -61,7 +62,7 @@ describe("snapshot_revert 不得写回执行锚点", () => {
       process.chdir(saved);
       rmSync(sandbox, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 
   test("快照采集不把锚点文件复制进快照树（凭据不被二次落地）", async () => {
     const sandbox = mkdtempSync(path.join(tmpdir(), "axiom-snap2-"));
@@ -88,5 +89,5 @@ describe("snapshot_revert 不得写回执行锚点", () => {
       process.chdir(saved);
       rmSync(sandbox, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 });

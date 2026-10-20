@@ -18,6 +18,13 @@ const ROOT = path.resolve(import.meta.dir, "../..");
 const SCRIPT = path.join(ROOT, "scripts", "eval-lexical-recall-baseline.ts");
 const OUT = path.join(ROOT, "eval-results", "lexical-recall-baseline-2026-09-20.md");
 
+/**
+ * 用例预算（2026-10-19）：体内是**嵌套 bun 子进程**（实测约 5s，距默认 5000ms 阈值仅 29ms）。
+ * bun 用例默认超时 5000ms 会随时序抖动杀掉子进程 → 输出被截断 → 误报断言失败。
+ * 故显式声明，且严格大于 spawnSync 的 120s。
+ */
+const CASE_TIMEOUT_MS = 150_000;
+
 describe("词法召回基线（切片 2）", () => {
   it("脚本自校验通过并生成基线产物", () => {
     const res = spawnSync("bun", ["run", SCRIPT], {
@@ -32,5 +39,5 @@ describe("词法召回基线（切片 2）", () => {
     // 对照组必须真的测到命中 —— 否则是 harness 坏了，而非"词法差"
     expect(out).toContain("lexical-control");
     expect(out).toContain("#1");
-  });
+  }, CASE_TIMEOUT_MS);
 });

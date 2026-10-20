@@ -14,7 +14,49 @@
  * `hasEnv` 重新求值。探测应在测试收集期（`describe.skipIf` / `it.skipIf` 前）使用。
  */
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import net from "node:net";
+
+/**
+ * E1 能力探测：本机 git 能否**真正创建仓库**。
+ *
+ * 背景（2026-10-19 实测）：本仓库所在开发机的 DSH 工具链 git 被沙箱限制写，
+ * `git init` 全局失败（`fatal: cannot mkdir …: Permission denied`），而 git 的读路径
+ * （`status` / `log`）完全正常。于是依赖"临时建 git 仓库"的用例会假红——
+ * 这是**环境能力缺失**（E1），不是代码缺陷，也不是 Windows 平台语义差异。
+ *
+ * 判据：在系统临时目录里真跑一次 `git init`，成功即 true。**必须用绝对路径**
+ * （bun@win32 对 `./` 前缀路径的 rm/mkdir 存在静默 no-op 的已知问题）。
+ * 记忆化：同进程只探测一次；探测自身的清理失败不影响结果。
+ */
+export function canInitGitRepo(): boolean {
+  if (gitRepoProbe !== undefined) return gitRepoProbe;
+
+  let dir = "";
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "env-probe-git-"));
+    const res = spawnSync("git", ["init"], {
+      cwd: dir,
+      stdio: "ignore",
+      timeout: 5_000,
+      windowsHide: true,
+    });
+    gitRepoProbe = res.error === undefined && res.status === 0;
+  } catch {
+    gitRepoProbe = false;
+  } finally {
+    if (dir !== "") {
+      try {
+        fs.rmSync(dir, { recursive: true, force: true });
+      } catch {
+        /* 清理失败不影响探测结论 */
+      }
+    }
+  }
+  return gitRepoProbe;
+}
 
 /** 单个探测的超时上限（设计稿 §4.1：≤2s）。 */
 const PROBE_TIMEOUT_MS = 2_000;
@@ -22,6 +64,7 @@ const PROBE_TIMEOUT_MS = 2_000;
 const commandCache = new Map<string, boolean>();
 const envCache = new Map<string, boolean>();
 const connectCache = new Map<string, Promise<boolean>>();
+let gitRepoProbe: boolean | undefined;
 
 /**
  * E1 能力探测：命令是否可执行（只看能否 spawn，不看参数是否支持）。

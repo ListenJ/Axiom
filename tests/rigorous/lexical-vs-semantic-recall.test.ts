@@ -21,6 +21,13 @@ const BASELINE = path.join(ROOT, "scripts", "eval-lexical-recall-baseline.ts");
 const FIXTURE = path.join(ROOT, "scripts", "eval-fixtures", "recall-corpus.ts");
 const OUT_FAKE = path.join(ROOT, "eval-results", "lexical-vs-semantic-recall-2026-09-20-fake.md");
 
+/**
+ * 用例预算（2026-10-19）：两个用例体内都是**嵌套 bun 子进程**（实测 4.6–4.8s，紧贴默认 5000ms 阈值）。
+ * bun 用例默认超时 5000ms 会随时序抖动杀掉子进程 → 输出被截断 → 误报断言失败。
+ * 故显式声明，且**严格大于** spawnSync 的 120s。
+ */
+const CASE_TIMEOUT_MS = 150_000;
+
 /** 清掉会让"真实模式"通过的环境变量（父进程可能已导出凭据） */
 function cleanEnv(): Record<string, string | undefined> {
   return {
@@ -47,7 +54,7 @@ describe("A8 对拍（词法 vs 词法+语义）", () => {
     const md = readFileSync(OUT_FAKE, "utf8");
     expect(md).toContain("不代表任何语义质量");
     expect(md).toContain("lexical-control");
-  });
+  }, CASE_TIMEOUT_MS);
 
   it("真实模式缺前置条件 ⇒ exit 2，且不产出数字（不静默降级到假 embedder）", () => {
     const res = spawnSync("bun", ["run", SCRIPT], {
@@ -59,7 +66,7 @@ describe("A8 对拍（词法 vs 词法+语义）", () => {
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
     expect(res.status).toBe(2);
     expect(out).toContain("不会退回假 embedder");
-  });
+  }, CASE_TIMEOUT_MS);
 
   it("两半共用同一份夹具（防漂移）", () => {
     expect(existsSync(FIXTURE)).toBe(true);

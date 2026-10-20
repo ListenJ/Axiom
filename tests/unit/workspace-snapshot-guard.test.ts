@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { canInitGitRepo } from "../helpers/env-probe";
 import {
   assertValidSnapshotId,
   revertSnapshot,
@@ -60,7 +61,7 @@ afterAll(() => {
   process.chdir(ORIGINAL_CWD);
 });
 
-describe("revertSnapshot 二进制保真（整改 D5）", () => {
+describe.skipIf(!canInitGitRepo())("revertSnapshot 二进制保真（整改 D5）（skip：本机 git 无法创建仓库，E1）", () => {
   test(
     "含 0xFF/0x00 等二进制字节的文件 restore 后逐字节相等",
     async () => {
@@ -79,7 +80,7 @@ describe("revertSnapshot 二进制保真（整改 D5）", () => {
   );
 });
 
-describe("revertSnapshot 部分失败聚合（整改 D5）", () => {
+describe.skipIf(!canInitGitRepo())("revertSnapshot 部分失败聚合（整改 D5）（skip：本机 git 无法创建仓库，E1）", () => {
   test(
     "两文件其一写入失败 → success:false 且 errors 含失败路径；另一文件仍恢复",
     async () => {

@@ -15,6 +15,14 @@ import path from "node:path";
 
 const CASE = path.join(import.meta.dir, "chat-capture-session.case.ts");
 
+/**
+ * 用例预算（2026-10-19）：体内是**嵌套 bun 子进程**（冷启动 + 加载模块图实测 6–22s）。
+ * bun 用例默认超时 5000ms 会在子进程完成前被杀 → stdout 被截断 → 解析不到 `N pass / N fail`
+ * → 报成误导性的「Expected 0, Received -1」，把超时伪装成断言失败。
+ * 故必须显式声明用例预算，且**严格大于**子进程的 spawnSync timeout（120s）。
+ */
+const CASE_TIMEOUT_MS = 150_000;
+
 function runCase() {
   const res = spawnSync("bun", ["test", CASE], {
     encoding: "utf8",
@@ -37,5 +45,5 @@ describe("路由级断言（子进程隔离）", () => {
     }
     expect(r.fail).toBe(0);
     expect(r.pass).toBeGreaterThanOrEqual(3);
-  });
+  }, CASE_TIMEOUT_MS);
 });

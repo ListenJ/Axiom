@@ -19,6 +19,18 @@ import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { saveSkillFile, createSkillFileBoilerplate } from "../../src/skills/skill-loader.js";
 
+/**
+ * E1 平台能力缺失（设计稿 §3）：Windows 默认（非开发者模式）进程没有
+ * `SeCreateSymbolicLinkPrivilege`，`symlinkSync` 恒 EPERM —— POSIX 符号链接语义在
+ * Windows 上原理上不可满足，不是被测代码的缺陷。
+ *
+ * 处置分两种，都不隐藏信号：
+ *   - 夹具按平台门控建链（Linux 上仍强制建，失败即红，不降级为 catch 忽略）；
+ *   - 只有**依赖该链接**的那条用例 `skipIf` 跳过（标题带理由、报告可见）。
+ * 另外两条用例的断言（绝对路径被拒 / 沙箱内正常文件可写）不依赖链接，Windows 上照跑。
+ */
+const NO_SYMLINK = process.platform === "win32";
+
 /** 造一个沙箱：skill 目录 + 一个 CI 工作流锚点文件，并让 skill 目录里的 .yml 指向该锚点 */
 function makeSandbox(): { root: string; anchor: string } {
   const root = path.join(tmpdir(), `axiom-skill-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
@@ -26,7 +38,7 @@ function makeSandbox(): { root: string; anchor: string } {
   mkdirSync(path.join(root, ".github", "workflows"), { recursive: true });
   const anchor = path.join(root, ".github", "workflows", "ci.yml");
   writeFileSync(anchor, ANCHOR_ORIGINAL, "utf-8");
-  symlinkSync(anchor, path.join(root, "skills", "escape.yml"));
+  if (!NO_SYMLINK) symlinkSync(anchor, path.join(root, "skills", "escape.yml"));
   return { root, anchor };
 }
 
@@ -54,7 +66,7 @@ async function inSandbox<T>(root: string, fn: () => Promise<T>): Promise<T> {
 }
 
 describe("R2-B saveSkillFile 在执行点拒绝锚点写入", () => {
-  test("经 skill 目录内的符号链接写执行锚点：锚点内容不变", async () => {
+  test.skipIf(NO_SYMLINK)("经 skill 目录内的符号链接写执行锚点：锚点内容不变（skip：Windows 无符号链接权限）", async () => {
     const { root, anchor } = makeSandbox();
     await inSandbox(root, async () => {
       const reason = await attemptSave("skills/escape.yml");

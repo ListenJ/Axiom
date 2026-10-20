@@ -98,7 +98,20 @@ const escapeRoot = `${sandbox}-escape`;
 fs.mkdirSync(escapeRoot, { recursive: true });
 const escapeTarget = path.join(escapeRoot, "outside-secret.txt");
 fs.writeFileSync(escapeTarget, "outside-the-sandbox\n");
-fs.symlinkSync(escapeTarget, path.join(sandbox, "escape-link"));
+
+/**
+ * E1 平台能力缺失（设计稿 §3）：Windows 默认（非开发者模式）无 `SeCreateSymbolicLinkPrivilege`，
+ * `symlinkSync` 恒 EPERM —— POSIX 符号链接语义在 Windows 上原理上不可满足。
+ *
+ * 这一行是**模块作用域**执行：一次 EPERM 会让整文件 0 用例 + `1 fail / 1 error`
+ * （2026-10-19 Windows 全量实测），比"跳过 3 条依赖链接的用例"代价大得多，且信号更差。
+ * 故按平台门控建链 + 对依赖链接的用例 `it.skipIf` 显式跳过（标题带理由、报告可见）。
+ * Linux 上仍强制建链：链接建不出来就红，不降级成静默忽略。
+ */
+const NO_SYMLINK = process.platform === "win32";
+if (!NO_SYMLINK) {
+  fs.symlinkSync(escapeTarget, path.join(sandbox, "escape-link"));
+}
 process.chdir(sandbox);
 
 /** 删符号链接本身而不是它指向的内容：Windows 上 rmSync 对目录链接返 EFAULT，unlink 两端都可用。 */
@@ -298,7 +311,7 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
     expect(back.toString()).toContain("added");
   });
 
-  it("沙箱内符号链接指向沙箱外时拒绝（字符串前缀判定会被骗过）", async () => {
+  it.skipIf(NO_SYMLINK)("沙箱内符号链接指向沙箱外时拒绝（字符串前缀判定会被骗过）（skip：Windows 无符号链接权限）", async () => {
     const safeFs = await import("../src/utils/safe-fs.js");
     expect(fs.existsSync("escape-link")).toBe(true);
     // 夹具自证：链接必须**不悬空**且确实指向沙箱外 —— 上一版因目标不存在而在这里就红，
@@ -316,7 +329,7 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
     expect(err!.message.toLowerCase()).toContain("denied");
   });
 
-  it("沙箱内符号链接指向沙箱外的执行锚点时同样拒绝（点开头目录不得被跳过）", async () => {
+  it.skipIf(NO_SYMLINK)("沙箱内符号链接指向沙箱外的执行锚点时同样拒绝（点开头目录不得被跳过）（skip：Windows 无符号链接权限）", async () => {
     const safeFs = await import("../src/utils/safe-fs.js");
     const link = "src/link-to-env";
     try {
@@ -334,7 +347,7 @@ describe("S-3 safeFs 在 I/O 点强制（封堵 L1/L2）", () => {
     }
   });
 
-  it("沙箱内目录符号链接指向锚点目录：不得把新文件写进锚点目录", async () => {
+  it.skipIf(NO_SYMLINK)("沙箱内目录符号链接指向锚点目录：不得把新文件写进锚点目录（skip：Windows 无符号链接权限）", async () => {
     const safeFs = await import("../src/utils/safe-fs.js");
     const link = "src/link-to-hooks";
     const landed = path.join(sandbox, ".git/hooks/injected");
