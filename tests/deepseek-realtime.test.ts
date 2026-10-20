@@ -51,7 +51,25 @@ function providerApiKeyEnvs(providers: Iterable<string>): string[] {
  * 故标题只给一个代表性 env var；完整候选清单在 skip 时打印一次（console.warn），
  * 保证"为什么 skip"在报告与日志里都可查（设计稿 §4.3：skip 列表必须可解释）。
  */
+/**
+ * 真实外部 API 测试的**显式开关**（2026-10-19）。
+ *
+ * 为什么默认不跑：本文件是真实链路集成测试——它依赖外部模型服务，结果受额度/限流/网络影响
+ * （实测：本机会因 `429 inference exceeds tpm/rpm limit` 变红），且每次执行消耗额度。
+ * 这类测试放在默认套件里会让"红"失去信号价值（分不清是回归还是外部抖动），
+ * 因此改为 opt-in：仅当 `AXIOM_RUN_REAL_API_TESTS` 非空时才尝试执行，并且仍需凭据齐备。
+ * 需要验证真实链路时：`AXIOM_RUN_REAL_API_TESTS=1 bun test tests/deepseek-realtime.test.ts`
+ */
+const REAL_API_OPT_IN_ENV = "AXIOM_RUN_REAL_API_TESTS";
+
+function realApiOptInReason(label: string): string | undefined {
+  if (hasEnv(REAL_API_OPT_IN_ENV)) return undefined;
+  return `${label}（真实外部 API 测试默认不跑：设 ${REAL_API_OPT_IN_ENV}=1 显式开启）`;
+}
+
 function missingCredentialReason(label: string, envNames: readonly string[]): string | undefined {
+  const optOut = realApiOptInReason(label);
+  if (optOut !== undefined) return optOut;
   if (envNames.length === 0) return `${label}（无可探测的候选 provider）`;
   if (envNames.some((name) => hasEnv(name))) return undefined;
   console.warn(
