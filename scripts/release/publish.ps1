@@ -217,12 +217,27 @@ try {
   & $script:GitExe push $Remote "$($commit):$remoteRef"
   if ($LASTEXITCODE -ne 0) { throw "推送失败" }
 
+  # 推送后复核：远端发布头必须正好等于该提交。
+  # 2026-10-19 实测教训：ssh 偶发瞬时失败会让 ls-remote 返回空输出，此时若直接抛
+  # 「校验不一致」会把**已成功的推送**误报为失败（实际推送已完成）。故最多重试 3 次，
+  # 只有全部重试后仍不一致才判失败，且错误信息区分「读取失败」与「读到了但不相等」。
   $remoteSha = ""
-  $verifyOut = @(& $script:GitExe ls-remote $Remote $remoteRef 2>$null)
-  if ($LASTEXITCODE -eq 0 -and $verifyOut.Count -gt 0) {
-    $remoteSha = ("$($verifyOut[0])" -split "\s+")[0].Trim()
+  for ($attempt = 1; $attempt -le 3; $attempt++) {
+    $verifyOut = @(& $script:GitExe ls-remote $Remote $remoteRef 2>$null)
+    $remoteSha = ""
+    if ($LASTEXITCODE -eq 0 -and $verifyOut.Count -gt 0) {
+      $remoteSha = ("$($verifyOut[0])" -split "\s+")[0].Trim()
+    }
+    if ($remoteSha -eq $commit) { break }
+    if ($attempt -lt 3) {
+      Write-Host ("ls-remote 复核未拿到预期结果（第 {0} 次，远端='{1}'），1s 后重试" -f $attempt, $remoteSha)
+      Start-Sleep -Seconds 1
+    }
   }
   Write-Host ("远端 {0}/{1} = {2}" -f $Remote, $Branch, $remoteSha)
+  if ($remoteSha -eq "") {
+    throw "推送后校验失败：ls-remote 连续 3 次未返回远端发布头（推送可能已成功，请手工核实 origin/main）"
+  }
   if ($remoteSha -ne $commit) { throw "推送后校验不一致：远端 $remoteSha，新提交 $commit" }
   if ($canCompare) {
     & $script:GitExe merge-base --is-ancestor $base $commit 2>$null
