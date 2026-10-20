@@ -312,8 +312,13 @@ export async function initAdaptiveProxy(overrides?: Partial<AdaptiveProxyConfig>
   logger.info("[AdaptiveProxy] Initializing...");
 
   // 1. 收集代理候选
+  // 注意（2026-10-19 修复）：`detectWindowsProxy()` 是**自动探测**的一部分（它 spawn `reg query`
+  // 读系统代理设置）。原实现无视 `autoDetect`、始终调用，导致显式传 `autoDetect:false` 的调用方
+  // （如 tests/unit/adaptive-proxy-exit.test.ts，为验证"定时器 unref 不钉死进程"而刻意不走网络）
+  // 仍会执行系统代理探测，在 Windows 全量负载下会卡住直至子进程被超时杀掉。
+  // `autoDetect:false` 的语义就是"不做任何自动发现"，故此处与 `scanCommonProxies()` 一致地受其门控。
   const envProxies = detectEnvProxy();
-  const winProxy = await detectWindowsProxy();
+  const winProxy = config.autoDetect ? await detectWindowsProxy() : null;
   const scannedProxies = config.autoDetect ? await scanCommonProxies() : [];
 
   // 合并去重
