@@ -16,9 +16,11 @@ eval/semantic-equivalence
 .superpowers
 
 # —— 运行时数据与构建产物
-# 注：public/ 保留在发布面——Dockerfile 的 `COPY public/` 需要它，外界复现缺了会构建失败。
+# 注 1：public/ 保留在发布面——Dockerfile 的 `COPY public/` 需要它，外界复现缺了会构建失败。
+# 注 2：**不整目录排除 data/**——data/ 下只有 `data/.gitkeep` 被跟踪（其余被 .gitignore 覆盖），
+#       而运行时 SQLite/Vault 目录必须存在，否则服务启动自检判 critical、E2E 起不来。
+#       2026-10-20 实测：发布面缺 data/ 时 `bun run test:e2e` 必失败（GitHub Actions run 39436976020）。
 reports
-data
 
 # —— 内部子服务配置
 mcp-servers

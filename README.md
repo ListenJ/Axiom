@@ -718,9 +718,18 @@ Hermes 安装后可通过 MCP 连接 Axiom 共享记忆库。
 
 ## 测试
 
-> **测试口径**：以 CI 最近一次 green run 为准（见 [CI/CD 工作流](.github/workflows/ci.yml) 与仓库 Actions 运行记录）。本地 `bun test` 结果会因环境/网络波动而漂移，此处不硬编码数字，权威数字以 CI 运行记录为准。
+> **测试口径**：本仓库附带 GitHub Actions 工作流（`.github/workflows/`：CI/CD、前端视觉审计）。但外部托管环境的依赖安装/浏览器/端口条件与内部一致，**权威做法是本地一条命令自检**（见下方「发布面自检」），结果可复现；本文件不硬编码测试数字，避免过期。
 
-[CI 状态 · CI/CD 工作流](.github/workflows/ci.yml)
+### 发布面自检（推荐）
+
+```bash
+# 一键对齐口径：冻结锁安装 + 类型检查 + 全量测试
+bun install --frozen-lockfile --ignore-scripts
+bun node_modules/typescript/bin/tsc --noEmit
+bun test --timeout 15000 ./tests
+```
+
+顺带说明：发布面**不含 `docs/`**，因此文档契约类测试（`doc-contract` / `docs-consistency` / `caliber-contract` / `architecture-integrity` 等）不随本分发；它们的存在前提是内部文档树。运行时代码要求仓库根存在 `data/` 目录（发布面已保留 `data/.gitkeep`），否则服务启动自检会判 critical。
 
 ```bash
 # 运行全部测试
