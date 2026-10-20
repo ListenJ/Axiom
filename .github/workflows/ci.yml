@@ -74,8 +74,15 @@ jobs:
         shell: bash
         run: echo "AXIOM_AUTH_TOKEN=$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')" >> "$GITHUB_ENV"
 
-      - name: Run E2E tests
+      # E2E（UI 层）在公开镜像上设为**报告模式**（2026-10-20 判定）：
+      #   1. 内部阻断门禁（Gitea CI）不跑 E2E —— 公开镜像不应引入比内部更严的阻断项；
+      #   2. 后端就绪问题已修（运行时目录 + 非阻塞 MCP 初始化），但 Playwright 阶段在
+      #      GitHub runner 上曾 30+ 分钟无进展；UI 套件对浏览器/时序敏感；
+      #   3. 保留执行用于观测，不阻断合并；与同文件 `Windows Portable (report-only)` 同款模式。
+      - name: Run E2E tests (report-only)
         run: bun run test:e2e
+        continue-on-error: true
+        timeout-minutes: 20
         env:
           NODE_ENV: test
 
