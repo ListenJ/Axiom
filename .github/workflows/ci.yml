@@ -323,7 +323,11 @@ jobs:
     # codex/** 的 push 只跑 L1（test + windows-portable）。
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     steps:
+      # 全量历史（2026-10-20）：trufflehog 需要可比较的 base 提交；浅克隆会让它找不到 base
+      # 而以非零退出（不是发现了密钥）。fetch-depth: 0 是修复的一半。
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -351,19 +355,19 @@ jobs:
         # 初期 report-only（continue-on-error），确认零误报后可改为阻断。
         continue-on-error: true
 
-      # 密钥扫描（trufflehog）：**报告模式**（2026-10-20 判定）
-      #   失败原因（run 39457724942 实测）：`base: main` 在 push 到 main 的事件里与 HEAD 同指，
-      #   且 checkout 默认浅克隆，trufflehog 找不到可比较的 base ⇒ 动作以非零退出。
-      #   这不是"发现了密钥"——修复需按事件类型设置 base 引用（pull_request 用 base.sha、
-      #   push 用 github.event.before）并配合 fetch-depth，属独立小任务，已登记为债务。
-      #   在此期间保留执行用于观测，不阻断；依赖漏洞门禁（`bun audit`）仍为**阻断式**。
-      - name: Check for secrets (report-only)
+      # 密钥扫描（trufflehog）：**阻断式**（2026-10-20 修复后恢复）
+      #   原实现 `base: main` + 默认浅克隆 ⇒ push 到 main 时 base 与 HEAD 同指、且历史缺失，
+      #   动作因"找不到可比较 base"非零退出（run 39457724942 实测），并非发现密钥。
+      #   修复：① checkout 使用 fetch-depth: 0；② base/head 按事件类型取真实 SHA
+      #   （PR 比较 base.sha，push 比较 event.before）；③ 新建分支首次 push 的 before 为全零，
+      #   此时跳过（无历史可比较），避免再次因引用无效而假红。
+      - name: Check for secrets (blocking)
+        if: ${{ github.event_name != 'push' || github.event.before != '0000000000000000000000000000000000000000' }}
         uses: trufflesecurity/trufflehog@main
-        continue-on-error: true
         with:
           path: ./
-          base: main
-          head: HEAD
+          base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          head: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           extra_args: --debug --only-verified
   deploy-smoke:
     name: Linux Deploy Smoke (pm2 + runtime audit)

@@ -92,7 +92,8 @@
     "calibrate:laya": "bun run src/decision/laya-calibrate.ts",
     "arch:stats": "bun run scripts/count-arch-stats.mjs",
     "arch:check": "bun run scripts/count-arch-stats.mjs --check",
-    "hooks:install": "bun run scripts/install-hooks.mjs"
+    "hooks:install": "bun run scripts/install-hooks.mjs",
+    "verify:publish": "bun run scripts/release/verify-publish-surface.mjs"
   },
   "dependencies": {
     "@colbymchenry/codegraph": "^0.9.9",

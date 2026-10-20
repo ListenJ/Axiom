@@ -65,17 +65,35 @@ async function waitHealth(timeoutMs) {
   let failed = 0;
   for (const file of selected) {
     console.log(`\n>>> Testing ${file}`);
+    // 逐文件计时（2026-10-20）：CI 上若某 spec 悬挂，可从日志直接看出是哪个文件/花了多久，
+    // 而不是只看到整步超时（此前排查只能靠猜）。
+    const startedAt = Date.now();
     try {
       const binName = process.platform === 'win32' ? 'playwright.exe' : 'playwright';
       const bin = path.join(__dirname, '..', 'node_modules', '.bin', binName);
       const relPath = 'e2e/' + file;
       execSync(
         `"${bin}" test "${relPath}" --project=chromium --workers=1 --timeout=30000 --reporter=line`,
-        { stdio: 'inherit', cwd: path.join(__dirname, '..') },
+        {
+          stdio: 'inherit',
+          cwd: path.join(__dirname, '..'),
+          // 单文件硬超时（2026-10-20）：Playwright 的 --timeout 只约束**单个测试**，
+          // 浏览器启动/teardown/hook 卡住时不受它约束。实测 GitHub runner 上该步骤曾 30+ 分钟
+          // 无进展（run 39457724942），因此每个 spec 文件再加一层独立兜底：超时记失败、继续下一个，
+          // 绝不允许整轮 E2E 无限期悬挂。
+          timeout: 180000,
+          killSignal: 'SIGKILL',
+        },
       );
     } catch (e) {
       failed++;
-      console.error(`FAILED: ${file}`);
+      if (e && (e.killed || e.signal)) {
+        console.error(`TIMEOUT: ${file}（超过单文件 180s 上限，已强制终止）`);
+      } else {
+        console.error(`FAILED: ${file}`);
+      }
+    } finally {
+      console.log(`<<< ${file} 用时 ${((Date.now() - startedAt) / 1000).toFixed(1)}s`);
     }
   }
 

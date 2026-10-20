@@ -213,6 +213,14 @@ try {
     Write-Host ("{0}..{1} 提交数 = {2}（快进）" -f $base.Substring(0, 12), $commit.Substring(0, 12), $ahead)
   }
 
+  # ── 4.5) 发布面自检（2026-10-20）：推送**之前**校验发布树内容 ─────────────────
+  # 背景：2026-10-20 实测事故——`data/`、`axiom-memory/` 被整目录剔除，发布面克隆后
+  # 服务启动自检 critical、E2E 必失败，而内部全量测试永远发现不了（内部两目录都在）。
+  # 该自检把「发布面必须含什么 / 绝不能含什么」变成可执行断言（scripts/release/verify-publish-surface.mjs）。
+  Write-Host "发布面自检 ..." -ForegroundColor Cyan
+  & bun run (Join-Path $PSScriptRoot "verify-publish-surface.mjs") $commit
+  if ($LASTEXITCODE -ne 0) { throw "发布面自检未通过（见上方输出），已中止推送" }
+
   # ── 5) 推送并复核（推完远端发布头必须正好等于该提交）──────────────────────────
   & $script:GitExe push $Remote "$($commit):$remoteRef"
   if ($LASTEXITCODE -ne 0) { throw "推送失败" }
