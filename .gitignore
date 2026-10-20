@@ -52,7 +52,11 @@ __pycache__/
 
 # === Generated memory content ===
 openclaw-memory/
-axiom-memory/
+# axiom-memory/ 内存内容不入库，但**目录本身必须存在**：`.env.example` 的默认
+# OBSIDIAN_VAULT_PATH=./axiom-memory，缺目录时服务启动自检判 critical 并拒绝监听
+# （2026-10-20 实测：这导致发布面 E2E 必失败）。故保留 .gitkeep 占位。
+axiom-memory/*
+!axiom-memory/.gitkeep
 
 # === Temporary files ===
 .tmp/

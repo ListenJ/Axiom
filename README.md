@@ -729,7 +729,7 @@ bun node_modules/typescript/bin/tsc --noEmit
 bun test --timeout 15000 ./tests
 ```
 
-顺带说明：发布面**不含 `docs/`**，因此文档契约类测试（`doc-contract` / `docs-consistency` / `caliber-contract` / `architecture-integrity` 等）不随本分发；它们的存在前提是内部文档树。运行时代码要求仓库根存在 `data/` 目录（发布面已保留 `data/.gitkeep`），否则服务启动自检会判 critical。
+顺带说明：发布面**不含 `docs/`**，因此文档契约类测试（`doc-contract` / `docs-consistency` / `caliber-contract` / `architecture-integrity` 等）不随本分发；它们的存在前提是内部文档树。运行时代码要求仓库根存在 `data/` 与 `axiom-memory/` 两个目录（发布面已保留各自的 `.gitkeep` 占位），否则服务启动自检会判 critical 并拒绝监听。
 
 ```bash
 # 运行全部测试
