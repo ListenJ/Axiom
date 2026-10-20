@@ -44,7 +44,7 @@
     "advisor:free": "bun run src/cli.ts advisor:free",
     "advisor:evolve": "bun run src/cli.ts advisor:evolve",
     "research": "bun run src/cli.ts research",
-    "db:init": "echo \"PostgreSQL 已移除 (H-M1-03) — SQLite 为唯一数据库；pg-schema.sql 已归档\" && exit 0",
+    "db:init": "echo \"PostgreSQL 已移除 (H-M1-03) — SQLite 为唯一运行时数据库；src/db/pg-schema.sql 仅作历史参考保留在仓库（无运行时消费者、不再 COPY 进镜像）\" && exit 0",
     "test": "bun run scripts/test-full.ts --parallel=8",
     "test:e2e": "node scripts/run-e2e.cjs",
     "lint": "tsc --noEmit",

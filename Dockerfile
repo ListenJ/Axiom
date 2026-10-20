@@ -49,7 +49,10 @@ COPY config/ ./config/
 COPY public/ ./public/
 COPY --from=frontend-builder /app/frontend/dist/ ./public/
 COPY scripts/ ./scripts/
-COPY src/db/pg-schema.sql ./src/db/pg-schema.sql
+# 注（2026-10-19）：不再 COPY src/db/pg-schema.sql。
+# PostgreSQL 已随 H-M1-03 移除，该 schema 在仓库中仅作历史参考、**无运行时消费者**；
+# 打进镜像只是死载荷（每次构建多一层、镜像多 16KB），且与 `db:init` 的"已归档"表述矛盾。
+# 如需恢复 PG 能力，按规则 4 先裁决该文件存废，再重建客户端与索引迁移。
 
 # 创建数据目录（axiom-memory 由 compose volume 挂载，构建期不存在也允许）
 RUN mkdir -p data axiom-memory && chown -R appuser:appgroup /app
