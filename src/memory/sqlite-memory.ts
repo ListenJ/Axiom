@@ -482,6 +482,18 @@ export class SQLiteMemory {
     };
   }
 
+  /**
+   * 全部已索引笔记的路径（2026-10-19 新增）。
+   *
+   * 用途：`VaultManager.reindexAll()` 做"已删除笔记"差集时，必须以**数据库已知路径**为基准之一——
+   * `writeNote` 落盘的笔记可能不在增量登记表里，只按登记表做差集会漏删，留下 FTS/反链幽灵行。
+   * 只返回路径、不返回内容，避免把整库读进内存。
+   */
+  listNotePaths(): string[] {
+    const rows = this.db.query("SELECT path FROM memory_notes").all() as Array<{ path: string }>;
+    return rows.map((row) => row.path);
+  }
+
   listByCategory(category: string, limit = 20): MemoryRecord[] {
     const rows = this.db.query(
       "SELECT * FROM memory_notes WHERE para_category = ? ORDER BY updated_at DESC LIMIT ?"

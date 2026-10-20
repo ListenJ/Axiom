@@ -2,33 +2,50 @@
  * 真实场景集成测试：模拟用户使用流程
  * 不依赖外部 API 和 HTTP 服务器
  */
-import { describe, it, expect, beforeAll, afterAll } from "bun:test";
+import { afterAll, describe, expect, it } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { VaultManager } from "../src/memory/vault-manager.js";
+import { hasEnv } from "./helpers/env-probe";
 
 // ─── 测试 1: Vault 操作 ─────────────────────────────────────────────
-describe("Vault Manager (本地记忆库)", () => {
-  let vm: any;
+// 2026-10-19 修复（消除假绿）：原实现 beforeAll 里 `catch { vm = null }` 吞掉初始化异常，
+// 用例体再 `if (!vm) return;` 静默早退 —— 报告显示 **pass**，等于 Vault 路径回归零保护。
+// 现改为：收集期在临时目录构造真实 VaultManager；失败 → **可见 skip 且标题带原因**；
+// 用例体不再吞异常（取状态抛错即红）。
+const vaultTmpDir = mkdtempSync(join(tmpdir(), "axiom-rt-vault-"));
+let vault: VaultManager | null = null;
+let vaultSkipReason: string | undefined;
+try {
+  vault = new VaultManager({ vaultPath: vaultTmpDir, dbPath: join(vaultTmpDir, "rt.db") });
+  const maybeInit = (vault as unknown as { initialize?: () => Promise<void> }).initialize;
+  if (typeof maybeInit === "function") await maybeInit.call(vault);
+} catch (e) {
+  vaultSkipReason = `Vault 初始化失败：${e instanceof Error ? e.message : String(e)}`;
+}
 
-  beforeAll(async () => {
-    try {
-      const { VaultManager } = await import("../src/memory/vault-manager.js");
-      vm = new VaultManager();
-      if (typeof vm.initialize === "function") await vm.initialize();
-    } catch {
-      // Vault 在无权限环境（如 Docker CI）中可跳过
-      vm = null;
-    }
-  });
-
-  it("读取 vault 状态", async () => {
-    if (!vm) return; // 跳过无权限环境
-    try {
-      const stats = await vm.getStats?.() ?? { status: "ok" };
-      expect(stats).toBeDefined();
-    } catch (e) {
-      expect((e as Error).message).toBeDefined();
-    }
-  });
+afterAll(() => {
+  try {
+    (vault as unknown as { sqliteMemory?: { close(): void } })?.sqliteMemory?.close();
+  } catch {
+    /* ignore */
+  }
+  rmSync(vaultTmpDir, { recursive: true, force: true });
 });
+
+describe.skipIf(vaultSkipReason !== undefined)(
+  `Vault Manager (本地记忆库)（skip：${vaultSkipReason ?? "可用"}）`,
+  () => {
+    it("读取 vault 状态", async () => {
+      expect(vault).not.toBeNull();
+      const getStats = (vault as unknown as { getStats?: () => Promise<unknown> }).getStats;
+      const stats = (await getStats?.()) ?? { status: "ok" };
+      expect(stats).toBeDefined();
+      expect(typeof stats).toBe("object");
+    });
+  },
+);
 
 // ─── 测试 2: 缓存子系统 ─────────────────────────────────────────────
 describe("缓存子系统 (Cache)", () => {
@@ -93,17 +110,22 @@ describe("Services 层", () => {
     expect(svc.getConstitutionForMode).toBeFunction();
   });
 
-  // 执行服务路由需要真实 API key，跳过
-  it.skip("执行服务路由", async () => {
-    const svc = await import("../src/services/index.js");
-    const result = await svc.executeChat(
-      [{ role: "user", content: "hi" }],
-      null,
-      "general-chat",
-    );
-    expect(result).toBeDefined();
-    expect(result).toHaveProperty("content");
-  });
+  // 执行服务路由需要真实 API key；改为**可见 skip**（2026-10-19：原 `it.skip` 无理由、
+  // 也无法在配置齐备时启用，属死用例）。门控与 tests/deepseek-realtime.test.ts 一致：
+  // 需显式 opt-in `AXIOM_RUN_REAL_API_TESTS` 且存在凭据。
+  it.skipIf(!hasEnv("AXIOM_RUN_REAL_API_TESTS") || !hasEnv("DEEPSEEK_API_KEY"))(
+    "执行服务路由（skip：真实外部 API 测试需 AXIOM_RUN_REAL_API_TESTS=1 且配置 DEEPSEEK_API_KEY）",
+    async () => {
+      const svc = await import("../src/services/index.js");
+      const result = await svc.executeChat(
+        [{ role: "user", content: "hi" }],
+        null,
+        "general-chat",
+      );
+      expect(result).toBeDefined();
+      expect(result).toHaveProperty("content");
+    },
+  );
 });
 
 // ─── 测试 5: 意识系统 ───────────────────────────────────────────────

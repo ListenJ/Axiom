@@ -27,6 +27,7 @@ import { notifyKnowledgeWritten } from "../services/knowledge-index-hook.js";
 import { vaultNoteNodeId } from "../kal/knowledge-node-id.js";
 import { SQLiteMemory } from "./sqlite-memory.js";
 import { reloadAndSyncWikiLinks, syncWikiLinks } from "./vault-wiki-link-sync.js";
+import { applyDeletedPaths, shouldReloadIndex } from "./vault-index-freshness.js";
 import { getMemoryGate, type SignificanceContext } from "./memory-gate.js";
 import { logger } from "../utils/logger.js";
 import { readString, readInt } from "../utils/env.js";
@@ -96,39 +97,13 @@ export class VaultManager {
    * @returns 重建的笔记数
    */
   reindexAll(): number {
-    // 确保 Deterministic 引擎先与文件系统同步（外部落盘场景），再以最新列表重建 FTS
-    // 增量：仅对新增/变更的笔记做 upsert，未变更跳过；已删除的笔记从 FTS 删除
-    // vault 目录 mtime 未变时跳过 engine.reload（173 文件全量扫描 100ms+），热路径二次调用 <10ms
+    // 与文件系统同步后按增量重建 FTS：仅 upsert 新增/变更，已删除的从 FTS 删除。
+    // 是否需要重建引擎索引由 shouldReloadIndex 判定（不只看目录 mtime，见 vault-index-freshness.ts）
     try {
-      const vaultStat = fs.statSync(this.config.vaultPath);
-      const curMtime = vaultStat.mtimeMs;
-      // 删除侦测不能只依赖目录 mtime（2026-10-19 修复）：
-      // 若删除与上一次 reindex 落在同一 mtime 粒度内，`curMtime !== lastVaultMtime` 不成立
-      // ⇒ 跳过 engine.reload ⇒ engine.listNotePaths() 仍返回已删路径 ⇒ currentSet 含它
-      // ⇒ 下方「清理已删除笔记」永不触发 ⇒ FTS 与 wiki 反链残留（已删笔记仍出现在反链里）。
-      // 该缺陷属"正确性依赖性能启发式"，全量/高负载下偶发（实测整跑 4 次 2 次红、单跑复现 1 次）。
-      //
-      // 修法：mtime 看起来没变时，再对**索引已知的每条笔记做 stat 核对**：
-      //   · 文件消失（删除）→ 必须 reload，让 currentSet 反映真实文件集；
-      //   · 文件 mtime 变化（原地编辑）→ 同样必须 reload，否则 wiki 出链/反链会陈旧。
-      // 成本：仅"目录 mtime 未变"的快路径多付 O(N) stat（173 文件实测 1~3ms），
-      // 远小于一次全量 reload 的 100ms+；命中变更时则与原来一样全量 reload。
-      let needsReload = curMtime !== this.lastVaultMtime;
-      if (!needsReload) {
-        for (const [prevPath, prevMtime] of this.lastIndexedMtimes) {
-          try {
-            const fileStat = fs.statSync(path.join(this.config.vaultPath, prevPath));
-            if (Math.abs(fileStat.mtimeMs - prevMtime) >= 1) {
-              needsReload = true; // 原地编辑：内容可能变化，出链需重算
-              break;
-            }
-          } catch {
-            needsReload = true; // 文件已消失：删除必须被侦测
-            break;
-          }
-        }
-      }
-      if (needsReload) {
+      const curMtime = fs.statSync(this.config.vaultPath).mtimeMs;
+      // 正确性不依赖目录 mtime 启发式（删除同 mtime 视图会漏删、原地编辑会漏重算出链）
+      if (shouldReloadIndex({ vaultPath: this.config.vaultPath, currentDirMtimeMs: curMtime,
+          lastDirMtimeMs: this.lastVaultMtime, indexedMtimes: this.lastIndexedMtimes })) {
         this.engine.reload(this.config.vaultPath);
         this.lastVaultMtime = curMtime;
       }
@@ -195,14 +170,14 @@ export class VaultManager {
         })),
       );
     }
-    // 清理已删除笔记
-    let deleted = 0;
-    for (const prevPath of [...this.lastIndexedMtimes.keys()]) {
-      if (!currentSet.has(prevPath)) {
-        try { if (this.sqliteMemory.deleteNote(prevPath)) deleted++; } catch {}
-        this.lastIndexedMtimes.delete(prevPath);
-      }
-    }
+    // 清理已删除笔记：基准 = 本地登记 ∪ 数据库已知路径（否则 writeNote 落盘的笔记被外部
+    // 删除后始终无法被侦测，会留下 FTS/反链幽灵行）
+    const deleted = applyDeletedPaths(
+      [...this.lastIndexedMtimes.keys(), ...this.sqliteMemory.listNotePaths()],
+      currentSet,
+      (p) => this.sqliteMemory.deleteNote(p),
+      (p) => this.lastIndexedMtimes.delete(p),
+    );
     this.reindexCount++;
     const elapsed = performance.now() - start;
     logger.debug("[Vault] reindexAll incremental", { total: paths.length, upserted: count, skipped, deleted, elapsed: `${elapsed.toFixed(1)}ms`, round: this.reindexCount });
@@ -449,16 +424,6 @@ export class VaultManager {
 
       // 索引成功后才发布正式文件
       fs.renameSync(tmpPath, fullPath);
-      // 登记已索引状态（2026-10-19 修复）：
-      // `reindexAll` 的「清理已删除笔记」只遍历 `lastIndexedMtimes`，而 writeNote 落盘的笔记
-      // 此前**从不登记**该 Map ⇒ 这类笔记被**外部删除**后，无论目录 mtime 如何变化，
-      // 都不会触发 deleteNote，在 FTS 与 wiki 反链中留下幽灵行（实测可复现）。
-      // 登记失败不影响写入结果——下一次 reindexAll 的存在性核对会兜底。
-      try {
-        this.lastIndexedMtimes.set(notePath, fs.statSync(fullPath).mtimeMs);
-      } catch {
-        /* ignore */
-      }
     } catch (e) {
       try { fs.unlinkSync(tmpPath); } catch {}
       throw e;

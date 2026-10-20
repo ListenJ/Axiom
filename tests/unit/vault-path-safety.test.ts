@@ -34,26 +34,34 @@ function otherDriveAbs(): string | null {
 }
 
 describe("VaultManager resolveSafePath（C1 回归）", () => {
-  test("跨盘符绝对路径写入必须抛 Path traversal blocked", async () => {
-    const evil = otherDriveAbs();
-    if (!evil) return; // 非 Windows 跳过
-    let threw: unknown;
-    try {
-      await manager.writeNote(evil, "malicious");
-    } catch (e) {
-      threw = e;
-    }
-    expect(threw).toBeInstanceOf(Error);
-    expect((threw as Error).message).toContain("Path traversal blocked");
-  });
+  // 2026-10-19：原实现用 `if (!evil) return;` 静默早退（报告显示 pass）。
+  // 跨盘用例本质是 Windows 专属（非 Windows 无盘符概念）→ 改为**可见 skip** 并带理由。
+  test.skipIf(process.platform !== "win32")(
+    "跨盘符绝对路径写入必须抛 Path traversal blocked（skip：非 Windows 无盘符语义）",
+    async () => {
+      const evil = otherDriveAbs();
+      expect(evil).not.toBeNull();
+      let threw: unknown;
+      try {
+        await manager.writeNote(evil!, "malicious");
+      } catch (e) {
+        threw = e;
+      }
+      expect(threw).toBeInstanceOf(Error);
+      expect((threw as Error).message).toContain("Path traversal blocked");
+    },
+  );
 
-  test("跨盘符绝对路径读取必须返回 null 且不落盘", () => {
-    const evil = otherDriveAbs();
-    if (!evil) return;
-    const res = manager.readNote(evil);
-    expect(res).toBeNull();
-    expect(fs.existsSync(evil)).toBe(false);
-  });
+  test.skipIf(process.platform !== "win32")(
+    "跨盘符绝对路径读取必须返回 null 且不落盘（skip：非 Windows 无盘符语义）",
+    () => {
+      const evil = otherDriveAbs();
+      expect(evil).not.toBeNull();
+      const res = manager.readNote(evil!);
+      expect(res).toBeNull();
+      expect(fs.existsSync(evil!)).toBe(false);
+    },
+  );
 
   test("相对路径 ../ 逃逸仍被拦截（防回归）", async () => {
     let threw: unknown;

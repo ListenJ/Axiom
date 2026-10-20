@@ -148,19 +148,26 @@ describe("多运行时边界契约", () => {
   });
 
   describe("runtime-embed（Python 本地 embedding 侧）", () => {
-    it("server.py 存在且 Python 语法有效", () => {
+    // 2026-10-19：原先在用例体内 `if (!pyAvailable) return;` **静默跳过**（报告显示 pass），
+    // 与同文件 go 用例的可见 skip 风格不一致。改为收集期探测 + `it.skipIf` + 标题理由，
+    // 并删掉冗余的恒真断言 `expect(true).toBe(true)`（真实断言是 execSync 成功不抛错）。
+    const pyAvailable = (() => {
+      try {
+        execSync("python3 --version", { stdio: "pipe" });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+
+    it.skipIf(!pyAvailable)("server.py 存在且 Python 语法有效（skip：未安装 python3）", () => {
       const serverPy = path.join(runtimeEmbedDir, "server.py");
       expect(fs.existsSync(serverPy)).toBe(true);
-
-      let pyAvailable = false;
-      try { execSync("python3 --version", { stdio: "pipe" }); pyAvailable = true; } catch { /* not available */ }
-      if (!pyAvailable) return;
 
       execSync(`python3 -c "import ast; ast.parse(open('${serverPy}').read())"`, {
         stdio: "pipe",
         timeout: 10_000,
       });
-      expect(true).toBe(true);
     }, 15_000);
 
     it("pyproject.toml 存在", () => {

@@ -45,10 +45,12 @@ import {
 } from "../src/mcp/tools/minimax.js";
 
 // 跳过测试如果没有配置 MINIMAX_API_KEY
-// 注意：需要 Token Plan 订阅才能使用网络搜索和图像识别
+// 2026-10-19 修复：原条件 `hasTokenPlan = process.env.MINIMAX_BASE_URL?.includes("minimax.io") || true`
+// 中的 `|| true` 使条件**恒真**（死代码），注释声称的 Token Plan 前置条件从未被检查。
+// Token Plan 订阅无法从环境变量判定，故门控只按 API key 判定；需要订阅的用例（网络搜索/图像识别）
+// 由外部 API 返回错误来暴露，不再用恒真条件伪装成"已检查"。
 const hasApiKey = !!process.env.MINIMAX_API_KEY;
-const hasTokenPlan = process.env.MINIMAX_BASE_URL?.includes("minimax.io") || true;
-const describeIf = hasApiKey && hasTokenPlan ? describe : describe.skip;
+const describeIf = hasApiKey ? describe : describe.skip;
 
 describeIf("MiniMax Tools", () => {
   beforeAll(() => {
