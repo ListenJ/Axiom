@@ -14,6 +14,7 @@ import { describe, it, expect } from "bun:test";
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { hasCommand, classifyGoBuildError } from "./helpers/env-probe";
 
 const repoRoot = path.resolve(import.meta.dir, "..");
 const srcDir = path.join(repoRoot, "src");
@@ -54,6 +55,67 @@ function isAcceptableDefault(line: string, trimmed: string): boolean {
   return false;
 }
 
+/**
+ * go build 探测结果（2026-10-19 环境依赖用例门控设计 §4.2）：
+ * - `ok`：编译通过；
+ * - `skip`：环境不可用（E1 无 go / E2 GOPROXY 或网络不可达），报告里必须是**可见 skip**；
+ * - `error`：环境可用但结果不对（编译错误 / 无法分类的失败），**必须红**，不能被 skip 掩盖。
+ */
+type GoBuildProbe = { ok: true } | { skip: string } | { error: Error };
+
+/**
+ * 在测试收集期探测一次 `go build ./...` 并缓存判定（记忆化由 env-probe 负责 E1 部分）。
+ * 只有明确的模块下载错误（`classifyGoBuildError` → "network"）才允许跳过；
+ * 编译错误与空 stderr（"unknown"）一律抛出，让用例变红。
+ *
+ * **必须在收集期调用，不能挪进 `beforeAll`**：bun 的 `it.skipIf(condition)`
+ * 在注册测试时就对 boolean 求值（`node_modules/bun-types/test.d.ts` 签名为
+ * `skipIf(condition: boolean)`）。若在 `beforeAll` 里「先探测、再 skipIf」，
+ * skipIf 早已按旧值注册完毕，探测结果永远不生效，跳过会静默退化为「不跳过」。
+ * 故只能在 describe 回调内、`it.skipIf` 之前同步探测一次。
+ *
+ * 超时 120s（原 30s）的原因：CI 上该用例的历史失败形态是 **bun 层 30s 超时**
+ * （stderr 为空 → "unknown" → 红，无法回答「网络还是代码」）。旧实现把 build
+ * 放在 test body 里，bun 会先按 30s 判红；现在 build 在收集期执行——实测收集期
+ * 阻塞不受 per-test timeout 约束（6s 收集期阻塞在默认 5s 超时下仍 pass）——
+ * 因此真正兜底的是 `execSync` 的 120s：让 go 有机会自己打印
+ * `dial tcp ... i/o timeout` 等网络错误 → "network" → 可见 skip；若 120s 内
+ * 仍无可用输出 → "unknown" → 红（异常静默超时不得假装成环境缺失）。
+ *
+ * 注意：`it` 的 120_000 只是安全网。**若将来有人把探测挪回 test body，必须保证
+ * `execSync` 超时严格小于 bun 超时**：实测两者同为 2000ms 时 bun 先判 "timed out"
+ * 且测试必红（catch 到的分类结果被吞）；execSync=1500 / bun=3000 才会走正常分类。
+ */
+function probeGoBuild(): GoBuildProbe {
+  if (!hasCommand("go")) {
+    return { skip: "未安装 go（E1 能力缺失）" };
+  }
+
+  try {
+    // execSync 在成功时不抛异常；失败时抛异常
+    execSync("go build ./...", {
+      cwd: runtimeGoDir,
+      stdio: "pipe",
+      timeout: 120_000,
+    });
+    return { ok: true };
+  } catch (err) {
+    const e = err as Error & { stderr?: Buffer | string; killed?: boolean; signal?: string };
+    const stderr = typeof e.stderr === "string" ? e.stderr : (e.stderr?.toString("utf8") ?? "");
+    const kind = classifyGoBuildError(stderr);
+
+    if (kind === "network") {
+      return { skip: "GOPROXY/网络不可达，无法拉取 go 模块依赖（E2）" };
+    }
+
+    const detail =
+      stderr.trim() === ""
+        ? `（stderr 为空，无法分类为 network；killed=${String(e.killed)} signal=${String(e.signal)}）`
+        : stderr.slice(0, 800);
+    return { error: new Error(`go build 失败（分类：${kind}），stderr 前 800 字符：\n${detail}`) };
+  }
+}
+
 describe("多运行时边界契约", () => {
 
   describe("runtime-go（Go 高并发侧）", () => {
@@ -65,20 +127,18 @@ describe("多运行时边界契约", () => {
       expect(content).toContain("go ");
     });
 
-    it("go build ./... 编译通过", () => {
-      let goAvailable = false;
-      try { execSync("go version", { stdio: "pipe" }); goAvailable = true; } catch { /* not available */ }
-      if (!goAvailable) return;
+    // 探测一次并缓存判定：环境缺失 → 可见 skip（标题带理由）；编译错误 → 红。
+    // 必须收集期同步算完（skipIf 在注册时求值），不能挪进 beforeAll。
+    const goBuild = probeGoBuild();
 
-      // execSync 在成功时不抛异常；失败时抛异常
-      execSync("go build ./...", {
-        cwd: runtimeGoDir,
-        stdio: "pipe",
-        timeout: 30_000,
-      });
-      // 不抛即通过
-      expect(true).toBe(true);
-    }, 30_000);
+    it.skipIf("skip" in goBuild)(
+      `go build ./... 编译通过${"skip" in goBuild ? `（跳过：${goBuild.skip}）` : ""}`,
+      () => {
+        if ("error" in goBuild) throw goBuild.error;
+        expect(goBuild).toEqual({ ok: true });
+      },
+      120_000,
+    );
 
     it("至少有 cmd/ 入口或 internal/ 包", () => {
       const hasCmd = fs.existsSync(path.join(runtimeGoDir, "cmd"));

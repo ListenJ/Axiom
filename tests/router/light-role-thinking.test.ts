@@ -4,7 +4,11 @@
 import { describe, test, expect, spyOn } from "bun:test";
 import * as providerCaller from "../../src/router/provider-caller.js";
 import * as mcr from "../../src/router/model-capability-registry.js";
-import { router } from "../../src/router/model-router.js";
+import { MultiPlatformRouter, createRouterState } from "../../src/router/model-router.js";
+
+// 干净路由状态：不继承同进程其它测试文件（如真实链路用例）留下的永久失败黑名单/熔断状态。
+// 见 docs/reports/2026-10-19-full-test-failure-diagnosis.md 第 1 节。
+const router = new MultiPlatformRouter({ state: createRouterState() });
 
 const deepseekModel = {
   id: "deepseek/v4-flash",

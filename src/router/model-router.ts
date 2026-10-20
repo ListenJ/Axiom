@@ -26,7 +26,7 @@ import { INTENT_ROUTE_TABLE, DEFAULT_ROLE } from "./route-table.js";
 import { getModelOutputStore } from "../utils/model-output-store.js";
 import { llmCache, llmCacheKey, type CachedLLMResponse } from "../utils/cache.js";
 import { cacheFirstRoute, writeCache, isSemanticCacheEnabled } from "../services/cache-router.js";
-import { routerBreaker } from "../utils/circuit-breaker.js";
+import { CircuitBreaker, routerBreaker } from "../utils/circuit-breaker.js";
 import { effectivePriorityForRateTier } from "./rate-tier.js";
 import { defaultThinkingForRole, defaultTemperatureForRole } from "./reasoning-effort.js";
 
@@ -243,35 +243,101 @@ function compareRouteCandidates(a: ModelCapability, b: ModelCapability, isLightR
 // 永久性失败处理（2026-07-26 生产化修复）
 // 缺 key / 型号不存在 / 未授权等永久性错误：不重试（此前每个死模型每次请求
 // 都白烧 maxRetries 次），并拉黑 5 分钟（避免后续请求重复烧秒）。
+//
+// 2026-10-19 状态隔离（方案 B）：`modelBlacklist`（永久失败黑名单）与熔断器
+// 由**进程级模块变量**收敛为可注入的 `RouterState` 实例：
+//   - `MultiPlatformRouter` 构造时可注入；不注入 = 共享全局单例（生产行为不变）；
+//   - 测试用 `new MultiPlatformRouter({ state: createRouterState() })` 拿干净状态，
+//     不再被同进程其它测试文件（或真实链路用例）留下的黑名单/熔断状态污染。
 // ---------------------------------------------------------------------------
 const PERMANENT_FAILURE_RE = /Missing API key|Model does not exist|Model disabled|HTTP 40[134]/i;
 const BLACKLIST_TTL_MS = 5 * 60 * 1000;
-const modelBlacklist = new Map<string, number>(); // "provider/model" -> 拉黑截止时刻
+
+export interface RouterStateOptions {
+  /**
+   * 熔断器实例（provider/model 维度）。缺省新建独立实例（阈值 3 / 冷却 60s，
+   * 与全局单例同参）；默认路由状态显式复用全局 `routerBreaker` 以保持生产/测试契约。
+   */
+  breaker?: CircuitBreaker;
+}
+
+/**
+ * 路由可变状态（深模块，规则 8）：永久失败黑名单 + 熔断器。
+ *
+ * 所有原先直接读写模块级 `modelBlacklist` / `routerBreaker` 的位置都经实例访问；
+ * 默认实例是进程级单例，测试可自建实例获得完全干净的状态。
+ */
+export class RouterState {
+  /** "provider/model" -> 拉黑截止时刻 */
+  private readonly blacklist = new Map<string, number>();
+  /** provider/model 维度熔断器 */
+  readonly breaker: CircuitBreaker;
+
+  constructor(options: RouterStateOptions = {}) {
+    this.breaker = options.breaker ?? new CircuitBreaker({ failureThreshold: 3, cooldownMs: 60_000 });
+  }
+
+  /** 记录一次永久性失败：拉黑该模型 5 分钟 */
+  recordPermanentFailure(provider: string, model: string): void {
+    this.blacklist.set(`${provider}/${model}`, Date.now() + BLACKLIST_TTL_MS);
+  }
+
+  /** 查询模型是否在黑名单中（过期自动清除） */
+  isModelBlacklisted(provider: string, model: string): boolean {
+    const key = `${provider}/${model}`;
+    const until = this.blacklist.get(key);
+    if (until === undefined) return false;
+    if (Date.now() > until) {
+      this.blacklist.delete(key);
+      return false;
+    }
+    return true;
+  }
+}
+
+/** 新建干净的路由状态（测试隔离用；生产请用默认单例） */
+export function createRouterState(options: RouterStateOptions = {}): RouterState {
+  return new RouterState(options);
+}
+
+/**
+ * 默认路由状态 = 进程级全局单例。
+ *
+ * 熔断器复用 `circuit-breaker.ts` 的全局 `routerBreaker`（而非新实例）：
+ * 生产路径与既有可观测/测试契约（spy `routerBreaker`）保持不变；
+ * 隔离能力由"构造时注入干净 RouterState"提供。
+ */
+const defaultRouterState = new RouterState({ breaker: routerBreaker });
 
 /** 判定错误是否永久性（不可重试）—— 导出供单元测试 */
 export function isPermanentFailure(msg: string): boolean {
   return PERMANENT_FAILURE_RE.test(msg);
 }
 
-/** 记录一次永久性失败（拉黑 TTL）—— 导出供单元测试 */
+/** 记录一次永久性失败（作用于默认全局状态的黑名单）—— 导出供单元测试 */
 export function recordPermanentFailure(provider: string, model: string): void {
-  modelBlacklist.set(`${provider}/${model}`, Date.now() + BLACKLIST_TTL_MS);
+  defaultRouterState.recordPermanentFailure(provider, model);
 }
 
-/** 查询模型是否在黑名单中（过期自动清除）—— 导出供单元测试 */
+/** 查询模型是否在黑名单中（作用于默认全局状态，过期自动清除）—— 导出供单元测试 */
 export function isModelBlacklisted(provider: string, model: string): boolean {
-  const until = modelBlacklist.get(`${provider}/${model}`);
-  if (until === undefined) return false;
-  if (Date.now() > until) {
-    modelBlacklist.delete(`${provider}/${model}`);
-    return false;
-  }
-  return true;
+  return defaultRouterState.isModelBlacklisted(provider, model);
 }
 
 export class MultiPlatformRouter {
   /** S4: Thompson 学习回路端口（组合根 main.ts 注入；null = 未接线，路由与反馈路径零行为变化） */
   private thompson: ThompsonLearningPort | null = null;
+
+  /** 路由可变状态（永久失败黑名单 + 熔断器）；默认共享进程级单例 */
+  private readonly state: RouterState;
+
+  /**
+   * @param options.state 路由可变状态，缺省为进程级全局单例（生产行为不变）。
+   *   测试隔离：`new MultiPlatformRouter({ state: createRouterState() })`
+   */
+  constructor(options: { state?: RouterState } = {}) {
+    this.state = options.state ?? defaultRouterState;
+  }
 
   /** S4 组合根接线：注入 Thompson 学习回路（传 null 摘除） */
   setThompsonRouter(port: ThompsonLearningPort | null): void {
@@ -363,7 +429,7 @@ export class MultiPlatformRouter {
     const candidates = (excluded.size > 0
       ? allModels.filter((m) => !excluded.has(m.id) && !excluded.has(m.model))
       : allModels
-    ).filter((m) => !isModelBlacklisted(m.provider, m.model));
+    ).filter((m) => !this.state.isModelBlacklisted(m.provider, m.model));
     if (candidates.length === 0) {
       logger.warn(`[Router] No candidate models for role ${role} after exclude`, {
         excluded: Array.from(excluded),
@@ -392,7 +458,7 @@ export class MultiPlatformRouter {
     let lastError: Error | undefined;
     for (const model of sortedModels) {
       const breakerKey = `${model.provider}/${model.model}`;
-      if (!routerBreaker.allow(breakerKey)) {
+      if (!this.state.breaker.allow(breakerKey)) {
         logger.warn(`[Router] Circuit open, skip ${breakerKey}`);
         continue;
       }
@@ -409,7 +475,7 @@ export class MultiPlatformRouter {
           if (lastUser?.content && isSemanticCacheEnabled()) {
             const semanticHit = await cacheFirstRoute(lastUser.content, role);
             if (semanticHit) {
-              routerBreaker.recordSuccess(breakerKey);
+              this.state.breaker.recordSuccess(breakerKey);
               const latencyMs = Date.now() - loopStart;
               metrics.increment("routing_decisions_total", 1, { role, source: "semantic-cache", model: model.id });
               logger.info(`[Router] Semantic cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
@@ -442,7 +508,7 @@ export class MultiPlatformRouter {
           });
           const cached = await llmCache.get(cKey);
           if (cached) {
-            routerBreaker.recordSuccess(breakerKey);
+            this.state.breaker.recordSuccess(breakerKey);
             const latencyMs = Date.now() - loopStart;
             metrics.increment("routing_decisions_total", 1, { role, source: "execute-cached", model: model.id });
             logger.info(`[Router] Execute cache HIT role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs}`);
@@ -486,7 +552,7 @@ export class MultiPlatformRouter {
           // S4② 成功记录点同步学习反馈（缓存命中路径不计——无真实模型调用信号）
           this.reportThompsonFeedback(model.id, true);
           logger.info(`[Router] Execute success role=${role} model=${model.provider}/${model.model} attempts=${attempt + 1} latencyMs=${latencyMs}`);
-          routerBreaker.recordSuccess(breakerKey);
+          this.state.breaker.recordSuccess(breakerKey);
 
           // Record routing decision metric
           metrics.increment("routing_decisions_total", 1, { role, source: "execute", model: model.id });
@@ -544,7 +610,7 @@ export class MultiPlatformRouter {
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
-          routerBreaker.recordFailure(breakerKey);
+          this.state.breaker.recordFailure(breakerKey);
           logger.warn(
             `[Router] Execute failed ${model.provider}/${model.model} (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg }
@@ -557,7 +623,7 @@ export class MultiPlatformRouter {
           this.reportThompsonFeedback(model.id, false);
           // 永久性失败（缺 key/型号不存在/未授权）：拉黑 5 分钟并直接换下一个模型，不再重试
           if (PERMANENT_FAILURE_RE.test(msg)) {
-            modelBlacklist.set(`${model.provider}/${model.model}`, Date.now() + BLACKLIST_TTL_MS);
+            this.state.recordPermanentFailure(model.provider, model.model);
             logger.warn(`[Router] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
             break;
           }
@@ -706,11 +772,11 @@ export class MultiPlatformRouter {
     toolLoop: while (toolRounds < maxToolIterations) {
     for (const model of sortedModels) {
       const breakerKey = `${model.provider}/${model.model}`;
-      if (isModelBlacklisted(model.provider, model.model)) {
+      if (this.state.isModelBlacklisted(model.provider, model.model)) {
         logger.warn(`[Router/chatStream] Model blacklisted, skip ${breakerKey}`);
         continue;
       }
-      if (!routerBreaker.allow(breakerKey)) {
+      if (!this.state.breaker.allow(breakerKey)) {
         logger.warn(`[Router/chatStream] Circuit open, skip ${breakerKey}`);
         continue;
       }
@@ -832,7 +898,7 @@ export class MultiPlatformRouter {
             } catch (nativeErr) {
               // 记录本次尝试失败到熔断器：即使随后 buffered 路径成功，breaker 也需要
               // 知道原生流路径在本回合对当前模型是失败的，否则会反复命中原生流再静默回退。
-              routerBreaker.recordFailure(breakerKey);
+              this.state.breaker.recordFailure(breakerKey);
               if (nativeEmitted) {
                 // 已经向调用方产出过 delta：不能再回退 buffered 重发整段，
                 // 交给外层 catch 走失败/重试/换模型，保证 SSE 不重复内容。
@@ -878,7 +944,7 @@ export class MultiPlatformRouter {
               metrics.increment("routing_decisions_total", 1, { role, source: "chatStream", model: model.id });
               metrics.histogram("routing_duration_seconds", (Date.now() - startTime) / 1000, { role, source: "chatStream" });
               logger.info(`[Router/chatStream] native stream success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${nativeResult.content.length}`);
-              routerBreaker.recordSuccess(breakerKey);
+              this.state.breaker.recordSuccess(breakerKey);
 
               yield {
                 type: "done",
@@ -927,7 +993,7 @@ export class MultiPlatformRouter {
             }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
             metrics.increment("routing_decisions_total", 1, { role, source: "chatStream-buffered", model: model.id });
             logger.info(`[Router/chatStream] buffered success role=${role} model=${model.provider}/${model.model} latencyMs=${latencyMs} bytes=${result.content.length}`);
-            routerBreaker.recordSuccess(breakerKey);
+            this.state.breaker.recordSuccess(breakerKey);
 
             if (result.thinking?.length) {
               for (const t of result.thinking) {
@@ -951,7 +1017,7 @@ export class MultiPlatformRouter {
         } catch (error) {
           lastError = error instanceof Error ? error : new Error(String(error));
           const msg = lastError.message;
-          routerBreaker.recordFailure(breakerKey);
+          this.state.breaker.recordFailure(breakerKey);
           logger.warn(
             `[Router/chatStream] ${model.provider}/${model.model} failed (attempt ${attempt + 1}/${maxRetries})`,
             { error: msg },
@@ -962,7 +1028,7 @@ export class MultiPlatformRouter {
           }, { role, taskType: "chat-stream", taskId, category: options?.category ?? "main" });
           // 永久性失败（缺 key/型号不存在/未授权）不重试，拉黑 5 分钟并切下一模型
           if (PERMANENT_FAILURE_RE.test(msg)) {
-            recordPermanentFailure(model.provider, model.model);
+            this.state.recordPermanentFailure(model.provider, model.model);
             logger.warn(`[Router/chatStream] Permanent failure, blacklisted 5min: ${model.provider}/${model.model}`, { error: msg });
             break;
           }

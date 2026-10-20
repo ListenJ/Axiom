@@ -2,8 +2,8 @@
  * 文档↔代码一致性门（D 系列）
  *
  * 目的：把"确定性推理"口径变成可机器判定的命题，使口径无法被静默写坏或静默绕过。
- * 覆盖：D1 禁语（含 src/tests 的 .ts）+ 全部 markdown 文本完整（BOM/CR/C0） / D2 权威唯一 / D3 文档引用不死（反引号路径 +
- *       markdown 本地链接） / D4 禁手抄行数 /
+ * 覆盖：D1 禁语（含 src/tests 的 .ts）+ 全部 markdown 文本完整（BOM/CR/C0） / D2 权威唯一 / D3 文档引用不死（反引号路径
+ *       必须被 git 跟踪 + markdown 本地链接） / D4 禁手抄行数 /
  *       D5 非确定组件登记 ↔ 代码默认值 / D6 登记表 ↔ 文档表 / D7 decision 存量棘轮 /
  *       D8 文档列出的 MCP 领域文件 ↔ 实际注册点 / D9 禁 file:line 手抄锚点 /
  *       D11 仓库级"无 PG"否定句必须限定范围并点名披露 native 例外 /
@@ -13,6 +13,7 @@
  * 不得写入定量指标与绝对断言，只允许指向本门与 config/nondeterminism.json 的指针。
  */
 import { describe, it, expect } from "bun:test";
+import { spawnSync } from "node:child_process";
 import fs from "fs";
 import path from "path";
 import ts from "typescript";
@@ -370,6 +371,37 @@ describe("D3 文档引用存活", () => {
     return out;
   }
 
+  // ─── 追踪判据：反引号引用的路径必须被 git 跟踪（而不只是躺在工作区）────────────
+  // 事故（2026-10-19，CI run 1151）：设计稿引用了当时尚未提交的 tests/helpers/env-probe.ts。
+  // 本地该文件以**未跟踪**状态躺在工作区，`fs.existsSync` 判绿；CI 干净检出没有它才红 ——
+  // "工作区里存在"不等于"会被提交、会出现在干净检出里"。判据因此升格为：被引用路径必须被 git 跟踪。
+  //
+  // 性能：整条门只 spawn 一次 git，结果做成 Set，逐条引用 O(1) 判定。实测本仓
+  // `git ls-files` 单次约 120ms；857 条引用若逐条 spawn 会是分钟级，会把门禁拖死。
+  // 取**索引**（`git ls-files`，git 对 tracked 的定义）而不是 HEAD 树：索引同时抓住
+  // "新文件还没 git add"（事故形态）与"删除只删了工作区/只暂存了删除还没提交"（HEAD 树版本会漏后者）；
+  // 它给出的正是"下一次提交会带进干净检出的文件集合"。
+  //
+  // 降级面（显式，不静默）：`git archive HEAD | tar -x` 这类解包树没有 .git，git 元数据不可读，
+  // 判据退回旧的工作区存在性检查。该降级由"追踪判据自证"条盯着；真实检出里它断言强判据成立。
+  let trackedPathsCache: Set<string> | null | undefined;
+  function trackedGitPaths(): Set<string> | null {
+    if (trackedPathsCache !== undefined) return trackedPathsCache;
+    const res = spawnSync("git", ["-C", repoRoot, "ls-files", "-z"], {
+      encoding: "utf8",
+      timeout: 15_000,
+      windowsHide: true,
+    });
+    const paths =
+      res.error || res.status !== 0
+        ? []
+        : (res.stdout ?? "").split("\u0000").map((s) => s.trim()).filter(Boolean);
+    // 空清单也按"不可用"处理：正常检出里本测试文件自身就在索引内，0 条只能是没读到本仓。
+    // Windows 上 git 输出已是 `/`，这里再归一一次，防将来换输出源时路径分隔符把判定全打成 false。
+    trackedPathsCache = paths.length > 0 ? new Set(paths.map((p) => p.replace(/\\/g, "/"))) : null;
+    return trackedPathsCache;
+  }
+
   // tombstone 标记 `<!-- doc-caliber:absent: <逗号分隔的路径> -->`：声明"标记里点名的这些仓库路径已被删除"。
   // 它不是消音器而是**反向断言** —— 被点名的路径必须真的保持不存在，哪天它重新出现（或有人想用这个
   // 标记去藏一个活文件）照样报红。动机：`src/db/pg-client.ts` 的"已删除"是文档的正常内容，若 D3 无条件
@@ -380,7 +412,13 @@ describe("D3 文档引用存活", () => {
   const ABSENT_MARK = /<!--\s*doc-caliber:absent:\s*([^>]*?)\s*-->/g;
   const absentTargets = (line: string): string[] =>
     [...line.matchAll(ABSENT_MARK)].flatMap((m) => m[1].split(",").map((s) => s.trim()).filter(Boolean));
-  function deadPathOffenders(rel: string, text: string): { problems: string[]; tombstoned: string[]; checked: number } {
+  // 第三个参数只为自检留缝：真实调用一律取 git 索引；合成语料可注入一个追踪集，
+  // 用来覆盖"仓库里没有自然实例"的分支（见 tombstone 自检条）。
+  function deadPathOffenders(
+    rel: string,
+    text: string,
+    trackedPaths: Set<string> | null = trackedGitPaths(),
+  ): { problems: string[]; tombstoned: string[]; checked: number } {
     const problems: string[] = [];
     const tombstoned: string[] = [];
     let checked = 0;
@@ -391,11 +429,19 @@ describe("D3 文档引用存活", () => {
         checked++;
         const target = m[1].replace(/^\.\//, "");
         const alive = exists(target);
+        const tracked = trackedPaths === null ? null : trackedPaths.has(target);
         if (marked.includes(target)) {
           honoured.add(target);
+          // tombstone 反向断言双向收紧：工作区里重新出现（旧判据）或仍被 git 跟踪
+          // （例如文件只从工作区删了、删除还没进提交）都算"不再是删除态"。
           if (alive) problems.push(`${rel}:${i + 1}: tombstone 失效 → ${target} 仍存在`);
+          else if (tracked) problems.push(`${rel}:${i + 1}: tombstone 失效 → ${target} 仍被 git 跟踪`);
           else tombstoned.push(`${rel}:${i + 1} → ${target}`);
         } else if (!alive) problems.push(`${rel}:${i + 1} → ${target}`);
+        else if (tracked === false) {
+          // 工作区有、git 里没有 —— 正是 2026-10-19 事故里"本地能刷绿、CI 干净检出才红"的那一类。
+          problems.push(`${rel}:${i + 1}: 工作区存在但未被 git 跟踪 → ${target}`);
+        }
       }
       // 空转：标记点名的路径没出现在本行的反引号引用里 ⇒ 文档改过、墓碑忘了删（或写错了行）
       for (const claimed of marked) if (!honoured.has(claimed)) problems.push(`${rel}:${i + 1}: tombstone 空转 → 标记点名 ${claimed}，本行却无反引号引用`);
@@ -403,7 +449,7 @@ describe("D3 文档引用存活", () => {
     return { problems, tombstoned, checked };
   }
 
-  it("规范件反引号中的仓库路径 100% 存在（或带 tombstone 且确实仍是删除态）", () => {
+  it("规范件反引号中的仓库路径 100% 被 git 跟踪（或带 tombstone 且确实仍是删除态）", () => {
     const problems: string[] = [];
     const tombstoned: string[] = [];
     let checked = 0;
@@ -416,6 +462,54 @@ describe("D3 文档引用存活", () => {
     expect(problems).toEqual([]);
     expect(checked).toBeGreaterThan(200); // 覆盖面自证：低于此说明扫描范围被悄悄收窄
     expect(tombstoned.length).toBeGreaterThan(0); // 通道自证：一条没人用的豁免通道等于没写
+  });
+
+  it("追踪判据自证：判据来源是 git 索引；解包树里显式降级为存在性检查", () => {
+    const tracked = trackedGitPaths();
+    if (tracked === null) {
+      // git archive 解包树没有 .git：D3 退回"工作区存在性"旧判据。降级必须可见、不得静默：
+      // 本条在真实检出里断言下面的强判据，在解包树里只登记"确实没有 git 元数据"并确认扫描面存在。
+      expect(exists("tests/doc-contract.test.ts")).toBe(true);
+      return;
+    }
+    expect(tracked.size).toBeGreaterThan(1_000); // 判据来自完整索引，不是 cwd 限定的子集
+    expect(tracked.has("tests/doc-contract.test.ts")).toBe(true);
+    expect(tracked.has("README.md")).toBe(true);
+    expect(trackedGitPaths()).toBe(tracked); // 记忆化：整条门只 spawn 一次 git
+    // 反例自检：构造的探针名不在 git 里，否则下面的负例回归无意义
+    expect(tracked.has("tests/__d3_untracked_probe_must_not_exist__.ts")).toBe(false);
+  });
+
+  it("追踪判据回归：工作区里有、git 未跟踪的路径 —— 旧判据放行，新判据报红，删除后现场复原", () => {
+    const tracked = trackedGitPaths();
+    if (tracked === null) {
+      // 无 git 元数据时构造不出"未跟踪"（判定全部退化为存在性），由自证条登记该降级面。
+      return;
+    }
+    // 探针名带 pid：两个并发跑本门的进程不会互删对方的文件。该文件是**非 gitignore** 的未跟踪文件，
+    // 复刻 2026-10-19 事故现场（env-probe.ts 当时正是这种状态）。
+    const probe = `tests/__d3_untracked_probe_${process.pid}__.ts`;
+    const doc = "probe.md";
+    const refLine = `见 \`${probe}\` 的说明\n`;
+    const probeFile = path.join(repoRoot, probe);
+    fs.writeFileSync(probeFile, "// D3 未跟踪探针：由 tests/doc-contract.test.ts 写入并立即删除\n");
+    try {
+      // ① 旧判据（工作区存在性）确实放行 —— 这就是事故里"本地绿"的机制
+      expect(exists(probe)).toBe(true);
+      expect(tracked.has(probe)).toBe(false);
+      // ② 新判据必须报红
+      expect(deadPathOffenders(doc, refLine).problems).toEqual([
+        `${doc}:1: 工作区存在但未被 git 跟踪 → ${probe}`,
+      ]);
+    } finally {
+      // 立即删除：本门不得在工作区留下探针（终态由下面的断言与 git status 双重确认）
+      fs.rmSync(probeFile, { force: true });
+    }
+    // ③ 现场复原：探针不在工作区、也不在 git 索引；同一行此时只剩"死引用"这一条旧判据问题，
+    //   "工作区存在但未被 git 跟踪"这条新问题必须消失（探针已不存在，不可能被误报）。
+    expect(exists(probe)).toBe(false);
+    expect(tracked.has(probe)).toBe(false);
+    expect(deadPathOffenders(doc, refLine).problems).toEqual([`${doc}:1 → ${probe}`]);
   });
 
   it("规范件 markdown 本地链接目标 100% 存在", () => {
@@ -453,6 +547,15 @@ describe("D3 文档引用存活", () => {
     // 点名一个**存在**的路径 ⇒ 必须报失效：豁免通道不得用来藏活文件
     expect(deadPathOffenders("d.md", "`tests/doc-contract.test.ts` 已删除 <!-- doc-caliber:absent: tests/doc-contract.test.ts -->\n").problems)
       .toEqual(["d.md:1: tombstone 失效 → tests/doc-contract.test.ts 仍存在"]);
+    // 点名一个**仍被 git 跟踪**但工作区里已无的路径（删除只删了工作区、还没进提交）⇒ 同样失效。
+    // 真实仓库里没有这种自然实例，所以注入一个只含合成路径的追踪集，把这个分支也钉住。
+    expect(
+      deadPathOffenders(
+        "d.md",
+        "`src/__tracked_probe__.ts` 已删除 <!-- doc-caliber:absent: src/__tracked_probe__.ts -->\n",
+        new Set(["src/__tracked_probe__.ts"]),
+      ).problems,
+    ).toEqual(["d.md:1: tombstone 失效 → src/__tracked_probe__.ts 仍被 git 跟踪"]);
     // 同行未被点名的路径不受影响 —— 这正是整行豁免版做不到的（实测：pg-client 与 pg-schema.sql 同行）
     const mixed = deadPathOffenders("d.md", "`src/__no_such__.ts` 已删，`tests/doc-contract.test.ts` 仍在 <!-- doc-caliber:absent: src/__no_such__.ts -->\n");
     expect(mixed.problems).toEqual([]);
