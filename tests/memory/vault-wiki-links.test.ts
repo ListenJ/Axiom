@@ -86,4 +86,52 @@ describe("VaultManager wiki-link persistence", () => {
       (vault as unknown as { sqliteMemory: { close(): void } }).sqliteMemory.close();
     }
   });
+
+  /**
+   * 回归（2026-10-19）问题 2：**原地编辑**已存在笔记时目录条目数不变，目录 mtime 常常也不变；
+   * 若只按目录 mtime 判断，引擎不 reload ⇒ wiki 出链不重算 ⇒ 反链陈旧。
+   * 复现方式同上一用例：令实例认为目录 mtime 未变，再改写文件内容（文件级 mtime 会变）。
+   * 旧实现（仅存在性核对）：文件仍存在、内容已变 → 不 reload → 反链残留 → 红；
+   * 新实现（文件级 mtime 核对）：发现文件 mtime 变化 → 强制 reload → 绿。
+   */
+  it("原地改写笔记内容时，即使目录 mtime 未变，也必须重算出链/反链", async () => {
+    const { dir, vault } = setup();
+    try {
+      await vault.writeNote("target.md", "# Target", { title: "Target" });
+      writeFileSync(join(dir, "external.md"), "---\ntitle: External\n---\n\n[[target]]\n");
+      vault.reindexAll();
+      expect(backlinks(vault, "target.md")).toEqual([{ path: "external.md", title: "External" }]);
+
+      // 原地改写：去掉对 target 的出链（目录条目不变）
+      writeFileSync(join(dir, "external.md"), "---\ntitle: External\n---\n\nno links now\n");
+      (vault as unknown as { lastVaultMtime: number }).lastVaultMtime = statSync(dir).mtimeMs;
+
+      vault.reindexAll();
+      expect(backlinks(vault, "target.md")).toEqual([]);
+    } finally {
+      (vault as unknown as { sqliteMemory: { close(): void } }).sqliteMemory.close();
+    }
+  });
+
+  /**
+   * 回归（2026-10-19）问题 3：`writeNote` 落盘的笔记此前**不登记** `lastIndexedMtimes`，
+   * 而 `reindexAll` 的「清理已删除笔记」只遍历该 Map ⇒ 这类笔记被外部删除后，
+   * 无论目录 mtime 如何都不会触发 deleteNote，FTS 与反链留下**幽灵行**。
+   * 本用例全程用 writeNote 创建（不经过 reindexAll 登记），再外部删除后 reindex。
+   */
+  it("writeNote 创建的笔记被外部删除后，reindexAll 也必须清除其反链（无幽灵行）", async () => {
+    const { dir, vault } = setup();
+    try {
+      // 先写目标笔记，再写引用者——否则外链同步时目标尚不存在
+      await vault.writeNote("target.md", "# Target", { title: "Target" });
+      await vault.writeNote("external.md", "[[target]] 引用了目标笔记", { title: "External" });
+      expect(backlinks(vault, "target.md")).toEqual([{ path: "external.md", title: "External" }]);
+
+      rmSync(join(dir, "external.md"));
+      vault.reindexAll();
+      expect(backlinks(vault, "target.md")).toEqual([]);
+    } finally {
+      (vault as unknown as { sqliteMemory: { close(): void } }).sqliteMemory.close();
+    }
+  });
 });

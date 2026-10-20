@@ -107,21 +107,28 @@ export class VaultManager {
       // ⇒ 跳过 engine.reload ⇒ engine.listNotePaths() 仍返回已删路径 ⇒ currentSet 含它
       // ⇒ 下方「清理已删除笔记」永不触发 ⇒ FTS 与 wiki 反链残留（已删笔记仍出现在反链里）。
       // 该缺陷属"正确性依赖性能启发式"，全量/高负载下偶发（实测整跑 4 次 2 次红、单跑复现 1 次）。
-      // 修法：进入增量逻辑前，按**索引已知路径**做一次存在性核对（O(N) stat；173 文件实测 1~3ms，
-      // 远小于全量 reload 的 100ms+），一旦发现路径消失即强制 reload。
-      let vanished = 0;
-      for (const prevPath of this.lastIndexedMtimes.keys()) {
-        try {
-          if (!fs.existsSync(path.join(this.config.vaultPath, prevPath))) {
-            vanished++;
-            break; // 发现一处缺失即足以判定必须 reload
+      //
+      // 修法：mtime 看起来没变时，再对**索引已知的每条笔记做 stat 核对**：
+      //   · 文件消失（删除）→ 必须 reload，让 currentSet 反映真实文件集；
+      //   · 文件 mtime 变化（原地编辑）→ 同样必须 reload，否则 wiki 出链/反链会陈旧。
+      // 成本：仅"目录 mtime 未变"的快路径多付 O(N) stat（173 文件实测 1~3ms），
+      // 远小于一次全量 reload 的 100ms+；命中变更时则与原来一样全量 reload。
+      let needsReload = curMtime !== this.lastVaultMtime;
+      if (!needsReload) {
+        for (const [prevPath, prevMtime] of this.lastIndexedMtimes) {
+          try {
+            const fileStat = fs.statSync(path.join(this.config.vaultPath, prevPath));
+            if (Math.abs(fileStat.mtimeMs - prevMtime) >= 1) {
+              needsReload = true; // 原地编辑：内容可能变化，出链需重算
+              break;
+            }
+          } catch {
+            needsReload = true; // 文件已消失：删除必须被侦测
+            break;
           }
-        } catch {
-          vanished++;
-          break;
         }
       }
-      if (curMtime !== this.lastVaultMtime || vanished > 0) {
+      if (needsReload) {
         this.engine.reload(this.config.vaultPath);
         this.lastVaultMtime = curMtime;
       }
@@ -442,6 +449,16 @@ export class VaultManager {
 
       // 索引成功后才发布正式文件
       fs.renameSync(tmpPath, fullPath);
+      // 登记已索引状态（2026-10-19 修复）：
+      // `reindexAll` 的「清理已删除笔记」只遍历 `lastIndexedMtimes`，而 writeNote 落盘的笔记
+      // 此前**从不登记**该 Map ⇒ 这类笔记被**外部删除**后，无论目录 mtime 如何变化，
+      // 都不会触发 deleteNote，在 FTS 与 wiki 反链中留下幽灵行（实测可复现）。
+      // 登记失败不影响写入结果——下一次 reindexAll 的存在性核对会兜底。
+      try {
+        this.lastIndexedMtimes.set(notePath, fs.statSync(fullPath).mtimeMs);
+      } catch {
+        /* ignore */
+      }
     } catch (e) {
       try { fs.unlinkSync(tmpPath); } catch {}
       throw e;
