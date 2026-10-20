@@ -42,3 +42,15 @@ scripts/sanitize
 
 # —— 编译产物二进制（31.5MB；内嵌构建机绝对路径，文本规则拦不住的盲区）
 runtime-go/bin
+
+# —— 文档契约类测试（依赖 docs/ 目录；发布面按用户裁定不含 docs）
+# 理由（2026-10-19 实测）：在从 GitHub 全新克隆的发布面上跑 `bun test` 时，这些文件因
+# `scandir 'docs'` ENOENT 产生 24+ 条红——发布面是**源码分发**，不含内部文档，
+# 文档契约门禁在外界既无对象也无意义。内部仓库完整保留这些门禁。
+tests/doc-contract.test.ts
+tests/unit/docs-consistency.test.ts
+tests/caliber-contract.test.ts
+tests/architecture-integrity.test.ts
+tests/unit/pg-client-removal.test.ts
+tests/unit/determinism-disclosure.test.ts
+tests/rigorous/real-links-memory-knowledge-prompt.test.ts
