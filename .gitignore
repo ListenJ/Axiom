@@ -156,6 +156,9 @@ archive/
 ai-daily-*.md
 
 # === Runtime artifacts ===
+# 测试运行时自建目录（deterministic-search 等用例 beforeEach 建、afterEach 删；
+# 中断/并行时可能残留，属可重建产物，不入库）
+tests/fixtures/vault/
 # .axiom/：工具快照产物（如 .axiom/snapshots/package.json），非源码（2026-10-19 审阅发现未忽略）
 .axiom/
 .session-context.json
