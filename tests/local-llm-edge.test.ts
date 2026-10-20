@@ -173,10 +173,12 @@ describe("getEdgeClient 配置缺失（2026-09-20 裁定）", () => {
     const r = spawnSync(
       "bun",
       ["-e", 'const m=await import("./src/local-llm/edge-client.ts"); try { m.getEdgeClient(); console.log("NO_THROW"); } catch (e) { console.log("THREW:" + (e as Error).message.slice(0,40)); }'],
-      { encoding: "utf8", cwd: process.cwd(), env: { ...process.env, EDGE_LLM_URL: "" } },
+      // 超时兜底（2026-10-19）：原先无 timeout，子进程挂死会让用例永久挂起
+      { encoding: "utf8", cwd: process.cwd(), env: { ...process.env, EDGE_LLM_URL: "" }, timeout: 60_000 },
     );
     const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
     expect(out).toContain("THREW:");
     expect(out).toContain("EDGE_LLM_URL");
-  });
+    // 用例预算（2026-10-19）：体内嵌套 bun 子进程，默认 5s 会误报失败
+  }, 90_000);
 });

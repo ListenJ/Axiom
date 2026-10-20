@@ -6,11 +6,9 @@
 >
 > - [中文](README.md) ｜ [English](README_en.md)
 
-> 🚀 [Developer onboarding guide](docs/DEVELOPER-ONBOARDING.md) — install, configure, run and call the system from scratch
->
-> 📖 [Authoritative architecture document](docs/AXIOM-ARCHITECTURE.md) — the single system-wide reference: module details, core code, data flows, 188 MCP tools, configuration, test coverage
->
-> 🧠 [Four-dimensional model of LLM potential](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — precision control, state awareness, behavior shaping, memory compression
+> Note: this repository is the **public distribution surface (source-only)**; the internal `docs/` tree is not
+> distributed here. Onboarding guides, the architecture reference and the LLM four-dimensional model are maintained
+> in the internal main repository; the rest of this document is self-contained.
 
 ## Architecture overview
 
@@ -95,7 +93,7 @@ The application ships 11 anonymous engines built in (`duckduckgo / bing / bing-h
 
 The value of SearXNG is aggregating more upstreams and sharing a cache, not making search usable in the first place.
 
-So why self-host at all? Because most public instances **do not enable `format=json`**, and Axiom calls SearXNG through its JSON API (see [`docs/research/no-auth-search-sources.md`](docs/research/no-auth-search-sources.md) §8):
+So why self-host at all? Because most public instances **do not enable `format=json`**, and Axiom calls SearXNG through its JSON API (see internal doc `docs/research/no-auth-search-sources.md` §8; not distributed here):
 
 ```bash
 # One-shot deploy: fill .env secrets, bring up searxng + valkey, then self-check the JSON API and require non-empty results
@@ -410,7 +408,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP protocol support
 
-Axiom exposes 188 deduplicated tools (authoritative count: `src/testing/tool-count.ts` dynamically counts `src/mcp/server/**`, inline tools in `src/mcp/server.ts`, `register-external-tools.ts` and 3 base `adaptTool` tools, with zero duplicates; the historical figures 133/150/172/173 are all outdated; the count fell from 189 to 188 on 2026-09-18 after `resource_status` was removed). Any MCP client can connect. See the [MCP tools guide](docs/MCP_TOOLS_GUIDE.md) and the [v2.9.2 comprehensive technical report (archived)](docs/archive/v2.9.2-COMPREHENSIVE-REPORT.md). Retrieval is deterministic FTS5 + keyword scoring, with cosine only in an optional semantic layer; PG vector is an optional legacy capability (H-M1-03).
+Axiom exposes 188 deduplicated tools (authoritative count: `src/testing/tool-count.ts` dynamically counts `src/mcp/server/**`, inline tools in `src/mcp/server.ts`, `register-external-tools.ts` and 3 base `adaptTool` tools, with zero duplicates; the historical figures 133/150/172/173 are all outdated; the count fell from 189 to 188 on 2026-09-18 after `resource_status` was removed). Any MCP client can connect. See the internal docs `docs/MCP_TOOLS_GUIDE.md` and `docs/archive/v2.9.2-COMPREHENSIVE-REPORT.md` (not distributed here). Retrieval is deterministic FTS5 + keyword scoring, with cosine only in an optional semantic layer; PG vector is an optional legacy capability (H-M1-03).
 
 **Tool tiers** (a historical snapshot; the total of 133 is an outdated count, not the current one):
 

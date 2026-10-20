@@ -15,7 +15,7 @@
   - 配置文件: `config/openclaw.yaml` → `config/axiom.yaml`
   - 域名: `openclaw.ai` → `axiom-runtime.ai`
   - 包名: `openclaw-agent` → `axiom-agent`
-- **新增**: [`docs/PHILOSOPHY.md`](docs/PHILOSOPHY.md) — 项目设计哲学最高指导原则
+- **新增**: `docs/PHILOSOPHY.md` — 项目设计哲学最高指导原则（内部文档，不随发布面分发）
 
 ### 🧠 CognitivePipeline — 最小认知闭环
 

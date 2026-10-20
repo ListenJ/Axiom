@@ -47,5 +47,7 @@ describe("语义链跨进程确定性（A6）", () => {
     expect(hashes[0]).toMatch(/^[0-9a-f]{64}$/);
     // 非空跑：每次都必须有语义候选
     for (const c of candidateCounts) expect(c).toBeGreaterThan(0);
-  }, 120_000);
+    // 预算（2026-10-19）：本用例循环 5 次、每次子进程预算 60s，最坏 300s；
+    // 原 120s 会被单次变慢击穿。取 5×60s + 100s 余量。
+  }, 400_000);
 });

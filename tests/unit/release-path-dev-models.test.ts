@@ -148,5 +148,7 @@ describe("发布面闸门：默认 embedding 路由不误选 SiliconFlow", () =>
     });
     const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
     expect(out).toContain("RESULT=Missing API key for embedding");
-  });
+    // 用例预算（2026-10-19）：体内是嵌套 bun 子进程（冷启动 + 加载 router 模块图 6~22s），
+    // 必须显式声明且严格大于 spawnSync 的 60s，否则默认 5s 会把它误报为断言失败。
+  }, 90_000);
 });

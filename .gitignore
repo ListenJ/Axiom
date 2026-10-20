@@ -118,19 +118,12 @@ tmp/
 .tmp-e2e/
 
 # ============================================
-# 不上传 GitHub 的文件
-# 需要时从本地下载或重新生成
+# 发布面（GitHub）清单统一在 scripts/release/publish-excludes.txt
+# 注意：本文件只控制「是否纳入 git 跟踪」，**不控制发布面**——已跟踪文件即使写在这里也仍会被跟踪，
+# 且是否发布由发布脚本的剔除清单决定。2026-10-19：删除本处原「不上传 GitHub 的文件」死区块
+# （CHANGELOG.md / docker-compose.yml / Dockerfile / docs 若干），它们实际全部已跟踪，
+# 这些规则对 git 无效、且把「发布面决策」误放在 gitignore 里，属误导配置。
 # ============================================
-
-# 文档 (除 README 外)
-docs/architecture-evolution.md
-docs/MCP_TOOLS_GUIDE.md
-CHANGELOG.md
-
-# Docker
-docker-compose.yml
-Dockerfile
-Dockerfile.lightpanda
 
 # 前端 — 自 2026-07-20 起纳入版本控制
 # 历史原因：此前误标为“未使用”，实际已有 64+ 文件被跟踪且持续开发。
@@ -163,6 +156,8 @@ archive/
 ai-daily-*.md
 
 # === Runtime artifacts ===
+# .axiom/：工具快照产物（如 .axiom/snapshots/package.json），非源码（2026-10-19 审阅发现未忽略）
+.axiom/
 .session-context.json
 .tmp-tool-test/
 .tmp-*

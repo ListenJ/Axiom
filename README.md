@@ -6,11 +6,8 @@
 >
 > - [中文](README.md) ｜ [English](README_en.md)
 
-> 🚀 [开发者上手指南](docs/DEVELOPER-ONBOARDING.md) — 从零开始安装/配置/运行/调用
->
-> 📖 [权威架构文档](docs/AXIOM-ARCHITECTURE.md) — 全系统唯一参考: 模块详解/核心代码/数据流/189 MCP 工具/配置/测试覆盖
->
-> 🧠 [LLM 潜力释放四维模型](docs/AXIOM-ARCHITECTURE.md#〇一llm-潜力释放四维模型) — 精度控制/状态感知/行为塑形/记忆压缩
+> 说明：本仓库是**发布面（源码分发）**，内部文档目录 `docs/` 不随发布面分发。
+> 开发者上手指南、权威架构文档、LLM 四维模型等文档在内部主仓库维护；本文件的其余内容自包含可读。
 
 ## 架构概览
 
@@ -94,8 +91,7 @@ hackernews / github / arxiv / crossref / openlibrary / searxng`），
 SearXNG 的价值是聚合更多上游并共享缓存，不是让搜索"能用"的前提。
 
 那为什么还建议自建？因为公共实例绝大多数**未开启 `format=json`**，
-而 Axiom 正是通过 JSON API 调用它（见
-[`docs/research/no-auth-search-sources.md`](docs/research/no-auth-search-sources.md) §8）：
+而 Axiom 正是通过 JSON API 调用它（内部文档 `docs/research/no-auth-search-sources.md` §8 有详细说明）：
 
 ```bash
 # 一键部署：补齐 .env 密钥 → 拉起 searxng + valkey → 自检 JSON API 且要求结果非空
@@ -349,7 +345,7 @@ curl "http://localhost:18789/kg/path?from=1&to=2"
 
 ### 🔌 MCP 协议支持
 
-暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见 [MCP 工具指南](docs/MCP_TOOLS_GUIDE.md)。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 当前不可启用（H-M1-03 已删客户端）。
+暴露 189 个去重工具（权威计数：`src/testing/tool-count.ts` 动态统计 `src/mcp/server/**` + `src/mcp/server.ts` 内联 + `register-external-tools.ts` + 3 个 adaptTool 基础工具，零重复；历史口径 133/150/172/173/188 均为旧值），兼容任何 MCP Client。详见内部文档 `docs/MCP_TOOLS_GUIDE.md`（不随发布面分发）。检索为确定性 FTS5 + 关键词打分，余弦仅可选语义层；PG vector 当前不可启用（H-M1-03 已删客户端）。
 
 **工具分层**（历史快照口径，合计 133 为旧计数，非当前总数）:
 

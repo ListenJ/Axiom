@@ -48,6 +48,9 @@ function runInSubprocess(script: string, dbPath: string) {
     },
     stdout: "pipe",
     stderr: "pipe",
+    // 子进程超时兜底（2026-10-19）：Bun.spawnSync 默认无超时，子进程挂死会让用例永久挂起。
+    // 与下方各用例的第三参数（用例预算）配合：用例预算必须 > 子进程预算。
+    timeout: 60_000,
   });
   return {
     stdout: proc.stdout.toString(),
@@ -86,7 +89,7 @@ describe("cron/scheduler 副作用收敛", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 90_000);
 
   it("显式调用 startCronScheduler() 才启动：安装监听器并建库", () => {
     const dir = mkdtempSync(join(tmpdir(), "cron-started-"));
@@ -114,7 +117,7 @@ describe("cron/scheduler 副作用收敛", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 90_000);
 
   it("runImmediately:false 时不触发健康检查（避免 import 即外呼）", () => {
     const dir = mkdtempSync(join(tmpdir(), "cron-noimmediate-"));
@@ -135,7 +138,7 @@ describe("cron/scheduler 副作用收敛", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 90_000);
 
   it("任务函数仍可用且不抛（语义未因重构改变）", () => {
     const dir = mkdtempSync(join(tmpdir(), "cron-tasks-"));
@@ -157,5 +160,5 @@ describe("cron/scheduler 副作用收敛", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 90_000);
 });

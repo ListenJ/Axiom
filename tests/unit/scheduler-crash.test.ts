@@ -153,9 +153,12 @@ describe("scheduler crash", () => {
       cwd: join(import.meta.dir, "..", ".."),
       stdout: "pipe",
       stderr: "pipe",
+      // 子进程超时兜底（2026-10-19）：Bun.spawnSync 默认无超时
+      timeout: 60_000,
       env: { ...process.env, DATABASE_PATH: join(tmpdir(), `nse-${Date.now()}.db`) },
     });
     const out = proc.stdout.toString();
     expect(out).toContain("N=0");
-  });
+    // 用例预算（2026-10-19）：体内嵌套 bun 子进程，默认 5s 会误报失败
+  }, 90_000);
 });

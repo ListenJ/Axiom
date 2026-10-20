@@ -58,3 +58,8 @@ tests/unit/pg-client-removal.test.ts
 tests/unit/determinism-disclosure.test.ts
 tests/rigorous/real-links-memory-knowledge-prompt.test.ts
 tests/unit/deadcode.test.ts
+
+# —— 视觉快照 CI 与其配置（依赖 e2e-visual/ 像素基线；该目录按发布面裁定已剔除）
+# 若随发布面分发，外部贡献者改 frontend/public 触发该 workflow 时会因"无测试可跑"必红。
+.github/workflows/visual-snapshot.yml
+playwright.snapshot.config.mjs
