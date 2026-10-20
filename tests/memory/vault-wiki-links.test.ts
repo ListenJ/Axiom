@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VaultManager } from "../../src/memory/vault-manager.js";
@@ -103,7 +103,14 @@ describe("VaultManager wiki-link persistence", () => {
       expect(backlinks(vault, "target.md")).toEqual([{ path: "external.md", title: "External" }]);
 
       // 原地改写：去掉对 target 的出链（目录条目不变）
-      writeFileSync(join(dir, "external.md"), "---\ntitle: External\n---\n\nno links now\n");
+      const externalPath = join(dir, "external.md");
+      writeFileSync(externalPath, "---\ntitle: External\n---\n\nno links now\n");
+      // 关键：把**文件** mtime 显式推进 2s。
+      // 不能依赖真实写入时间差——在快机器（CI/Linux）上写入间隔可能 <1ms，
+      // 而增量逻辑以 1ms 为容差（视为未变），会让本用例在 CI 上假红（2026-10-19 实测）。
+      const bumped = new Date(Date.now() + 2000);
+      utimesSync(externalPath, bumped, bumped);
+      // 再令实例认为**目录** mtime 未变：确保走旧实现的跳过分支
       (vault as unknown as { lastVaultMtime: number }).lastVaultMtime = statSync(dir).mtimeMs;
 
       vault.reindexAll();
