@@ -7,14 +7,25 @@
  *   - visual-snapshot Windows 步骤混用 bash 与 PowerShell（Remove-Item）。
  */
 import { describe, test, expect } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import YAML from "yaml";
 
-const FILES = [
+/**
+ * 分发形态（2026-10-19）：发布面按裁定剔除 `.github/workflows/visual-snapshot.yml`
+ * （它依赖已剔除的 `e2e-visual/` 像素基线）。因此在"没有该 workflow"的检出里：
+ *   · 通用断言只遍历**存在**的 workflow 文件；
+ *   · 专测 visual-snapshot 的用例以**可见 skip** 表达（内部仓库照常执行）。
+ * 原实现在模块作用域直接 readFileSync 三个固定路径，缺任一文件会让整文件崩溃。
+ */
+const ALL_FILES = [
   ".github/workflows/ci.yml",
   ".github/workflows/visual-snapshot.yml",
   ".github/workflows/frontend-audit.yml",
 ] as const;
+
+const FILES = ALL_FILES.filter((f) => existsSync(f));
+const VISUAL_SNAPSHOT_WORKFLOW = ".github/workflows/visual-snapshot.yml";
+const hasVisualSnapshotWorkflow = existsSync(VISUAL_SNAPSHOT_WORKFLOW);
 
 const PARSED = Object.fromEntries(
   FILES.map((f) => [f, YAML.parse(readFileSync(f, "utf8")) as {
@@ -51,11 +62,14 @@ describe("Step 7 — CI workflow 加固", () => {
     }
   });
 
-  test("AC-3 visual-snapshot 不再使用 PowerShell 专属命令且有 shell: bash", () => {
-    const src = readFileSync(".github/workflows/visual-snapshot.yml", "utf8");
-    expect(src).not.toContain("Remove-Item");
-    expect(src).toContain("shell: bash");
-  });
+  test.skipIf(!hasVisualSnapshotWorkflow)(
+    "AC-3 visual-snapshot 不再使用 PowerShell 专属命令且有 shell: bash（skip：该 workflow 不随发布面分发）",
+    () => {
+      const src = readFileSync(VISUAL_SNAPSHOT_WORKFLOW, "utf8");
+      expect(src).not.toContain("Remove-Item");
+      expect(src).toContain("shell: bash");
+    },
+  );
 
   test("AC-4 每个 workflow 有 concurrency；每个 job 有 timeout-minutes", () => {
     for (const f of FILES) {
