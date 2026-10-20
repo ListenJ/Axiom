@@ -102,7 +102,26 @@ export class VaultManager {
     try {
       const vaultStat = fs.statSync(this.config.vaultPath);
       const curMtime = vaultStat.mtimeMs;
-      if (curMtime !== this.lastVaultMtime) {
+      // 删除侦测不能只依赖目录 mtime（2026-10-19 修复）：
+      // 若删除与上一次 reindex 落在同一 mtime 粒度内，`curMtime !== lastVaultMtime` 不成立
+      // ⇒ 跳过 engine.reload ⇒ engine.listNotePaths() 仍返回已删路径 ⇒ currentSet 含它
+      // ⇒ 下方「清理已删除笔记」永不触发 ⇒ FTS 与 wiki 反链残留（已删笔记仍出现在反链里）。
+      // 该缺陷属"正确性依赖性能启发式"，全量/高负载下偶发（实测整跑 4 次 2 次红、单跑复现 1 次）。
+      // 修法：进入增量逻辑前，按**索引已知路径**做一次存在性核对（O(N) stat；173 文件实测 1~3ms，
+      // 远小于全量 reload 的 100ms+），一旦发现路径消失即强制 reload。
+      let vanished = 0;
+      for (const prevPath of this.lastIndexedMtimes.keys()) {
+        try {
+          if (!fs.existsSync(path.join(this.config.vaultPath, prevPath))) {
+            vanished++;
+            break; // 发现一处缺失即足以判定必须 reload
+          }
+        } catch {
+          vanished++;
+          break;
+        }
+      }
+      if (curMtime !== this.lastVaultMtime || vanished > 0) {
         this.engine.reload(this.config.vaultPath);
         this.lastVaultMtime = curMtime;
       }
