@@ -98,7 +98,15 @@ function missingAgainstRepo(scripts: Record<string, string>): string[] {
   return findMissing(Object.values(scripts).flatMap(extractNamedPaths), (p) => existsSync(join(repoRoot, p)));
 }
 
-describe("package.json 点名测试路径不变式", () => {
+/**
+ * 分发形态判定（2026-10-19）：发布面是**源码分发**，按裁定不含 `docs/`；`package.json` 的
+ * `test:arch` / `test:docs` 点名了文档契约测试，而这些测试同样不随发布面分发。
+ * 故在"无 docs 的检出"里，点名路径本就不存在，接线不变式无对象 → 可见 skip；
+ * 内部仓库（有 docs）照常执行，门禁强度不变。
+ */
+const isDistributionCheckout = !existsSync(join(repoRoot, "docs"));
+
+describe.skipIf(isDistributionCheckout)("package.json 点名测试路径不变式", () => {
   it("判据自检：打错/改名的路径真的会被判红，存在的不误伤（门不得对自己免检）", () => {
     const fakeExists = (p: string) => p === "tests/real.test.ts" || p === "tests";
     expect(

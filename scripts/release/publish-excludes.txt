@@ -53,4 +53,4 @@ tests/caliber-contract.test.ts
 tests/architecture-integrity.test.ts
 tests/unit/pg-client-removal.test.ts
 tests/unit/determinism-disclosure.test.ts
-tests/rigorous/real-links-memory-knowledge-prompt.test.ts
+tests/rigorous/real-links-memory-knowledge-prompt.test.tstests/unit/deadcode.test.ts
