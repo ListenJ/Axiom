@@ -37,6 +37,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# ── ssh 选择（2026-10-19 实测教训）────────────────────────────────────────────
+# MinGit 自带 `usr/bin/ssh.exe`，在本机对 GitHub 鉴权失败（publickey，ls-remote 退出码 128）；
+# Windows 自带 OpenSSH 正常。脚本会把 MinGit 无条件前置到 PATH，可能让 ssh 解析到错误实现，
+# 故此处显式兜底指定；调用方仍可用 GIT_SSH 覆盖。
+if (-not $env:GIT_SSH) {
+  $winSsh = "C:/Windows/System32/OpenSSH/ssh.exe"
+  if (Test-Path $winSsh) { $env:GIT_SSH = $winSsh }
+}
+
 # ── 0) 定位 git.exe：显式优先 MinGit，绝不落到 cmd.exe 批处理包装器 ─────────────
 $mingitDirs = @(
   (Join-Path $HOME ".axiom/tools/mingit/cmd"),
