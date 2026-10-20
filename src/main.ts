@@ -384,24 +384,33 @@ logger.info("Plugin market initialized");
 
 // 外部 MCP server 客户端连接 (R-015)：连接失败仅降级跳过，不影响启动
 // 可观测补强：失败仅 warn（含 failed 详情与耗时），不中断启动；超时经 MCP_CONNECT_TIMEOUT_MS 可配
+//
+// 2026-10-20 修复（启动阻塞）：这些 server **全部 optional**，但原实现 `await` 在 HTTP 监听之前。
+// 实测冷启动下外部 MCP 初始化耗时可达 **113s**（多个 server 各自超时/重试），导致 /health 就绪
+// 探测在 120s 内等不到、E2E 与容器健康检查超时失败。
+// 现改为**非阻塞**：先放行启动，MCP 工具在后台注册（注册进的是可变 registry，晚到不影响已有路由）。
 const mcpStartMs = Date.now();
-try {
-  const { connectExternalMcpServers } = await import("./mcp/client-connector.js");
-  const mcpSummary = await connectExternalMcpServers(pluginToolRegistry);
-  if (mcpSummary.failed.length > 0) {
-    logger.warn("[MCP] External MCP degraded — some servers failed", {
-      failed: mcpSummary.failed,
-      connected: mcpSummary.connected,
+void (async () => {
+  try {
+    const { connectExternalMcpServers } = await import("./mcp/client-connector.js");
+    const mcpSummary = await connectExternalMcpServers(pluginToolRegistry);
+    if (mcpSummary.failed.length > 0) {
+      logger.warn("[MCP] External MCP degraded — some servers failed", {
+        failed: mcpSummary.failed,
+        connected: mcpSummary.connected,
+      });
+    }
+    logger.info("External MCP clients initialized", {
+      connected: mcpSummary.connected.length,
+      failed: mcpSummary.failed.length,
+      tools: mcpSummary.toolsRegistered,
+      failedNames: mcpSummary.failed.map((f) => f.name),
+      durationMs: Date.now() - mcpStartMs,
     });
+  } catch (e: unknown) {
+    logger.warn("External MCP clients not started", { error: (e as Error).message });
   }
-  logger.info("External MCP clients initialized", {
-    connected: mcpSummary.connected.length,
-    failed: mcpSummary.failed.length,
-    tools: mcpSummary.toolsRegistered,
-    failedNames: mcpSummary.failed.map((f) => f.name),
-    durationMs: Date.now() - mcpStartMs,
-  });
-} catch (e: unknown) { logger.warn("External MCP clients not started", { error: (e as Error).message }); }
+})();
 
 import { TIMEOUTS } from "./constants/timeouts.js";
 import { toAxiomError, createErrorResponse } from "./utils/errors.js";
