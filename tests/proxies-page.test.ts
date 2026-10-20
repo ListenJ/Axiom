@@ -90,14 +90,11 @@ describe("Proxies Page", () => {
       expect(url.port).toBe("1080")
     })
 
-    it("无效 URL 应回退到原始字符串", () => {
-      const invalid = "not-a-url"
-      try {
-        new URL(invalid)
-        expect(true).toBe(false) // shouldn't reach here
-      } catch {
-        expect(true).toBe(true) // fallback works
-      }
+    it("无效 URL 构造会抛错（这是回退分支的触发条件）", () => {
+      // 2026-10-20：原写法是 try { new URL(...); expect(true).toBe(false) } catch { expect(true).toBe(true) }
+      // ——catch 分支恒真，等于测"JS 的 URL 会抛错"，不可证伪。
+      // 改为直接断言触发条件本身：一旦平台行为变化（不再抛错），回退逻辑的前提失效，此断言即红。
+      expect(() => new URL("not-a-url")).toThrow()
     })
   })
 

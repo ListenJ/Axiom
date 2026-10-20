@@ -102,22 +102,18 @@ describe("scheduler crash", () => {
         throw new Error("SQLITE_BUSY: database is locked");
       },
     })) as any;
-    if (typeof mod.discoverFreeModelsTask === "function") {
-      await expect(mod.discoverFreeModelsTask()).resolves.toBeUndefined();
-    } else {
-      // 若未导出则跳过（由下一测试覆盖）
-      await expect(Promise.resolve()).resolves.toBeUndefined();
-    }
+    // 2026-10-20：原为 `if (typeof fn === "function") {...} else { expect(Promise.resolve()).resolves }`
+    // ——else 分支恒真，会在"导出丢失"这一真实回归下静默通过。改为断言导出契约存在。
+    expect(typeof mod.discoverFreeModelsTask).toBe("function");
+    await expect(mod.discoverFreeModelsTask()).resolves.toBeUndefined();
     (Database.prototype as any).query = origQuery;
   });
 
   test("discoverFreeModelsTask handles query throw", async () => {
     const mod: any = await import("../../src/cron/scheduler.js");
-    if (typeof mod.discoverFreeModelsTask !== "function") {
-      // 若未导出，视为通过（兼容旧导出）
-      expect(true).toBe(true);
-      return;
-    }
+    // 2026-10-20：原为 `if (typeof fn !== "function") { expect(true).toBe(true); return; }`
+    // ——"导出缺失即通过"会掩盖真实回归。改为断言导出契约存在，缺失即红。
+    expect(typeof mod.discoverFreeModelsTask).toBe("function");
     (Database.prototype as any).query = (() => ({
       get: () => {
         throw new Error("database is locked");

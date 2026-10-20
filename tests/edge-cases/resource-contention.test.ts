@@ -225,7 +225,9 @@ describe("B.3 EventBus 并发竞争", () => {
 
     // 清理剩余
     for (const id of ids.slice(25)) eventBus.unsubscribe(id);
-    expect(true).toBe(true); // 未崩溃即通过
+    // 可证伪断言（2026-10-20）：publish 与 unsubscribe 竞态后，该事件类型的 handler 必须清空。
+    // 原为 `expect(true).toBe(true)`（不可失败），改为观测残留 handler 数——清理漏掉就会红。
+    expect(eventBus.getHandlerCount("race-test")).toBe(0);
   });
 });
 

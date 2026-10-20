@@ -1,0 +1,52 @@
+#!/bin/sh
+# Axiom pre-commit 门禁（2026-10-20）
+#
+# 为什么存在：棘轮/结构门禁此前只在 CI 生效，实测中两次出现「本地漏跑检查 → 提交 → CI 红 →
+# 修 → 重推」的往返（run 1196 漏 arch:stats、run 1210 漏单文件行数门禁）。这类可机械判定的
+# 事情不该依赖记忆。
+#
+# 检查内容（合计 <10s）：
+#   1. arch:check        —— docs/ARCHITECTURE.md §1 声明值 == 实测（仅当暂存区含 src/ 或 tests/ 时）
+#   2. 结构门禁          —— tests/architecture-integrity.test.ts（单文件行数/as any 数等）
+#
+# 逃生阀：`git commit --no-verify`（不建议）；bun 不可用时打印警告并放行，避免锁死环境。
+set -eu
+
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo ".")
+cd "$REPO_ROOT" || exit 0
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "[pre-commit] 警告：未找到 bun，跳过门禁（请自行确认 arch:stats 已同步）" >&2
+  exit 0
+fi
+
+# 仅当本次提交涉及可能影响统计/结构的路径时才检查，避免无关提交被拖慢
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+NEED_ARCH_CHECK=0
+echo "$STAGED" | grep -qE '^(src/|tests/)' && NEED_ARCH_CHECK=1
+
+if [ "$NEED_ARCH_CHECK" -eq 1 ]; then
+  echo "[pre-commit] arch:check ..."
+  if ! bun run arch:check >/tmp/axiom-arch-check.log 2>&1; then
+    echo "[pre-commit] ✗ arch:check 失败（文档 §1 与实测不一致）：" >&2
+    cat /tmp/axiom-arch-check.log >&2
+    echo "[pre-commit] 修复：bun run arch:stats 后更新 docs/ARCHITECTURE.md §1，再 git add 该文件" >&2
+    exit 1
+  fi
+fi
+
+echo "[pre-commit] 结构门禁 ..."
+# 分发形态（发布面）不包含文档契约类测试（arch integrity 亦在其中）——缺失时跳过并提示，
+# 而不是让 hook 在外部检出里必然失败（与 tests/test-full-script.test.ts 的分发形态判定同源）。
+if [ ! -f tests/architecture-integrity.test.ts ]; then
+  echo "[pre-commit] 提示：未找到 tests/architecture-integrity.test.ts（分发形态），跳结构门禁"
+  exit 0
+fi
+if ! bun test tests/architecture-integrity.test.ts >/tmp/axiom-structure-check.log 2>&1; then
+  echo "[pre-commit] ✗ 结构门禁失败：" >&2
+  tail -40 /tmp/axiom-structure-check.log >&2
+  exit 1
+fi
+
+echo "[pre-commit] ✓ 通过"
+exit 0
