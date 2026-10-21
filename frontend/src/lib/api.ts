@@ -27,6 +27,10 @@ interface RequestOptions {
   signal?: AbortSignal
   /** 乐观并发：附带到 `If-Match` 头的资源修订号（后端不匹配时返回 409）。 */
   ifMatch?: string
+  /** 幂等 GET 的有限重试次数（默认 2；POST 等非幂等请求恒为 0）。 */
+  retries?: number
+  /** 重试退避基数（毫秒，默认 300，指数递增 300/900/…）。 */
+  retryDelayMs?: number
 }
 
 class HttpError extends Error {
@@ -220,7 +224,7 @@ export class APIClient {
   }
 
   async request<T = unknown>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-    const { params, body, headers, cache, timeout = this.timeout, ifMatch } = options
+    const { params, cache } = options
     const fullURL = this.buildURL(path, params)
     const cacheKey = `${method}:${fullURL}`
 
@@ -230,6 +234,86 @@ export class APIClient {
         return cached.data as T
       }
     }
+
+    // P3：幂等 GET 的在途去重（同一 URL 并发只发一次请求）。POST 等非幂等请求不做去重/重试。
+    if (method === 'GET') {
+      const existing = this.inFlight.get(cacheKey) as Promise<T> | undefined
+      if (existing) return existing
+    }
+
+    const task = this.executeWithRetry<T>(method, fullURL, cacheKey, options)
+    if (method === 'GET') {
+      this.inFlight.set(cacheKey, task as Promise<unknown>)
+      // 注意：finally 返回的新 promise 若被忽略，task 失败会产生 unhandled rejection，需显式吞掉。
+      void task.finally(() => {
+        if (this.inFlight.get(cacheKey) === (task as Promise<unknown>)) this.inFlight.delete(cacheKey)
+      }).catch(() => {})
+    }
+    return task
+  }
+
+  /** 是否允许对该请求自动重试：仅幂等 GET；429/5xx/网络错误/超时可重试，4xx 与主动取消不重试。 */
+  private shouldRetry(method: string, err: unknown): boolean {
+    if (method !== 'GET') return false // POST/PUT/PATCH/DELETE 非幂等：不自动重试
+    if (err instanceof HttpError) {
+      if (err.code === 'canceled') return false // 调用方主动取消：立即停止
+      if (err.status === 0) return true // 超时或网络层错误（code=timeout / fetch 抛错）
+      return err.status >= 500 || err.status === 429
+    }
+    return true // fetch 网络异常（TypeError 等）
+  }
+
+  /** 可被外部 AbortSignal 中断的退避等待（取消时抛 code=canceled，而不是继续重试）。 */
+  private async delay(ms: number, signal?: AbortSignal): Promise<void> {
+    if (!signal) {
+      await new Promise((resolve) => setTimeout(resolve, ms))
+      return
+    }
+    if (signal.aborted) throw new HttpError('Request canceled', 0, null, 'canceled')
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort)
+        resolve()
+      }, ms)
+      const onAbort = () => {
+        clearTimeout(timer)
+        reject(new HttpError('Request canceled', 0, null, 'canceled'))
+      }
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  /** 有限重试 + 指数退避（仅 GET；POST 不重试）。 */
+  private async executeWithRetry<T>(
+    method: string,
+    fullURL: string,
+    cacheKey: string,
+    options: RequestOptions,
+  ): Promise<T> {
+    const maxRetries = method === 'GET' ? Math.max(0, options.retries ?? 2) : 0
+    const baseDelay = Math.max(0, options.retryDelayMs ?? 300)
+    let attempt = 0
+    for (;;) {
+      try {
+        return await this.executeOnce<T>(method, fullURL, cacheKey, options)
+      } catch (err) {
+        if (attempt >= maxRetries || !this.shouldRetry(method, err)) throw err
+        const waitMs = baseDelay * 2 ** attempt
+        attempt += 1
+        // 写操作成功后的缓存失效不在此处（仅成功路径处理）；重试失败直接抛出
+        await this.delay(waitMs, options.signal)
+      }
+    }
+  }
+
+  /** 单次请求执行（P3 抽出，供重试包装复用）。 */
+  private async executeOnce<T>(
+    method: string,
+    fullURL: string,
+    cacheKey: string,
+    options: RequestOptions,
+  ): Promise<T> {
+    const { body, headers, cache, timeout = this.timeout, ifMatch } = options
 
     let config: RequestConfig = {
       method,
@@ -296,6 +380,8 @@ export class APIClient {
         const ttl = typeof cache === 'object' && cache?.ttl ? cache.ttl : 60000
         this.cache.set(cacheKey, { time: Date.now(), data, ttl })
       }
+      // P3：写操作成功后按路径前缀失效 GET 缓存，避免「保存后仍读旧值」。
+      if (method !== 'GET') this.invalidateForWrite(fullURL)
       return data as T
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -308,6 +394,17 @@ export class APIClient {
     } finally {
       clearTimeout(timer)
       options.signal?.removeEventListener('abort', onExternalAbort)
+    }
+  }
+
+  private inFlight = new Map<string, Promise<unknown>>()
+
+  /** 写成功后：清掉与该路径相关的 GET 缓存（前缀匹配；POST /settings/web-search → 清 GET /settings/web-search）。 */
+  private invalidateForWrite(fullURL: string): void {
+    const needle = fullURL.split('?')[0].replace(/\/$/, '')
+    if (!needle) return
+    for (const key of Array.from(this.cache.keys())) {
+      if (key.startsWith('GET:') && key.includes(needle)) this.cache.delete(key)
     }
   }
 

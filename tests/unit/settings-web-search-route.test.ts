@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { RouteContext } from "../../src/routes/types.js";
 import { handleWebSearchSettings } from "../../src/routes/settings.js";
 import { loadWebSearchConfig, loadWebSearchConfigWithRevision } from "../../src/crawl/web-search-config.js";
+import { searchCache } from "../../src/utils/cache.js";
 
 /**
  * P1（2026-10-22）路由级集成测试：/settings/web-search 的 GET(revision) + POST(If-Match/CAS/409)。
@@ -17,11 +18,9 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "axiom-settings-route-"));
   cfgPath = join(dir, "web-search.yaml");
 });
-
 afterEach(() => {
   rmSync(dir, { recursive: true, force: true }); // 测试自建临时目录（非仓库路径）
 });
-
 /** 最小 RouteContext 假体：handler 只消费 url / req / baseHeaders / jsonResponse。 */
 function makeCtx(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}): RouteContext {
   const url = new URL(`http://127.0.0.1:18789${path}`);
@@ -128,5 +127,12 @@ describe("POST /settings/web-search 乐观并发（隔离临时配置）", () =>
     expect(status).toBe(200);
     expect(typeof json.revision).toBe("string");
     expect(loadWebSearchConfig(cfgPath).aggregate.max_results).toBe(18);
+  });
+  test("保存成功后清空搜索聚合缓存（P3/D5：改配置后不再读到旧查询结果）", async () => {
+    searchCache.set("probe::router::default", [{ title: "旧结果" }], 60_000);
+    expect(await searchCache.get("probe::router::default")).toBeDefined();
+    const { status } = await postJson("/settings/web-search", { aggregate: { max_results: 16 } });
+    expect(status).toBe(200);
+    expect(await searchCache.get("probe::router::default")).toBeUndefined();
   });
 });

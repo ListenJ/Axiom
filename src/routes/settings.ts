@@ -93,6 +93,14 @@ export async function handleWebSearchSettings(
       const revision = saveWebSearchConfig(config, configPath, {
         expectedRevision: expectedFromClient ?? current.revision,
       });
+      // P3/D5：配置已变化 → 立即失效搜索聚合缓存。否则同一查询会在缓存 TTL 内继续返回
+      // 旧引擎/旧策略下的结果（用户改了引擎开关却"看起来没生效"）。
+      try {
+        const { searchCache } = await import("../utils/cache.js");
+        searchCache.clear();
+      } catch (e) {
+        logger.warn("[Settings] 搜索缓存失效失败（配置已保存）", { error: (e as Error).message });
+      }
       return ctx.jsonResponse(
         { ok: true, revision, engines: listEngineStatus(configPath), applied },
         200,

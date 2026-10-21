@@ -81,7 +81,7 @@ describe('APIClient.request', () => {
     const client = new APIClient({ baseURL: 'http://api' })
     mockFetchOnce({ status: 500, body: 'oops', contentType: 'text/plain' })
     try {
-      await client.get('/x')
+      await client.get('/x', { retries: 0 })
       expect.fail('expected throw')
     } catch (e) {
       expect((e as HttpError).message).toBe('oops')
@@ -93,7 +93,7 @@ describe('APIClient.request', () => {
     const client = new APIClient({ baseURL: 'http://api' })
     mockFetchOnce({ status: 503, body: {} })
     try {
-      await client.get('/x')
+      await client.get('/x', { retries: 0 })
       expect.fail('expected throw')
     } catch (e) {
       expect((e as HttpError).message).toBe('HTTP 503')
@@ -137,7 +137,7 @@ describe('APIClient.request', () => {
           })
         })
     )
-    const p = client.get('/slow')
+    const p = client.get('/slow', { retries: 0 })
     p.catch(() => {}) // avoid unhandled rejection
     vi.advanceTimersByTime(60)
     await expect(p).rejects.toMatchObject({ code: 'timeout', status: 0, message: 'Request timeout' })
@@ -383,5 +383,65 @@ describe('APIClient 401 unauthorized handling', () => {
     mockFetchOnce({ status: 401, body: {} })
     await expect(api.get('/x')).rejects.toMatchObject({ status: 401 })
     expect(localStorage.getItem('token')).toBeNull()
+  })
+})
+
+describe('APIClient P3：幂等 GET 重试 / 在途去重 / 写后缓存失效', () => {
+  const jsonResponse = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
+
+  it('GET 5xx 自动重试后成功（有限重试 + 退避）', async () => {
+    vi.useFakeTimers()
+    const client = new APIClient({ baseURL: 'http://api' })
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockResolvedValueOnce(jsonResponse(500, { error: 'boom' }))
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+    const p = client.get('/retry-me', { retryDelayMs: 10 })
+    await vi.advanceTimersByTimeAsync(20)
+    await expect(p).resolves.toEqual({ ok: true })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
+
+  it('GET 4xx 不重试（客户端错误重试无意义）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockResolvedValueOnce(jsonResponse(400, { error: 'bad' }))
+    await expect(client.get('/bad')).rejects.toMatchObject({ status: 400 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('POST 不自动重试（非幂等）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockResolvedValueOnce(jsonResponse(500, { error: 'boom' }))
+    await expect(client.post('/write', { a: 1 })).rejects.toMatchObject({ status: 500 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('并发同 URL GET 只发一次请求（在途去重）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    let resolveFetch: (r: Response) => void = () => {}
+    fetchMock.mockImplementationOnce(() => new Promise<Response>((res) => { resolveFetch = res }))
+    const p1 = client.get('/same')
+    const p2 = client.get('/same')
+    resolveFetch(jsonResponse(200, { v: 1 }))
+    const [a, b] = await Promise.all([p1, p2])
+    expect(a).toEqual({ v: 1 })
+    expect(b).toEqual({ v: 1 })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('写操作成功后失效相关 GET 缓存（保存后不再读旧值）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { v: 'old' }))
+    expect(await client.get('/settings/web-search')).toEqual({ v: 'old' })
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+    await client.post('/settings/web-search', { aggregate: { max_results: 20 } })
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { v: 'new' }))
+    expect(await client.get('/settings/web-search')).toEqual({ v: 'new' })
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 })
