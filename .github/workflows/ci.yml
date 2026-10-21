@@ -74,15 +74,16 @@ jobs:
         shell: bash
         run: echo "AXIOM_AUTH_TOKEN=$(node -e 'console.log(require("crypto").randomBytes(16).toString("hex"))')" >> "$GITHUB_ENV"
 
-      # E2E（UI 层）在公开镜像上设为**报告模式**（2026-10-20 判定）：
-      #   1. 内部阻断门禁（Gitea CI）不跑 E2E —— 公开镜像不应引入比内部更严的阻断项；
-      #   2. 后端就绪问题已修（运行时目录 + 非阻塞 MCP 初始化），但 Playwright 阶段在
-      #      GitHub runner 上曾 30+ 分钟无进展；UI 套件对浏览器/时序敏感；
-      #   3. 保留执行用于观测，不阻断合并；与同文件 `Windows Portable (report-only)` 同款模式。
-      - name: Run E2E tests (report-only)
+      # E2E（UI 层）：**阻断式**（2026-10-21 恢复）
+      #   历史：2026-10-20 因「UI 规格与重构后的前端脱节」→ 11/12 规格 30s 超时累积（本地约
+      #   17.5 分钟、CI 30+ 分钟）而临时降为报告模式。
+      #   2026-10-21 处置完成：`e2e/smoke.spec.ts` 按当前实现（Agent 工作区、/agents、系统菜单、
+      #   侧栏主导航）重写并于本地通过（5 passed / 26s）；11 个旧规格显式 skip 并保留待重写；
+      #   全量 E2E 从 17.5 分钟降到 **63 秒**。因此恢复阻断，同时把步骤上限收敛到 10 分钟
+      #   （run-e2e.cjs 另有 180s/文件的硬超时兜底，不会再现长时间无进展）。
+      - name: Run E2E tests (blocking)
         run: bun run test:e2e
-        continue-on-error: true
-        timeout-minutes: 8
+        timeout-minutes: 10
         env:
           NODE_ENV: test
 

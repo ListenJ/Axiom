@@ -1,5 +1,10 @@
 #!/usr/bin/env pwsh
+#requires -Version 7.0
 # release/publish.ps1 — Windows 侧发布面推送（等价于 publish.sh，供无原生 bash 的机器使用）
+#
+# 运行环境（2026-10-21 实测）：**PowerShell 7+**（本机 7.6.7 Core 通过）。
+# 脚本使用 PS7 语法，Windows PowerShell 5.1 无法解析（实测 35 个语法错误），
+# 因此用 `#requires` 显式声明下限，避免在 5.1 里得到一堆看不懂的 ParserError。
 #
 # 为什么需要它：本机 PATH 上的 bash 是 WSL 的（x86_64-pc-linux-gnu），
 # 而按项目口径 git 操作不得进入 WSL（9p 上 I/O 性能差且 git-lfs 不可用）。

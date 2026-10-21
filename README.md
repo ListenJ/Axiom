@@ -709,6 +709,7 @@ Hermes 安装后可通过 MCP 连接 Axiom 共享记忆库。
 ## 技术栈
 
 - **运行时**: Bun 1.4.3+（统一基线，滚动升级至最新稳定版）
+- **发布脚本（仅 Windows 侧）**: PowerShell **7.0+**（本机实测 7.6.7 Core）；Windows PowerShell 5.1 无法解析 `scripts/release/publish.ps1`，脚本已用 `#requires -Version 7.0` 显式声明下限。Bash 侧用等价的 `scripts/release/publish.sh`，无此依赖。
 - **语言**: TypeScript (ESM, strict)
 - **数据库**: SQLite (bun:sqlite) + Drizzle ORM Schema
 - **协议**: MCP (Model Context Protocol) v1.29
