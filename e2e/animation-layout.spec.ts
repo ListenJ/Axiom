@@ -160,4 +160,4 @@ test.describe('页面整洁化与动画', () => {
 // 2026-10-21：UI 重构后本规格过时（实测 11/12 规格因等待已不存在的元素而 30s 超时累积）。
 // 显式 skip 并保留原文用于重写参考；可执行的新切片见 e2e/smoke.spec.ts。
 import { skipObsoleteUiSuite } from "./_obsolete-ui-suite";
-skipObsoleteUiSuite();
+skipObsoleteUiSuite('裁定（2026-10-22）：不重写——动画中间态断言在 CI 上不稳定；可验证行为已由 e2e/terminal-summary.spec.ts 与 e2e/responsive.spec.ts 覆盖，旧文件保留备查');

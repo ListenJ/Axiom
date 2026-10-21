@@ -19,4 +19,4 @@ test("perf page renders cards", async ({ page }) => {
 // 2026-10-21：UI 重构后本规格过时（实测 11/12 规格因等待已不存在的元素而 30s 超时累积）。
 // 显式 skip 并保留原文用于重写参考；可执行的新切片见 e2e/smoke.spec.ts。
 import { skipObsoleteUiSuite } from "./_obsolete-ui-suite";
-skipObsoleteUiSuite();
+skipObsoleteUiSuite('裁定（2026-10-22）：不重写——性能阈值在共享 CI runner 上抖动大、会制造 flake；性能回归由 audit:runtime 与 Stress & Performance Gate 承担');

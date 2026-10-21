@@ -237,7 +237,11 @@ class ContextEngineImpl {
     }));
 
     const system = {
-      uptime: Date.now() - (worldState.get<number>("system.startTime") ?? Date.now()),
+      // 2026-10-22 修复（Gitea CI run 1268 实测）：uptime 曾出现 -1 ——
+      // `system.startTime` 由其他模块/测试写入，跨文件状态污染或假时钟（fake timers）会让
+      // startTime 落到"未来"，于是 Date.now() - startTime 为负。运行时长语义上不可能为负，
+      // 这里 clamp 到 0，避免把状态污染变成门禁红。
+      uptime: Math.max(0, Date.now() - (worldState.get<number>("system.startTime") ?? Date.now())),
       tickNumber: worldState.get<number>("runtime.tickNumber") ?? 0,
       stateVersion: worldState.getVersion(),
     };

@@ -110,4 +110,4 @@ test("Providers/Proxies/Router：配置页与后端 /config 一致", async ({ pa
 // 2026-10-21：UI 重构后本规格过时（实测 11/12 规格因等待已不存在的元素而 30s 超时累积）。
 // 显式 skip 并保留原文用于重写参考；可执行的新切片见 e2e/smoke.spec.ts。
 import { skipObsoleteUiSuite } from "./_obsolete-ui-suite";
-skipObsoleteUiSuite();
+skipObsoleteUiSuite('裁定（2026-10-22）：不重写——依赖真实后端数据形状、脆弱；渲染面由 pages/smoke 覆盖，接口契约由单元测试覆盖');

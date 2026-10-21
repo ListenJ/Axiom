@@ -635,8 +635,12 @@ if (bypassWarning) {
 
 // SPA route whitelist — module-level Set avoids per-request allocation.
 // /chat 已随 2026-09-25 前端 Chat 页移除（M1 清理）；旧链接由前端 * 路由重定向 /agents。
+// 2026-10-22 修复（E2E 发现）：注释声称的「旧链接由前端 * 路由重定向」此前并不成立——
+// /chat 未列入白名单，浏览器直接访问会先命中鉴权中间件返回 401（旧书签得到的是 401 而非跳转）。
+// 这里把 /chat 加回白名单，让 SPA 接管后由前端通配路由重定向到 /agents。
 const SPA_ROUTES = new Set([
   "/", "/code", "/agents", "/router", "/vault", "/kg", // /search 是后端 API（vault 搜索），不加入 SPA 白名单避免劫持
+  "/chat", // 历史路径（页面已移除，仅用于旧链接回退到 SPA → /agents）
   "/sessions", "/eval", "/plugins", "/trends", "/ocr", "/research",
   "/knowledge", "/proxies", "/providers", "/tokens", "/perf", "/git", "/settings", "/login",
 ]);

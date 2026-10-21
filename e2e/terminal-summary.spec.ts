@@ -1,139 +1,140 @@
-﻿/**
- * 终端浮层 + 右侧工具台（摘要 / Git 修改）e2e（实操验证）
- *
- * 断言：
- *   1. 画布工具栏"打开终端"按钮点击后终端浮层出现，Ctrl+` 快捷键可开合
- *   2. 画布工具栏"打开摘要"按钮唤出右侧工具台：Git 状态（分支）与系统统计可见
- *   3. 右栏工具轨"Git"面板：/api/git/diff 聚合后的文件数与增删行可见
- */
 import { test, expect, Page } from "@playwright/test";
 import { injectAuth } from "./helpers";
 
-test.beforeEach(async ({ page }) => {
-  await injectAuth(page);
-});
+/**
+ * 终端浮层 e2e（2026-10-22 按「Agent 工作区」前端重写）。
+ *
+ * 旧规格描述 /chat 画布工具栏「打开终端/打开摘要」按钮与右侧工具台，该 UI 已删除。
+ * 重写后的链路与断言全部来自当前源码事实：
+ *   - Layout.tsx:91-107  terminalOpen && <motion.div(fixed 底部浮层)><TerminalPanel/>；
+ *     关闭路径 onClose={() => setTerminalOpen(false)}；
+ *   - Header.tsx:118-150 nav[aria-label="系统菜单"] → HeaderMenu「视图」(button, aria-expanded,
+ *     aria-haspopup="menu") → role=menuitem「打开终端」onSelect 调 useApp.setTerminalOpen(true)；
+ *   - TerminalPanel.tsx:164-207  根节点 div role="region" aria-label="终端"；工具条含
+ *     aria-label="清空终端" / "关闭终端" 按钮；xterm 挂在内部 div（class .xterm 由 xterm.js 生成）；
+ *     状态文案 statusLabel：connecting「正在连接…」/ connected「交互终端 · 常驻会话」/ error「连接失败」；
+ *   - pty-terminal.ts:87-92  打开浮层即 POST /terminal/session 创建会话 + SSE
+ *     GET /terminal/session/:id/stream —— 本规格全程用 page.route mock 这两个端点，
+ *     绝不触真实后端 PTY，也不执行任何命令；
+ *   - useGlobalHotkeys.ts:64-69  Ctrl+` 全局开合（本规格只测菜单路径与关闭按钮，快捷键留待键盘规格）。
+ *
+ * 交互式 route mock 是 Playwright 内置网络桩，非真实外部网络；关闭/隐藏断言使用
+ * AnimatePresence 卸载后元素 dettach 的自动等待，无固定 sleep。
+ */
 
-async function mockTerminal(page: Page) {
+const PTY_SESSION_ID = "e2e-pty-1";
+
+/** 桩住终端会话两端点：create 返回固定会话 id，stream 返回单条 SSE 后挂起（不产生命令回显）。 */
+async function mockTerminalSession(page: Page): Promise<void> {
   await page.route("**/terminal/session", (route) =>
-    route.fulfill({ json: { sessionId: "e2e-pty-1" } })
+    route.fulfill({ json: { sessionId: PTY_SESSION_ID } })
   );
-  await page.route("**/terminal/session/e2e-pty-1/stream", (route) =>
+  await page.route(`**/terminal/session/${PTY_SESSION_ID}/stream`, (route) =>
     route.fulfill({
       status: 200,
       headers: { "Content-Type": "text/event-stream" },
+      // 单条 data 块后连接保持打开（旧规格同款桩）：onChunk 收到 "hello from pty\n"
       body: 'data: "hello from pty\\n"\n\n',
     })
   );
-  await page.route("**/terminal/session/e2e-pty-1/input", (route) =>
+  await page.route(`**/terminal/session/${PTY_SESSION_ID}/input`, (route) =>
     route.fulfill({ json: { ok: true } })
   );
-  await page.route("**/terminal/session/e2e-pty-1", (route) =>
+  await page.route(`**/terminal/session/${PTY_SESSION_ID}`, (route) =>
     route.fulfill({ json: { ok: true } })
   );
 }
 
-async function mockGit(page: Page, changes: string[]) {
-  await page.route("**/api/git/status", (route) =>
-    route.fulfill({
-      json: {
-        success: true,
-        branch: "master",
-        modified: changes,
-        clean: changes.length === 0,
-      },
-    })
-  );
-  await page.route("**/api/git/diff", (route) =>
-    route.fulfill({
-      json: {
-        success: true,
-        files: changes.map((p) => ({ path: p, status: "modified", additions: 3, deletions: 1 })),
-      },
-    })
-  );
-  await page.route("**/api/stats", (route) =>
-    route.fulfill({ json: { activeTasks: 2, agents: 3, completed: 10, tokensUsed: 123456 } })
-  );
+/** 走真实外壳菜单：系统菜单 → 视图 → 打开终端。选择器依据 Header.tsx（见文件头注释）。 */
+async function openTerminalViaMenu(page: Page): Promise<void> {
+  const viewMenuButton = page
+    .getByRole("navigation", { name: "系统菜单" })
+    .getByRole("button", { name: "视图" });
+  await viewMenuButton.click();
+  await expect(viewMenuButton).toHaveAttribute("aria-expanded", "true");
+  const openItem = page.getByRole("menuitem", { name: "打开终端" });
+  await expect(openItem).toBeVisible();
+  await openItem.click();
+  // Header.tsx:63-65 menuitem onClick 先 setOpen(false) 再 onSelect()
+  await expect(openItem).toBeHidden();
 }
 
-test("终端浮层：画布工具栏按钮打开/关闭", async ({ page }) => {
-  await mockTerminal(page);
-  await page.goto("/chat", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("打开终端").waitFor({ timeout: 10000 });
-  await page.getByLabel("打开终端").click();
-  const panel = page.getByRole("region", { name: "终端" });
-  await expect(panel).toBeVisible();
-  await page.getByLabel("关闭终端").click();
-  await expect(panel).not.toBeVisible();
+const terminalRegion = (page: Page) => page.getByRole("region", { name: "终端" });
+
+test.beforeEach(async ({ page }) => {
+  await injectAuth(page);
+  await mockTerminalSession(page);
+  await page.goto("/agents", { waitUntil: "domcontentloaded" });
+  await expect(page.getByRole("navigation", { name: "系统菜单" })).toBeVisible();
 });
 
-test("终端浮层：Ctrl+` 快捷键开合", async ({ page }) => {
-  await mockTerminal(page);
-  await page.goto("/chat", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("打开终端").waitFor({ timeout: 10000 }); // 确保 React 挂载
-  await page.keyboard.press("Control+`");
-  await expect(page.getByRole("region", { name: "终端" })).toBeVisible();
-  await page.keyboard.press("Control+`");
-  await expect(page.getByRole("region", { name: "终端" })).not.toBeVisible();
-});
+test.describe("终端浮层（系统菜单 -> 视图 -> 打开终端）", () => {
+  test.describe.configure({ mode: "serial" });
 
-test("终端浮层：输入命令并发送到交互会话", async ({ page }) => {
-  await mockTerminal(page);
-  await page.goto("/chat", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("打开终端").waitFor({ timeout: 10000 }); // 确保 React 挂载
-  await page.keyboard.press("Control+`");
-  const panel = page.getByRole("region", { name: "终端" });
-  await expect(panel).toBeVisible();
-  const sent: string[] = [];
-  page.on("request", (req) => {
-    if (!req.url().includes("/terminal/session/e2e-pty-1/input")) return;
-    const body = JSON.parse(req.postData() ?? "{}");
-    if (typeof body.data === "string") sent.push(body.data);
+  test("菜单打开终端：region[终端] 可见，头部含状态文案与 .xterm 容器", async ({ page }) => {
+    await expect(terminalRegion(page)).toBeHidden(); // 关闭态：AnimatePresence 未挂载
+    await openTerminalViaMenu(page);
+    const region = terminalRegion(page);
+    await expect(region).toBeVisible();
+    // TerminalPanel.tsx:181-184 工具条：图标 + 「终端」 + statusLabel
+    await expect(region.getByText("终端", { exact: true })).toBeVisible();
+    // 会话创建成功（mock create+stream）→ connected 分支的 statusLabel（可证伪：
+    // 桩了 create/stream，若链路断在 setTerminalOpen 或 PtyTerminal.start 则是「正在连接…」）
+    await expect(region.getByText("交互终端 · 常驻会话")).toBeVisible();
+    // xterm.js 在内部容器生成的终端画布（TerminalPanel.tsx:114 term.open(container)）
+    await expect(region.locator(".xterm")).toBeVisible();
+    // Layout.tsx:96 浮层覆盖式（非内嵌）贴底
+    await expect
+      .poll(async () => {
+        const box = await region.boundingBox();
+        return box === null ? -1 : Math.abs(box.y + box.height - page.viewportSize()!.height);
+      })
+      .toBeLessThanOrEqual(4);
   });
-  await page.locator(".xterm").click();
-  await page.keyboard.type("echo hello");
-  await page.keyboard.press("Enter");
-  // xterm onData 按字符触发：输入会拆成多个 POST，逐键转发是交互终端的正确语义，
-  // 因此断言“按序收到的全部输入拼接后等于整条命令 + 回车”。
-  await expect.poll(() => sent.join(""), { timeout: 10000 }).toBe("echo hello\r");
-});
 
-test("右侧工具台：摘要按钮唤出并显示环境信息（分支/变更/Token）", async ({ page }) => {
-  await mockGit(page, ["src/main.ts"]);
-  await page.goto("/chat", { waitUntil: "domcontentloaded" });
-  await page.getByLabel("打开摘要").waitFor({ timeout: 10000 });
-  await page.getByLabel("打开摘要").click();
-  const bar = page.getByRole("complementary", { name: "右侧工具台" });
-  await expect(bar).toBeVisible();
-  await expect(bar.getByText("环境信息")).toBeVisible();
-  await expect(bar.getByText("master")).toBeVisible();
-  await expect(bar.getByText("+3", { exact: true })).toBeVisible();
-  await expect(bar.getByText("-1", { exact: true })).toBeVisible();
-  await expect(bar.getByText("123.5K")).toBeVisible(); // formatTokens(123456) → 123.5K
-});
+  test("关闭按钮隐藏浮层：POST /terminal/session/:id 关闭后端会话", async ({ page }) => {
+    await openTerminalViaMenu(page);
+    const region = terminalRegion(page);
+    await expect(region).toBeVisible();
+    await expect(region.getByText("交互终端 · 常驻会话")).toBeVisible();
 
-test("右侧工具台：Git 面板显示修改统计与增删行", async ({ page }) => {
-  await page.route("**/api/git/diff", (route) =>
-    route.fulfill({
-      json: {
-        success: true,
-        files: [{ path: "src/main.ts", status: "modified", additions: 3, deletions: 1 }],
-      },
-    })
-  );
-  await page.goto("/chat", { waitUntil: "domcontentloaded" });
-  // 右栏默认收起：先经「打开摘要」唤起（与其它用例一致）
-  await page.getByLabel("打开摘要").click();
-  const bar = page.getByRole("complementary", { name: "右侧工具台" });
-  await bar.waitFor({ timeout: 10000 });
-  await bar.getByLabel("Git", { exact: true }).click();
-  await expect(bar.getByText("Git 修改")).toBeVisible();
-  await expect(bar.getByText("+3", { exact: true })).toBeVisible();
-  await expect(bar.getByText("-1", { exact: true })).toBeVisible();
-  await expect(bar.getByText("src/main.ts")).toBeVisible();
-});
+    // PtyTerminal.dispose 会 close 会话：捕获对 DELETE 的请求作为清理证据
+    const closeRequested = page.waitForRequest(
+      (req) => req.method() !== "GET" && req.url().endsWith(`/terminal/session/${PTY_SESSION_ID}`),
+      { timeout: 10_000 }
+    );
+    await region.getByLabel("关闭终端").click();
+    await closeRequested;
+    await expect(region).not.toBeVisible(); // Layout.tsx:101 exit 动画后卸载
+  });
 
-// 2026-10-21：UI 重构后本规格过时（实测 11/12 规格因等待已不存在的元素而 30s 超时累积）。
-// 显式 skip 并保留原文用于重写参考；可执行的新切片见 e2e/smoke.spec.ts。
-import { skipObsoleteUiSuite } from "./_obsolete-ui-suite";
-skipObsoleteUiSuite();
+  test("清空按钮只作用于本地 xterm：不清空会话也不发真实命令", async ({ page }) => {
+    await openTerminalViaMenu(page);
+    const region = terminalRegion(page);
+    await expect(region).toBeVisible();
+    await expect(region.getByText("交互终端 · 常驻会话")).toBeVisible();
+
+    // TerminalPanel.tsx:188 onClick 只调 termRef.current?.clear() —— 本地操作；
+    // 若误触 input 端点，则 inputRequests 非零，断言可证伪。
+    let inputRequests = 0;
+    page.on("request", (req) => {
+      if (req.url().includes(`/terminal/session/${PTY_SESSION_ID}/input`)) inputRequests += 1;
+    });
+    await region.getByLabel("清空终端").click();
+    await expect(region.getByText("交互终端 · 常驻会话")).toBeVisible(); // 面板仍连接
+    expect(inputRequests).toBe(0);
+  });
+
+  test("浮层不影响画布交互：关闭后可再次经菜单打开", async ({ page }) => {
+    await openTerminalViaMenu(page);
+    await expect(terminalRegion(page)).toBeVisible();
+    await terminalRegion(page).getByLabel("关闭终端").click();
+    await expect(terminalRegion(page)).not.toBeVisible();
+
+    await openTerminalViaMenu(page);
+    const region = terminalRegion(page);
+    await expect(region).toBeVisible();
+    await expect(region.getByText("交互终端 · 常驻会话")).toBeVisible();
+    await expect(region.locator(".xterm")).toBeVisible();
+  });
+});

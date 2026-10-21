@@ -1,48 +1,57 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import { injectAuth } from "./helpers";
+
+const DESKTOP = { width: 1440, height: 900 };
+const MOBILE = { width: 390, height: 844 };
+
+const sidebar = (page: Page) => page.locator('aside[aria-label="主导航"]');
+const bottomNav = (page: Page) => page.getByRole("navigation", { name: "底部导航" });
+
+async function openAtViewport(
+  page: Page,
+  viewport: { width: number; height: number },
+  path = "/agents",
+): Promise<void> {
+  await page.setViewportSize(viewport);
+  await page.goto(path, { waitUntil: "domcontentloaded" });
+}
 
 test.beforeEach(async ({ page }) => {
   await injectAuth(page);
 });
 
-const sidebar = (page: any) => page.locator('aside[aria-label="主导航"]');
+test.describe("响应式应用外壳", () => {
+  test("桌面端常驻显示侧栏并隐藏底部导航", async ({ page }) => {
+    await openAtViewport(page, DESKTOP);
 
-test("desktop shows sidebar", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(sidebar(page)).toBeVisible();
+    await expect(sidebar(page)).toBeVisible();
+    await expect(sidebar(page)).not.toHaveAttribute("aria-hidden", "true");
+    await expect(bottomNav(page)).toBeHidden();
+  });
+
+  test("移动端默认隐藏侧栏并显示底部导航", async ({ page }) => {
+    await openAtViewport(page, MOBILE);
+
+    await expect(sidebar(page)).toHaveAttribute("aria-hidden", "true");
+    await expect(sidebar(page)).toHaveAttribute("inert", "");
+    await expect(sidebar(page)).toHaveClass(/-translate-x-full/);
+    await expect(bottomNav(page)).toBeVisible();
+  });
+
+  test("桌面端关键页面标题可见", async ({ page }) => {
+    await openAtViewport(page, DESKTOP, "/agents");
+    await expect(page.getByRole("heading", { level: 1, name: "智能体" })).toBeVisible();
+
+    await page.goto("/settings", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "设置" })).toBeVisible();
+  });
+
+  test("移动端关键页面标题可见", async ({ page }) => {
+    await openAtViewport(page, MOBILE, "/agents");
+    await expect(page.getByRole("heading", { level: 1, name: "智能体" })).toBeVisible();
+
+    await page.goto("/settings", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { level: 1, name: "设置" })).toBeVisible();
+    await expect(bottomNav(page)).toBeVisible();
+  });
 });
-
-test("mobile hides sidebar initially", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(sidebar(page)).toHaveClass(/-translate-x-full/);
-});
-
-test("mobile hamburger toggles sidebar", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-
-  await page.getByLabel("打开菜单").click();
-  await expect(sidebar(page)).not.toHaveClass(/-translate-x-full/);
-
-  await page.getByLabel("关闭菜单").click();
-  await expect(sidebar(page)).toHaveClass(/-translate-x-full/);
-});
-
-test("mobile shows bottom navigation", async ({ page }) => {
-  await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator('nav[aria-label="底部导航"]')).toBeVisible();
-});
-
-test("desktop hides bottom navigation", async ({ page }) => {
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
-  await expect(page.locator('nav[aria-label="底部导航"]')).not.toBeVisible();
-});
-
-// 2026-10-21：UI 重构后本规格过时（实测 11/12 规格因等待已不存在的元素而 30s 超时累积）。
-// 显式 skip 并保留原文用于重写参考；可执行的新切片见 e2e/smoke.spec.ts。
-import { skipObsoleteUiSuite } from "./_obsolete-ui-suite";
-skipObsoleteUiSuite();

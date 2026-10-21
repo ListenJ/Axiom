@@ -23,9 +23,19 @@ export function TokensPanel() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/token-details?days=7')
+      // 2026-10-22 修复（E2E 发现）：原实现两处缺陷
+      //  ① 裸 fetch 不带鉴权头 → 后端恒 401，面板永远空；
+      //  ② 未校验响应形状就 setData → 后端返回错误体（401/429 的 JSON）时
+      //     `data.overall` 为 undefined，渲染期抛 TypeError 并被错误边界整页接管。
+      const token = localStorage.getItem('token')
+      const res = await fetch('/api/token-details?days=7', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) return // 非 2xx：保留上一轮数据，下一轮轮询重试
       const json = await res.json()
-      setData(json)
+      if (json && typeof json === 'object' && json.overall && json.cacheStats) {
+        setData(json as TokenDetail)
+      }
     } catch { /* 轮询失败静默，下一轮重试 */ }
   }, [])
 
