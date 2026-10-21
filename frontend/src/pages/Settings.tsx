@@ -13,6 +13,8 @@ import { api, endpoints } from '@/lib/api'
 import SettingsSearch from '@/components/settings/SettingsSearch'
 import CatalogInfoCards from '@/components/settings/CatalogInfoCards'
 import ThemeModeCard from '@/components/settings/ThemeModeCard'
+import SearchSettingsSection from '@/components/settings/SearchSettingsSection'
+import ApproverSettingsSection from '@/components/settings/ApproverSettingsSection'
 import ModelManagementSection from '@/components/settings/models-section'
 import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
@@ -477,17 +479,18 @@ const sectionRenderers: Record<string, SectionRenderer> = {
     </div>
   ),
 
-  // 2026-10-22 补齐（前后端目录漂移）：后端 catalog 存在 search.* / security.approver，
-  // 前端此前无分区 ⇒ 设置搜索命中后无任何可见反馈。用可定位/可高亮的说明卡闭环。
-  search: ({ highlightKey }) => (
+  // 2026-10-22：search / security 由「只读说明卡」升级为**可编辑面板**
+  // （后端已有 GET/POST /settings/web-search 与 /settings/approver 写接口，
+  //   组件由不同供应商模型的子代理实现，Lead 验收并接线）。
+  search: ({ toast, highlightKey }) => (
     <div className="stagger space-y-3">
-      <CatalogInfoCards sectionId="search" highlightKey={highlightKey} />
+      <SearchSettingsSection toast={toast} highlightKey={highlightKey} />
     </div>
   ),
 
-  security: ({ highlightKey }) => (
+  security: ({ toast, highlightKey }) => (
     <div className="stagger space-y-3">
-      <CatalogInfoCards sectionId="security" highlightKey={highlightKey} />
+      <ApproverSettingsSection toast={toast} highlightKey={highlightKey} />
     </div>
   ),
 }
@@ -571,8 +574,13 @@ export default function Settings() {
 
       {SETTING_SECTIONS.map((section) => {
         const Icon = section.icon
-        const renderer = sectionRenderers[section.id]
-        if (!renderer) return null
+        // 兜底渲染：后端目录新增了前端尚无专用渲染器的分区时，用只读说明卡展示，
+        // 避免再次出现「搜索命中但点击无任何反馈（点不动）」（2026-10-22 裁定）。
+        const renderer = sectionRenderers[section.id] ?? (() => (
+          <div className="stagger space-y-3">
+            <CatalogInfoCards sectionId={section.id} highlightKey={highlightKey} />
+          </div>
+        ))
 
         const sectionMeta = {
           appearance: { description: '主题与动效' },
