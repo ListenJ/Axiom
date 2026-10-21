@@ -65,3 +65,10 @@ tests/unit/deadcode.test.ts
 # 若随发布面分发，外部贡献者改 frontend/public 触发该 workflow 时会因"无测试可跑"必红。
 .github/workflows/visual-snapshot.yml
 playwright.snapshot.config.mjs
+
+# —— 前端视觉审计 CI（2026-10-22 裁定）
+# 依赖 secrets.SENSENOVA_API_KEY（公共仓库无此秘密）+ 输出到 reports/（已剔除）。
+# 只在 frontend/** 改动时触发：实测发布面 run 39594458557 因缺 key 必然失败，
+# 会长期把公共镜像染红且对外部贡献者无意义。内部仓库保留该 workflow 与脚本。
+.github/workflows/frontend-audit.yml
+.ci/frontend-audit.sh
