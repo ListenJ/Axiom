@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import {
   Moon, Sun, Bell, Shield, Globe, Database, Bot, Brain, FileEdit,
   Wrench, KeyRound, CheckCircle2, Palette, Monitor, TerminalSquare,
-  SlidersHorizontal,
+  SlidersHorizontal, AlertTriangle,
 } from 'lucide-react'
 import { ShimmerCard, PageHeader, Button, Collapsible, Skeleton } from '@/components/ui'
 import { useApp, resolveTheme } from '@/state/useApp'
@@ -510,6 +510,9 @@ export default function Settings() {
   )
   const [highlightKey, setHighlightKey] = useState<string | null>(null)
   const [permMode, setPermMode] = useState<boolean | null>(null)
+  /** C5（2026-10-22）：此前三个加载都是静默 catch——失败显示为「未知/关闭」，用户看不到原因。 */
+  const [dataError, setDataError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
   const [sysConfig, setSysConfig] = useState<{
     gateway?: { port?: number; bind?: string }
     crawler?: { maxConcurrent?: number }
@@ -517,14 +520,15 @@ export default function Settings() {
   const [agents, setAgents] = useState<Array<{ name: string; available: boolean }>>([])
 
   useEffect(() => {
-    endpoints.permissions.getMode().then((d) => setPermMode(d.autoAccept)).catch(() => setPermMode(null))
-    api.get('/config').then((d) => setSysConfig(d as typeof sysConfig)).catch(() => setSysConfig(null))
+    setDataError(null)
+    endpoints.permissions.getMode().then((d) => setPermMode(d.autoAccept)).catch(() => { setPermMode(null); setDataError('权限模式读取失败（显示值可能不准确）') })
+    api.get('/config').then((d) => setSysConfig(d as typeof sysConfig)).catch(() => { setSysConfig(null); setDataError((prev) => prev ?? '系统配置读取失败') })
     endpoints.agents.status().then((d) => {
       const data = d as unknown
       const list = Array.isArray(data) ? data : (data as { agents?: Array<{ name: string; available: boolean }> })?.agents ?? []
       setAgents(list)
-    }).catch(() => setAgents([]))
-  }, [])
+    }).catch(() => { setAgents([]); setDataError((prev) => prev ?? 'Agent 状态读取失败') })
+  }, [reloadToken])
 
   const toggleSection = (id: string, open: boolean) => {
     setOpenSections((prev) => {
@@ -571,6 +575,8 @@ export default function Settings() {
       />
 
       <SettingsSearch onSelect={handleSearchSelect} />
+
+      {dataError && (<p role="alert" className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-4 py-2 text-xs text-[var(--warning)]"><AlertTriangle className="size-4" />{dataError}<button type="button" className="underline" onClick={() => setReloadToken((n) => n + 1)}>重试</button></p>)}
 
       {SETTING_SECTIONS.map((section) => {
         const Icon = section.icon

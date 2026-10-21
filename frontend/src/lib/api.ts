@@ -32,10 +32,13 @@ interface RequestOptions {
 class HttpError extends Error {
   status: number
   data: unknown
-  constructor(message: string, status: number, data: unknown) {
+  /** 机器可读原因：'timeout' 超时 / 'canceled' 调用方取消 / 其它为 undefined（HTTP 状态见 status）。 */
+  code?: 'timeout' | 'canceled'
+  constructor(message: string, status: number, data: unknown, code?: 'timeout' | 'canceled') {
     super(message)
     this.status = status
     this.data = data
+    this.code = code
   }
 }
 
@@ -245,7 +248,11 @@ export class APIClient {
     }
 
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), config.timeout)
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, config.timeout)
     const onExternalAbort = () => controller.abort()
     if (options.signal) {
       if (options.signal.aborted) controller.abort()
@@ -259,7 +266,6 @@ export class APIClient {
         body: config.body,
         signal: controller.signal,
       })
-      clearTimeout(timer)
 
       const contentType = response.headers.get('content-type') || ''
       let data: unknown = contentType.includes('application/json') ? await response.json() : await response.text()
@@ -271,8 +277,14 @@ export class APIClient {
           dataObj && typeof dataObj === 'object' && 'message' in dataObj
             ? String(dataObj.message)
             : null
+        // 后端错误体有两种约定：{message} 与 {error}（settings 路由用后者）；
+        // 只认 message 会让用户看到 "HTTP 400" 而看不到真实原因（P2 审计 B1）。
+        const errorField =
+          dataObj && typeof dataObj === 'object' && 'error' in dataObj
+            ? String(dataObj.error)
+            : null
         const textField = typeof data === 'string' ? data : null
-        const msg = messageField ?? textField ?? `HTTP ${response.status}`
+        const msg = messageField ?? errorField ?? textField ?? `HTTP ${response.status}`
         throw new HttpError(msg, response.status, data)
       }
 
@@ -286,11 +298,16 @@ export class APIClient {
       }
       return data as T
     } catch (err) {
-      clearTimeout(timer)
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new HttpError('Request timeout', 0, null)
+        // 区分「超时」与「调用方主动取消」：两者都表现为 AbortError，但用户语义不同（P2 审计 B2）。
+        throw timedOut
+          ? new HttpError('Request timeout', 0, null, 'timeout')
+          : new HttpError('Request canceled', 0, null, 'canceled')
       }
       throw err
+    } finally {
+      clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onExternalAbort)
     }
   }
 

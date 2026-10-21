@@ -31,25 +31,43 @@ export function RouterSection() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+    // C2（2026-10-22 审计）：此前每个 promise 内层都 `.catch(() => null)`，导致 allSettled 永远不会
+    // rejected，下面的 anyError 分支是不可达死代码；三接口全挂时 status 回落 'ok' 显示**绿色健康**。
     Promise.allSettled([
-      endpoints.router.status().then((d) => d as RouterStatus).catch(() => null),
-      endpoints.router.health().then((d) => d as RouterStatus).catch(() => null),
-      endpoints.router.tokenStats().then((d) => d as RouterStatus).catch(() => null),
+      endpoints.router.status() as Promise<RouterStatus>,
+      endpoints.router.health() as Promise<RouterStatus>,
+      endpoints.router.tokenStats() as Promise<RouterStatus>,
     ]).then(([s, h, t]) => {
-      const sVal = s.status === 'fulfilled' ? s.value : null
-      const hVal = h.status === 'fulfilled' ? h.value : null
-      const tVal = t.status === 'fulfilled' ? t.value : null
+      if (cancelled) return
+      const values = [s, h, t].map((r) => (r.status === 'fulfilled' ? r.value : null))
+      const failures = [s, h, t].filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
       const merged: RouterStatus = {
-        status: sVal?.status ?? hVal?.status ?? 'ok',
-        models: sVal?.models,
-        healthy: hVal?.healthy,
-        tokens: tVal?.tokens,
+        // 全挂时明确 'unknown'，不再伪装成 'ok'
+        status: values[0]?.status ?? values[1]?.status ?? (failures.length === 3 ? 'unknown' : 'ok'),
+        models: values[0]?.models,
+        healthy: values[1]?.healthy,
+        tokens: values[2]?.tokens,
       }
       setStatus(merged)
-      const anyError = [s, h, t].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
-      if (anyError) setError(String(anyError.reason?.message ?? anyError.reason))
+      if (failures.length === 3) {
+        setError('模型路由服务全部不可用（健康 / 状态 / Token 统计均读取失败）')
+      } else if (failures.length > 0) {
+        setError(String(failures[0].reason?.message ?? failures[0].reason))
+      } else {
+        setError(null)
+      }
     })
+    return () => { cancelled = true }
   }, [])
+
+  const statusTone = !status?.status
+    ? 'text-[var(--text-muted)]'
+    : status.status === 'unknown'
+      ? 'text-[var(--text-muted)]'
+      : /^(ok|healthy|running|active)$/i.test(status.status)
+        ? 'text-[var(--success)]'
+        : 'text-[var(--warning)]'
 
   const loading = status === null
 
@@ -119,7 +137,7 @@ export function RouterSection() {
           {loading ? (
             <Skeleton className="mt-3 h-8 w-20" />
           ) : (
-            <p className="mt-2 text-3xl font-bold capitalize text-[var(--success)]">
+            <p className={`mt-2 text-3xl font-bold capitalize ${statusTone}`}>
               {status?.status ?? '—'}
             </p>
           )}

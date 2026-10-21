@@ -876,6 +876,15 @@ registerShutdownHook({ name: "blackboard", handler: () => getGlobalBlackboard().
 registerShutdownHook({ name: "plugins", handler: () => { logger.info("Plugins shutdown"); }, priority: 25 });
 registerShutdownHook({ name: "mcp-clients", handler: async () => { const { closeExternalMcpClients } = await import("./mcp/client-connector.js"); await closeExternalMcpClients(); }, priority: 65 });
 registerShutdownHook({ name: "pty-sessions", handler: async () => { const { closeAllSessions } = await import("./terminal/pty-session.js"); await closeAllSessions(); }, priority: 64 });
+// D1（2026-10-22 审计）：4 个全局缓存实例（含 L3 SQLite）与 vault 统计缓存此前**从未注册关闭钩子**
+// ⇒ 优雅关闭时 pending L3 写入丢失、SQLite 连接不关闭。缓存属可重建数据，故在 db/server 之前关闭即可。
+registerShutdownHook({ name: "caches", handler: async () => {
+  const { searchCache, crawlCache, llmCache, semanticAnswerCache } = await import("./utils/cache.js");
+  for (const [cacheName, cache] of [["search", searchCache], ["crawl", crawlCache], ["llm", llmCache], ["semantic-answer", semanticAnswerCache]] as const) {
+    try { cache.destroy(); } catch (e) { logger.warn("[Shutdown] 缓存关闭失败", { cache: cacheName, error: (e as Error).message }); }
+  }
+}, priority: 72 });
+registerShutdownHook({ name: "vault-stats-cache", handler: async () => { const { vaultStatsCache } = await import("./utils/vault-stats-cache.js"); vaultStatsCache.stop(); }, priority: 76 });
 
 setupGracefulShutdown({ timeout: TIMEOUTS.GRACEFUL_SHUTDOWN, signals: ["SIGTERM", "SIGINT"] });
 

@@ -1,23 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { TokensSection } from './provider-hub-sections'
+import { RouterSection, TokensSection } from './provider-hub-sections'
 
 /**
- * C1（2026-10-22 审计）：provider-hub 的 TokensSection 曾经用裸 `fetch('/api/token-details')`：
- *   - 该路径不在后端 PUBLIC_PATHS（src/utils/auth-check.ts:43）⇒ 无 Authorization 恒 401；
- *   - 401 错误 JSON 被 `setData` 当数据渲染 ⇒ `data.overall.totalTokens` 抛 TypeError（渲染崩溃）；
- *   - 空 catch 让失败完全不可见。
- * 本测试锁定修复后行为：走 api 封装、失败可见可重试、形状异常不崩溃。
+ * C1/C2（2026-10-22 审计）：
+ *   - C1 TokensSection 曾用裸 `fetch('/api/token-details')`：该路径不在后端 PUBLIC_PATHS
+ *     （src/utils/auth-check.ts 的 PUBLIC_PATHS）⇒ 无 Authorization 恒 401；错误 JSON 被
+ *     `setData` 当数据渲染 ⇒ `data.overall.totalTokens` 抛 TypeError（渲染崩溃）；空 catch 让失败不可见。
+ *   - C2 RouterSection 三个请求各自 `.catch(()=>null)` ⇒ allSettled 永不全 rejected，`anyError`
+ *     是死代码；三接口全挂时 status 回落 'ok' 显示**绿色健康**。
+ * 本文件锁定修复后的可观测行为。
  */
 vi.mock('@/lib/api', () => ({
   api: { get: vi.fn() },
   endpoints: {
     search: { vault: vi.fn(), code: vi.fn(), web: vi.fn() },
+    router: { status: vi.fn(), health: vi.fn(), tokenStats: vi.fn() },
   },
 }))
 
-import { api } from '@/lib/api'
+import { api, endpoints } from '@/lib/api'
 
 const validPayload = {
   perModel: [{ model: 'deepseek-v4', calls: 3, promptTokens: 120, completionTokens: 40, avgLatency: 880 }],
@@ -69,5 +72,49 @@ describe('TokensSection（C1：鉴权/形状/错误可见）', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     // 走 api 封装（带鉴权/超时/错误映射），不再裸 fetch
     expect(mockGet).toHaveBeenCalledWith('/api/token-details?days=7', { cache: false })
+  })
+})
+
+describe('RouterSection（C2：死分支修复）', () => {
+  const mockStatus = vi.mocked(endpoints.router.status)
+  const mockHealth = vi.mocked(endpoints.router.health)
+  const mockTokenStats = vi.mocked(endpoints.router.tokenStats)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('三接口全挂时显示「全部不可用」而不是绿色 ok', async () => {
+    mockStatus.mockRejectedValue(new Error('status down'))
+    mockHealth.mockRejectedValue(new Error('health down'))
+    mockTokenStats.mockRejectedValue(new Error('token down'))
+    render(<RouterSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('模型路由服务全部不可用')
+    // 状态不再是 'ok'（'unknown' 用弱化色展示）
+    expect(screen.getByText('unknown')).toBeInTheDocument()
+    expect(screen.queryByText('ok')).not.toBeInTheDocument()
+  })
+
+  it('部分接口失败时提示部分指标不可用，但仍显示可用指标', async () => {
+    mockStatus.mockResolvedValue({ status: 'ok', models: 7 })
+    mockHealth.mockResolvedValue({ healthy: 5 })
+    mockTokenStats.mockRejectedValue(new Error('token endpoint down'))
+    render(<RouterSection />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('部分指标暂不可用')
+    expect(screen.getByText(/共 7 个模型/)).toBeInTheDocument()
+    expect(screen.getByText('5')).toBeInTheDocument()
+  })
+
+  it('全部成功时无错误提示', async () => {
+    mockStatus.mockResolvedValue({ status: 'ok', models: 7 })
+    mockHealth.mockResolvedValue({ healthy: 5 })
+    mockTokenStats.mockResolvedValue({ tokens: { used: 100, total: 200 } })
+    render(<RouterSection />)
+
+    await waitFor(() => expect(screen.getByText('ok')).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByText('100')).toBeInTheDocument()
   })
 })

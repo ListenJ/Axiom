@@ -93,4 +93,25 @@ describe('Search page — usage scenarios', () => {
     await userEvent.type(await screen.findByLabelText('搜索关键词'), 'zzz-no-match')
     expect(await screen.findByText('没有匹配结果')).toBeInTheDocument()
   })
+
+  it('C4：三源全部失败时显示可见错误（不再只显示「没有匹配结果」）', async () => {
+    mocks.searchVault.mockRejectedValue(new Error('vault down'))
+    mocks.searchCode.mockRejectedValue(new Error('code down'))
+    mocks.searchWeb.mockRejectedValue(new Error('web down'))
+    renderPage()
+
+    await userEvent.type(await screen.findByLabelText('搜索关键词'), 'router')
+    const alert = await screen.findByRole('alert', {}, { timeout: 3000 })
+    expect(alert).toHaveTextContent('搜索失败（3 个数据源均不可用）')
+  })
+
+  it('C4：部分数据源失败时提示结果可能不完整，同时保留可用结果', async () => {
+    mocks.searchVault.mockResolvedValue({ results: [{ title: '可用笔记', type: 'note' }] })
+    mocks.searchCode.mockRejectedValue(new Error('code down'))
+    renderPage()
+
+    await userEvent.type(await screen.findByLabelText('搜索关键词'), 'router')
+    expect(await screen.findByRole('alert', {}, { timeout: 3000 })).toHaveTextContent('部分数据源不可用')
+    expect(screen.getByText('可用笔记')).toBeInTheDocument()
+  })
 })

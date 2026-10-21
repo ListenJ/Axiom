@@ -63,13 +63,22 @@ export function SearchPanel() {
     setError(null)
     const timer = setTimeout(() => {
       const queries: Promise<SearchResult[]>[] = []
-      if (source === 'all' || source === 'vault') queries.push(endpoints.search.vault(q).then(toList).catch(() => []))
-      if (source === 'all' || source === 'code') queries.push(endpoints.search.code(q).then(toList).catch(() => []))
-      if (source === 'all' || source === 'web') queries.push(endpoints.search.web(q).then(toList).catch(() => []))
+      // C4（2026-10-22 审计）：此前每源 `.catch(() => [])`，使 allSettled 永不 rejected，下面的
+      // setError 是死代码；三源全挂时页面只显示「没有匹配结果」，用户无法区分空数据与故障。
+      if (source === 'all' || source === 'vault') queries.push(endpoints.search.vault(q).then(toList))
+      if (source === 'all' || source === 'code') queries.push(endpoints.search.code(q).then(toList))
+      if (source === 'all' || source === 'web') queries.push(endpoints.search.web(q).then(toList))
       Promise.allSettled(queries)
         .then((settled) => {
           if (cancelled) return
+          const failures = settled.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
           setResults(settled.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])))
+          if (settled.length > 0 && failures.length === settled.length) {
+            const reason = failures[0]?.reason
+            setError(`搜索失败（${settled.length} 个数据源均不可用）：${String(reason?.message ?? reason ?? '未知错误')}`)
+          } else if (failures.length > 0) {
+            setError(`部分数据源不可用（${failures.length}/${settled.length}），结果可能不完整`)
+          }
         })
         .catch((e) => !cancelled && setError(String(e?.message ?? e)))
         .finally(() => !cancelled && setLoading(false))

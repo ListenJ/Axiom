@@ -110,10 +110,23 @@ describe('APIClient.request', () => {
     expect(init.headers['Content-Type']).toBe('application/json')
   })
 
-  it('aborts the request and throws an HttpError on timeout', async () => {
+  it('映射后端 {error} 字段为错误消息（P2 B1：settings 路由的错误体约定）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    mockFetchOnce({ status: 400, body: { error: '配置文件不可写', code: 'invalid-patch' } })
+    try {
+      await client.get('/x')
+      expect.fail('expected throw')
+    } catch (e) {
+      const err = e as HttpError
+      expect(err.message).toBe('配置文件不可写')
+      expect(err.status).toBe(400)
+      expect((err.data as { code?: string }).code).toBe('invalid-patch')
+    }
+  })
+
+  it('超时抛 HttpError(code=timeout)（与取消区分，P2 B2）', async () => {
     vi.useFakeTimers()
     const client = new APIClient({ baseURL: 'http://api', timeout: 50 })
-    // fetch that never resolves
     ;(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (_url: string, init: RequestInit) =>
         new Promise((_resolve, reject) => {
@@ -127,8 +140,35 @@ describe('APIClient.request', () => {
     const p = client.get('/slow')
     p.catch(() => {}) // avoid unhandled rejection
     vi.advanceTimersByTime(60)
-    await expect(p).rejects.toMatchObject({ message: 'Request timeout', status: 0 })
+    await expect(p).rejects.toMatchObject({ code: 'timeout', status: 0, message: 'Request timeout' })
     vi.useRealTimers()
+  })
+
+  it('调用方主动取消抛 HttpError(code=canceled)（不是超时，P2 B2）', async () => {
+    const client = new APIClient({ baseURL: 'http://api', timeout: 10_000 })
+    ;(globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const e = new Error('aborted')
+            e.name = 'AbortError'
+            reject(e)
+          })
+        })
+    )
+    const controller = new AbortController()
+    const p = client.get('/cancel-me', { signal: controller.signal })
+    p.catch(() => {}) // avoid unhandled rejection
+    controller.abort()
+    await expect(p).rejects.toMatchObject({ code: 'canceled', status: 0, message: 'Request canceled' })
+  })
+
+  it('If-Match 选项以引号形式透传到请求头（P1 CAS 前端支持）', async () => {
+    const client = new APIClient({ baseURL: 'http://api' })
+    mockFetchOnce({ status: 200, body: { ok: true } })
+    await client.post('/x', { a: 1 }, { ifMatch: 'rev-abc' })
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    expect(init.headers['If-Match']).toBe('"rev-abc"')
   })
 })
 
