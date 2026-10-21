@@ -53,7 +53,9 @@ describe("terminal double-gate: isLocal true 仍需鉴权 (Task3 fix)", () => {
     origToken = process.env.AXIOM_AUTH_TOKEN;
     origSecond = process.env.AXIOM_SECOND_FACTOR_TOKEN;
     process.env.AXIOM_AUTH_TOKEN = TOKEN;
-    delete process.env.AXIOM_SECOND_FACTOR_TOKEN;
+    // P1.4：写路由未配置二因子时 fail-closed 403。本文件测的是"主 token 双闸"，
+    // 故把二因子配成与主 token 相同：请求携带的同一个 x-api-key/Bearer 同时通过两闸。
+    process.env.AXIOM_SECOND_FACTOR_TOKEN = TOKEN;
   });
 
   afterEach(async () => {

@@ -40,10 +40,12 @@ mock.module(GIT_TOOL_MODULE, () => ({
 const { handleGitRoutes } = await import(join(REPO, "src", "routes", "git.js"));
 
 /** 最小 fake RouteContext（同 tests/unit/terminal-auth-fix.test.ts 口径） */
+const GIT_FORCE_SECOND = "second-factor-git-force-0123456789abcdef";
+
 function makeCtx(pathname: string, body: Record<string, unknown>): RouteContext {
   const req = new Request("https://example.com" + pathname, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-api-key": GIT_FORCE_SECOND },
     body: JSON.stringify(body),
   });
   return {
@@ -71,9 +73,10 @@ function lastPush(): CapturedPushOptions {
   return opts!;
 }
 
-// 二层 token 未配置时路由守卫 fail-open；显式清场以保证与宿主环境无关。
+// P1.4：写路由未配置二因子时 fail-closed 403。本文件测 force 布尔语义，
+// 故显式配置二因子并让请求携带同一凭证（makeCtx 的 x-api-key），路由层才能走到 gitPush。
 const origSecond = process.env.AXIOM_SECOND_FACTOR_TOKEN;
-delete process.env.AXIOM_SECOND_FACTOR_TOKEN;
+process.env.AXIOM_SECOND_FACTOR_TOKEN = GIT_FORCE_SECOND;
 
 async function pushForceToGit(force: unknown): Promise<CapturedPushOptions> {
   captured.length = 0;

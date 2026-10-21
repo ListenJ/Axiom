@@ -1,4 +1,4 @@
-﻿/**
+/**
  * URL 安全检查（SSRF 防护）—— 共享实现
  *
  * 此前 routes/search.ts 私有实现仅校验初始 URL，且 MCP web_fetch 完全没有校验。
@@ -12,6 +12,7 @@
  */
 
 import { promises as dnsPromises } from "dns";
+import { readString } from "./env.js";
 
 const BLOCKED_PROTOCOLS = ["file:", "ftp:", "gopher:", "dict:"];
 const BLOCKED_HOSTS = [
@@ -190,4 +191,122 @@ export async function assertResolvedHostSafe(
     if (err instanceof Error && err.message.includes("blocked")) throw err;
     // ENOTFOUND 等解析异常不在此拦截
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// P1.1 出站统一守卫（SSRF allowlist + 字面量 + DNS 二次校验）
+//
+// 判定顺序（必须在携带凭证的请求发出前完成）：
+//   1. URL 解析；协议仅 http/https；
+//   2. allowlist 精确命中（host / host:port / origin，大小写不敏感，无通配）→ 放行；
+//   3. isSafeUrl 字面量校验（loopback/私网/link-local/云元数据/坏协议）；
+//   4. assertResolvedHostSafe DNS 解析校验（防 DNS rebinding）；
+//   5. 通过 → 返回解析后的 URL。
+// 默认拒绝 loopback/私网；本机/内网 BYOK 端点（如 Ollama）必须显式写
+// AXIOM_SSRF_ALLOWLIST 才可用。被拒时抛 OutboundUrlBlockedError（code + recovery）。
+// ═══════════════════════════════════════════════════════════════
+
+const SSRF_ALLOWLIST_ENV = "AXIOM_SSRF_ALLOWLIST";
+
+export type OutboundUrlBlockedCode = "ssrf-blocked" | "invalid-outbound-url";
+
+/** 出站安全策略拒绝的统一恢复文案（用户可读 + 可操作）。 */
+function buildSsrfRecovery(reason: string): string {
+  return (
+    `目标地址被出站安全策略拒绝（${reason}）。` +
+    "如这是你本机/内网的自建 LLM 或 OpenAI 兼容端点，请在 .env 设置 " +
+    "AXIOM_SSRF_ALLOWLIST=主机[:端口] 后重启服务再试；公网地址无需配置。"
+  );
+}
+
+/** 出站安全策略拒绝错误：code 供调用方分支，recovery 为用户可读、可操作的下一步。
+ *  message 也携带 recovery —— 聊天/embedding 等链路只透出 Error.message，不能只剩一句 code。 */
+export class OutboundUrlBlockedError extends Error {
+  readonly code: OutboundUrlBlockedCode;
+  readonly reason: string;
+  readonly recovery: string;
+
+  constructor(code: OutboundUrlBlockedCode, reason: string) {
+    super(`${reason}。${buildSsrfRecovery(reason)}`);
+    this.name = "OutboundUrlBlockedError";
+    this.code = code;
+    this.reason = reason;
+    this.recovery = buildSsrfRecovery(reason);
+  }
+}
+
+/** 解析 allowlist：逗号分隔、trim、去空、小写。默认读 AXIOM_SSRF_ALLOWLIST（默认空 = 不生效）。 */
+export function parseSsrfAllowlist(raw?: string): string[] {
+  const source = raw !== undefined ? raw : readString(SSRF_ALLOWLIST_ENV);
+  return source
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+}
+
+/** 精确匹配：host / host:port / origin 三者任一相等即命中；大小写不敏感；不做通配。 */
+export function isAllowlisted(
+  host: string,
+  port: string,
+  origin: string,
+  allowlist: string[],
+): boolean {
+  if (allowlist.length === 0) return false;
+  const normalizedHost = host.trim().toLowerCase();
+  if (!normalizedHost) return false;
+  const candidates = new Set<string>([normalizedHost]);
+  const normalizedPort = port.trim();
+  if (normalizedPort) candidates.add(`${normalizedHost}:${normalizedPort}`);
+  const normalizedOrigin = origin.trim().toLowerCase().replace(/\/+$/, "");
+  if (normalizedOrigin) candidates.add(normalizedOrigin);
+  return allowlist.some((entry) => {
+    const candidate = entry.trim().toLowerCase().replace(/\/+$/, "");
+    return candidate.length > 0 && candidates.has(candidate);
+  });
+}
+
+export interface AssertSafeOutboundUrlOptions {
+  /** 额外 allowlist 条目（与 env 合并；测试/调用方显式放行用） */
+  allowHosts?: string[];
+  /** 覆盖 env 的原始 allowlist 字符串（测试用；缺省读 AXIOM_SSRF_ALLOWLIST） */
+  allowlistEnv?: string;
+  /** 注入 DNS resolver（测试接缝；缺省 dns.lookup） */
+  resolve?: (hostname: string) => Promise<string[]>;
+}
+
+/** 出站统一守卫：安全则返回解析后的 URL，否则抛 OutboundUrlBlockedError。 */
+export async function assertSafeOutboundUrl(
+  url: string,
+  opts: AssertSafeOutboundUrlOptions = {},
+): Promise<URL> {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new OutboundUrlBlockedError("invalid-outbound-url", "URL 无法解析");
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new OutboundUrlBlockedError("invalid-outbound-url", `协议 ${parsed.protocol} 不被允许`);
+  }
+  const allowlist = [
+    ...parseSsrfAllowlist(opts.allowlistEnv),
+    ...(opts.allowHosts?.length ? parseSsrfAllowlist(opts.allowHosts.join(",")) : []),
+  ];
+  const hostname = parsed.hostname.toLowerCase();
+  if (isAllowlisted(hostname, parsed.port, parsed.origin, allowlist)) {
+    return parsed;
+  }
+  if (!isSafeUrl(parsed.href)) {
+    throw new OutboundUrlBlockedError(
+      "ssrf-blocked",
+      "目标地址属于 loopback/私网/链路本地/云元数据等被禁范围",
+    );
+  }
+  try {
+    await assertResolvedHostSafe(hostname, opts.resolve);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new OutboundUrlBlockedError("ssrf-blocked", `DNS 解析到被禁地址：${detail}`);
+  }
+  return parsed;
 }

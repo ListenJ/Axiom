@@ -35,15 +35,16 @@ export const SECURITY_DEFAULTS: Readonly<Record<string, string | boolean>> = {
  * "审批/豁免类开关未配置一律按安全侧解释"的声明口径不符。此前它们既不在
  * SECURITY_DEFAULTS、也无任何门禁可见，属静默缺口。
  *
- * 处置边界：本表只让缺口**可见且受门禁约束**，不改变运行时行为——收紧默认值
- * 会影响既有部署，属需要显式决策的变更。新增 fail-open 安全开关必须登记于此，
- * 否则 capability-invariants 的 S-6 完备性断言会红。
+ * 处置边界：本表只让缺口**可见且受门禁约束**；收紧默认值会影响既有部署，属需要显式决策的变更
+ * （2026-10-22 P1.4 已按 D1=C 把 AXIOM_SECOND_FACTOR_TOKEN 的**写路径**收紧为 fail-closed，
+ * 只读终端视图仍 fail-open，故该项继续留在 gaps —— 缺口只剩只读侧）。新增 fail-open 安全开关
+ * 必须登记于此，否则 capability-invariants 的 S-6 完备性断言会红。
  */
 export const SECURITY_GAPS: Readonly<Record<string, string>> = {
   AXIOM_ENFORCE_MODE_APPROVAL:
     "默认 0 → agent 模式下 caution/destructive 工具不触发审批（src/mcp/tool-registry.ts:58 短路）",
   AXIOM_SECOND_FACTOR_TOKEN:
-    "未配置 → 终端/git/health 写路由的第二因子放行（src/routes/terminal.ts:23 等）",
+    "未配置 → 写路由（git commit/push、/config POST、/permissions/mode POST、终端创建/输入/关闭）已 fail-closed 403（code=second-factor-unconfigured，P1.4）；只读终端视图（stream/会话列表）仍放行并 warn once —— 只读侧仍是 fail-open 缺口",
   EDGE_RISK_FAIL_CLOSED:
     "默认 0 → 风险初筛不可用时不升级为强制审批（src/agents/risk-monitor.ts:62）",
   AXIOM_ALLOW_REMOTE_CDP:

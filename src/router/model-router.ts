@@ -29,6 +29,7 @@ import { cacheFirstRoute, writeCache, isSemanticCacheEnabled } from "../services
 import { CircuitBreaker, routerBreaker } from "../utils/circuit-breaker.js";
 import { effectivePriorityForRateTier } from "./rate-tier.js";
 import { defaultThinkingForRole, defaultTemperatureForRole } from "./reasoning-effort.js";
+import { assertSafeOutboundUrl } from "../utils/url-safety.js";
 
 // =============================================================================
 // 端口定义 (Input / Output Ports)
@@ -1180,6 +1181,9 @@ export class MultiPlatformRouter {
     if (!apiKey) throw new Error(`Missing API key for embedding`);
 
     const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
+
+    // P1.3：embeddings 出站守卫（默认 local-embed 指向 127.0.0.1:9001 ⇒ 未显式 allowlist 时 fail-closed）。
+    await assertSafeOutboundUrl(`${baseURL}/embeddings`);
 
     const startTime = Date.now();
     const res = await proxyFetch(`${baseURL}/embeddings`, {

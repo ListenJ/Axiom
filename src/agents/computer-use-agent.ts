@@ -26,6 +26,7 @@
 import { logger } from "../utils/logger.js";
 import { findModelsForRole, PROVIDER_CONFIG } from "../services/index.js";
 import { proxyFetch } from "../utils/proxy-fetch.js";
+import { assertSafeOutboundUrl } from "../utils/url-safety.js";
 import { TIMEOUTS } from "../constants/timeouts.js";
 import {
   captureScreenshot,
@@ -429,6 +430,9 @@ export class ComputerUseAgent {
     if (!apiKey) throw new Error(`Missing API key for ${model.provider}: ${config.apiKeyEnv}`);
 
     const baseURL = getEffectiveBaseURL(model.provider, config.apiKeyEnv, config.baseURL);
+
+    // P1.3：视觉模型出站守卫（本机/内网端点须显式 AXIOM_SSRF_ALLOWLIST，否则 fail-closed）。
+    await assertSafeOutboundUrl(`${baseURL}/chat/completions`);
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",

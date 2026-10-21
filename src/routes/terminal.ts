@@ -5,35 +5,10 @@
  * 前置鉴权：主入口 checkApiKey 已覆盖（非 PUBLIC_PATHS 路径全部要求 token）。
  */
 import type { RouteContext } from "./types.js";
-import { readString } from "../utils/env.js";
 import { createPtySession, getSession, listSessions, ptySessionStats } from "../terminal/pty-session.js";
 import { CommandGate } from "../terminal/command-gate.js";
 import type { PtySession } from "../terminal/pty-session.js";
-import { safeStringEqual } from "../utils/auth-check.js";
-import { requireAuthToken } from "./route-auth.js";
-import { callerCredential } from "../utils/call-context.js";
-
-/**
- * 二因素写保护（审计 S1，2026-08-25；I3 2026-08-27）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
- * 放行（fail-open，与 sandbox.ts requireAuthToken 调用语义一致）；
- * 配置后不匹配 → 403。
- * 读取优先级：x-second-factor / x-axiom-second-factor（专用头，推荐）→ x-api-key / Authorization（回退兼容，允许复用主 token 作为第二因子）。
- */
-function requireSecondFactorToken(ctx: RouteContext): Response | null {
-  const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
-  if (!expected) return null;
-  const provided =
-    ctx.req.headers.get("x-second-factor") ||
-    ctx.req.headers.get("x-axiom-second-factor") ||
-    callerCredential(ctx.req.headers) ||
-    "";
-  if (safeStringEqual(provided, expected)) return null;
-  return ctx.jsonResponse(
-    { error: "Unauthorized - second factor token required" },
-    403,
-    ctx.baseHeaders,
-  );
-}
+import { requireAuthToken, requireSecondFactorToken } from "./route-auth.js";
 
 /** 每会话审批门（懒创建）；会话退出/关闭时清理，避免 listener 残留 */
 const gates = new Map<string, CommandGate>();
@@ -56,7 +31,7 @@ export async function handleTerminalCreate(ctx: RouteContext): Promise<Response 
   if (ctx.url.pathname !== "/terminal/session" || ctx.req.method !== "POST") return null;
   const authErr0 = requireAuthToken(ctx);
   if (authErr0) return authErr0;
-  const secondErr = requireSecondFactorToken(ctx);
+  const secondErr = requireSecondFactorToken(ctx, "write");
   if (secondErr) return secondErr;
   try {
     const session = createPtySession();
@@ -74,7 +49,7 @@ export async function handleTerminalStream(ctx: RouteContext): Promise<Response 
   if (!match || ctx.req.method !== "GET") return null;
   const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
-  const secondErr = requireSecondFactorToken(ctx);
+  const secondErr = requireSecondFactorToken(ctx, "read");
   if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
@@ -130,7 +105,7 @@ export async function handleTerminalInput(ctx: RouteContext): Promise<Response |
   if (!match || ctx.req.method !== "POST") return null;
   const authErr0 = requireAuthToken(ctx);
   if (authErr0) return authErr0;
-  const secondErr = requireSecondFactorToken(ctx);
+  const secondErr = requireSecondFactorToken(ctx, "write");
   if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
@@ -155,7 +130,7 @@ export async function handleTerminalClose(ctx: RouteContext): Promise<Response |
   if (!match || ctx.req.method !== "DELETE") return null;
   const authErr0 = requireAuthToken(ctx);
   if (authErr0) return authErr0;
-  const secondErr = requireSecondFactorToken(ctx);
+  const secondErr = requireSecondFactorToken(ctx, "write");
   if (secondErr) return secondErr;
   const session = getSession(match[1]!);
   if (!session) {
@@ -171,7 +146,7 @@ export async function handleTerminalList(ctx: RouteContext): Promise<Response | 
   if (ctx.url.pathname !== "/terminal/sessions" || ctx.req.method !== "GET") return null;
   const authErr = requireAuthToken(ctx);
   if (authErr) return authErr;
-  const secondErr = requireSecondFactorToken(ctx);
+  const secondErr = requireSecondFactorToken(ctx, "read");
   if (secondErr) return secondErr;
   return ctx.jsonResponse({ sessions: listSessions(), stats: ptySessionStats() }, 200, ctx.baseHeaders);
 }

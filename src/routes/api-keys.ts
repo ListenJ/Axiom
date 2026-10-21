@@ -33,6 +33,7 @@ import {
 } from "../utils/api-key-persistence.js";
 import { requireAuthToken, auditSuccess } from "./route-auth.js";
 import { logger } from "../utils/logger.js";
+import { assertSafeOutboundUrl, OutboundUrlBlockedError } from "../utils/url-safety.js";
 
 /** Minimum API key length for validation */
 const MIN_API_KEY_LENGTH = 8;
@@ -45,6 +46,31 @@ function isValidBaseURL(url: string | undefined): boolean {
     return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
+  }
+}
+
+/**
+ * P1.2：用户可控 BYOK 端点的 SSRF 守卫。**必须在落库/注册/注入 key 之前** await。
+ * 被拒返回 400（code + recovery）：本机/内网端点需显式配置 AXIOM_SSRF_ALLOWLIST；
+ * 不做响应后补救，也不把拒绝做成 503/黑屏。
+ */
+async function guardOutboundBaseURL(
+  ctx: RouteContext,
+  baseURL: string,
+): Promise<Response | null> {
+  try {
+    await assertSafeOutboundUrl(baseURL);
+    return null;
+  } catch (e) {
+    if (e instanceof OutboundUrlBlockedError) {
+      return ctx.jsonResponse(
+        { error: e.recovery, code: e.code, recovery: e.recovery },
+        400,
+        ctx.baseHeaders,
+      );
+    }
+    logger.error("[api-keys] SSRF guard unexpected failure", e instanceof Error ? e : new Error(String(e)));
+    return ctx.jsonResponse({ error: "baseURL 安全检查失败，请稍后重试" }, 500, ctx.baseHeaders);
   }
 }
 
@@ -86,7 +112,9 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
     if (result.ok) {
       auditSuccess(ctx, "apikey.test", provider, { ok: true });
     }
-    return ctx.jsonResponse(result, result.ok ? 200 : 502, ctx.baseHeaders);
+    // P1.2：SSRF 拒绝是 4xx（请求侧配置错误，code+recovery 已带），不是 5xx 网关错误。
+    const testStatus = result.ok ? 200 : result.code ? 400 : 502;
+    return ctx.jsonResponse(result, testStatus, ctx.baseHeaders);
   }
 
   // GET /api-keys — list all
@@ -116,6 +144,9 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
         typeof baseURL === "string" && baseURL.trim().length > 0 &&
         typeof apiKey === "string" && apiKey.trim().length > 0;
       if (hasCustomFields) {
+        // P1.2：注册（含 key 注入）之前完成出站 SSRF 校验；被拒直接 400，不产生任何半状态。
+        const blocked = await guardOutboundBaseURL(ctx, String(baseURL));
+        if (blocked) return blocked;
         const reg = registerCustomProvider({
           provider,
           baseURL: String(baseURL),
@@ -168,6 +199,11 @@ export async function handleApiKeys(ctx: RouteContext): Promise<Response | null>
         400,
         ctx.baseHeaders
       );
+    }
+    // P1.2：内置 provider 的 baseURL override 同样是用户可控出站端点，必须在落库/注入 key 之前校验。
+    if (baseURL !== undefined && baseURL !== null && String(baseURL).trim() !== "") {
+      const blocked = await guardOutboundBaseURL(ctx, String(baseURL));
+      if (blocked) return blocked;
     }
 
     try {

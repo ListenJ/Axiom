@@ -260,11 +260,13 @@ describe("S1 高危端点二因素 token（AXIOM_SECOND_FACTOR_TOKEN，未配置
     expect(viaBearer?.status).toBe(200);
   });
 
-  it("未配置 AXIOM_SECOND_FACTOR_TOKEN → fail-open 放行（sandbox.ts 同款语义）", async () => {
+  it("未配置 AXIOM_SECOND_FACTOR_TOKEN → 写路由 fail-closed 403（P1.4 D1=C；只读视图才放行）", async () => {
     delete process.env.AXIOM_SECOND_FACTOR_TOKEN;
     const res = await handlePermissionMode(
       makeRouteCtx("/permissions/mode", "POST", {}, { autoAccept: false }),
     );
-    expect(res?.status).toBe(200);
+    expect(res?.status).toBe(403);
+    const body = (await res!.json()) as { code?: string };
+    expect(body.code).toBe("second-factor-unconfigured");
   });
 });

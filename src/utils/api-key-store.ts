@@ -31,6 +31,7 @@
  */
 
 import { logger } from "./logger.js";
+import { assertSafeOutboundUrl, OutboundUrlBlockedError } from "./url-safety.js";
 
 type ApiAdapter = "openai" | "anthropic" | "gemini" | "opencode";
 type ProviderRegion = "domestic" | "overseas" | "global";
@@ -552,7 +553,16 @@ export async function testProviderConnection(
   apiKey: string,
   baseURL: string,
   adapter: ApiAdapter,
-): Promise<{ ok: boolean; latency?: number; modelCount?: number; error?: string }> {
+): Promise<{
+  ok: boolean;
+  latency?: number;
+  modelCount?: number;
+  error?: string;
+  /** P1.2：出站被 SSRF 策略拒绝时的机器可读原因（路由据此返回 400 而不是 502） */
+  code?: "ssrf-blocked" | "invalid-outbound-url";
+  /** P1.2：用户可读恢复路径（与 error 同文案；显式字段便于前端直接展示） */
+  recovery?: string;
+}> {
   const start = Date.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
@@ -577,6 +587,24 @@ export async function testProviderConnection(
       // OpenAI 兼容 (openai / opencode): /models 端点
       url = `${base}/models`;
       headers = { Authorization: `Bearer ${apiKey}` };
+    }
+
+    // P1.2：出站 SSRF 守卫 —— 必须在携带密钥的请求发出之前完成（gemini 的 key 在 query 里，
+    // 被拒时错误只含 host/reason，不回显 URL 与密钥）。被拒时不得发请求。
+    try {
+      await assertSafeOutboundUrl(url);
+    } catch (e) {
+      clearTimeout(timeout);
+      if (e instanceof OutboundUrlBlockedError) {
+        return {
+          ok: false,
+          latency: Date.now() - start,
+          error: e.recovery,
+          code: e.code,
+          recovery: e.recovery,
+        };
+      }
+      throw e;
     }
 
     const response = await fetch(url, {

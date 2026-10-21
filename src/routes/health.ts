@@ -1,11 +1,9 @@
-﻿/**
+/**
  * Health, metrics, and dashboard routes
  */
 import type { RouteContext } from "./types.js";
-import { safeStringEqual } from "../utils/auth-check.js";
 import { APP_VERSION } from "../version.js";
-import { readString } from "../utils/env.js";
-import { callerCredential } from "../utils/call-context.js";
+import { requireSecondFactorToken } from "./route-auth.js";
 import { z } from "zod";
 import { readValidatedJson } from "./body-validation.js";
 
@@ -21,23 +19,6 @@ const permissionCheckSchema = z.object({
 const permissionConfirmSchema = z.object({
   confirmationId: z.string().min(1).max(200),
 });
-
-/**
- * 二因素写保护（审计 S1，2026-08-25）：AXIOM_SECOND_FACTOR_TOKEN 未配置时
- * 放行（fail-open，与 sandbox.ts requireAuthToken 调用语义一致）；
- * 配置后不匹配 → 403。
- */
-function requireSecondFactorToken(ctx: RouteContext): Response | null {
-  const expected = readString("AXIOM_SECOND_FACTOR_TOKEN");
-  if (!expected) return null;
-  const provided = callerCredential(ctx.req.headers) ?? "";
-  if (safeStringEqual(provided, expected)) return null;
-  return ctx.jsonResponse(
-    { error: "Unauthorized - second factor token required" },
-    403,
-    ctx.baseHeaders,
-  );
-}
 
 export async function handleHealth(ctx: RouteContext): Promise<Response | null> {
   if (ctx.url.pathname === "/health" && ctx.req.method === "GET") {
@@ -248,7 +229,7 @@ export async function handleConfig(ctx: RouteContext): Promise<Response | null> 
     }, 200, ctx.baseHeaders);
   }
   if (ctx.url.pathname === "/config" && ctx.req.method === "POST") {
-    const authErr = requireSecondFactorToken(ctx);
+    const authErr = requireSecondFactorToken(ctx, "write");
     if (authErr) return authErr;
     try {
       const body = await ctx.req.json();
@@ -338,7 +319,7 @@ export async function handlePermissionMode(ctx: RouteContext): Promise<Response 
   }
 
   if (ctx.req.method === "POST") {
-    const authErr = requireSecondFactorToken(ctx);
+    const authErr = requireSecondFactorToken(ctx, "write");
     if (authErr) return authErr;
     try {
       const body = (await ctx.req.json()) as { autoAccept?: boolean };

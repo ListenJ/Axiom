@@ -16,6 +16,95 @@ import { readString } from "../utils/env.js";
 import { auditLogger } from "../utils/audit-logger.js";
 import { safeStringEqual } from "../utils/auth-check.js";
 import { callerCredential } from "../utils/call-context.js";
+import { logger } from "../utils/logger.js";
+
+/** 第二因子分级：write = fail-closed（未配置 403）；read = fail-open（放行 + 每进程 warn 一次） */
+export type SecondFactorTier = "write" | "read";
+
+const SECOND_FACTOR_ENV = "AXIOM_SECOND_FACTOR_TOKEN";
+
+/** 每进程只提示一次：只读端点缺配置时放行是已知 fail-open 缺口，但不能刷屏。 */
+let secondFactorReadWarned = false;
+
+const SECOND_FACTOR_RECOVERY = {
+  env: SECOND_FACTOR_ENV,
+  docs: "docs/CONFIGURATION.md",
+  hint:
+    "写操作在未配置 AXIOM_SECOND_FACTOR_TOKEN 时按 fail-closed 拒绝（403）。" +
+    "请在 .env 设置该变量（至少 16 位随机串）后重启服务；只读终端视图不受影响。",
+} as const;
+
+/**
+ * 第二因子分级守卫（D1=C，2026-10-22 P1.4）。
+ *
+ * - 未配置：
+ *   - tier="write" → **403** `{ code: "second-factor-unconfigured", recovery }`（不是 503，不黑屏）；
+ *   - tier="read"  → 放行（null），并每进程 `logger.warn` 一次（缺口可见）。
+ * - 已配置：callerCredential（并保留终端专用 x-second-factor 头兼容）与 expected 常量时间比较；
+ *   不匹配 → 403 `{ code: "invalid-second-factor", recovery }`。
+ *
+ * 所有拒绝都写 audit.failure（reason 用 code，不记录 token 值）。
+ */
+export function requireSecondFactorToken(
+  ctx: RouteContext,
+  tier: SecondFactorTier,
+): Response | null {
+  const expected = readString(SECOND_FACTOR_ENV);
+  const actor = ctx.req.headers.get("x-real-ip") || "unknown";
+  const resource = ctx.url.pathname;
+
+  if (!expected) {
+    if (tier === "read") {
+      if (!secondFactorReadWarned) {
+        secondFactorReadWarned = true;
+        logger.warn(
+          "[route-auth] AXIOM_SECOND_FACTOR_TOKEN 未配置：写操作将 403（fail-closed），只读视图放行（此提示每进程仅一次）",
+        );
+      }
+      return null;
+    }
+    auditLogger.log({
+      event: "auth.failure",
+      actor,
+      outcome: "denied",
+      reason: "second-factor-unconfigured",
+      resource,
+    });
+    return ctx.jsonResponse(
+      {
+        error: `Second factor token not configured (${SECOND_FACTOR_ENV} missing) — 写操作已按 fail-closed 拒绝`,
+        code: "second-factor-unconfigured",
+        recovery: SECOND_FACTOR_RECOVERY,
+      },
+      403,
+      ctx.baseHeaders,
+    );
+  }
+
+  const provided =
+    ctx.req.headers.get("x-second-factor") ||
+    ctx.req.headers.get("x-axiom-second-factor") ||
+    callerCredential(ctx.req.headers) ||
+    "";
+  if (safeStringEqual(provided, expected)) return null;
+
+  auditLogger.log({
+    event: "auth.failure",
+    actor,
+    outcome: "denied",
+    reason: "invalid-second-factor",
+    resource,
+  });
+  return ctx.jsonResponse(
+    {
+      error: "Unauthorized - second factor token required",
+      code: "invalid-second-factor",
+      recovery: SECOND_FACTOR_RECOVERY,
+    },
+    403,
+    ctx.baseHeaders,
+  );
+}
 
 /** 审计事件类型（与 AuditEvent 中需审计的成功事件对齐） */
 export type AuditableEvent =

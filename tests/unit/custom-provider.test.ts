@@ -17,6 +17,7 @@ import {
   getProviderConfig,
   getEffectiveApiKey,
   getEffectiveBaseURL,
+  setApiKeyOverride,
 } from "../../src/utils/api-key-store.js";
 import { handleApiKeys } from "../../src/routes/api-keys.js";
 import type { RouteContext } from "../../src/routes/types.js";
@@ -34,6 +35,7 @@ afterEach(() => {
   unregisterCustomProvider(NAME);
   delete process.env.AXIOM_AUTH_TOKEN;
   delete process.env.AXIOM_ENCRYPTION_KEY;
+  delete process.env.AXIOM_SSRF_ALLOWLIST;
 });
 
 /** 真 DB（内存）+ 真加密密钥：落库路径是 fail-closed 的，必须给全 */
@@ -124,8 +126,11 @@ describe("路由：未知 provider 不再一律拒绝", () => {
   it("带齐 adapter/baseURL/apiKey → 注册成功（custom:true）且**已落库**", async () => {
     process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
     const db = makeDb();
+    // 用公网字面量 IP 而不是 example.com：路由注册会做 SSRF DNS 复核，字面量 IP 不产生 DNS 查询，
+    // 让本用例保持离线可重复（P1.2 起注册路径在落库/注入 key 之前 await assertSafeOutboundUrl）。
+    const publicBase = "https://198.51.100.10/v1";
     const res = (await handleApiKeys(makeCtx({
-      provider: NAME, apiKey: KEY, baseURL: "https://example.com/v1", adapter: "openai",
+      provider: NAME, apiKey: KEY, baseURL: publicBase, adapter: "openai",
     }, db))) as Response;
     expect(res.status).toBe(200);
     const body = (await res.json()) as { ok?: boolean; custom?: boolean };
@@ -137,7 +142,7 @@ describe("路由：未知 provider 不再一律拒绝", () => {
     const persisted = loadApiKeyOverrides(db);
     const row = persisted.find((p) => p.provider === NAME);
     expect(row?.adapter).toBe("openai");
-    expect(row?.baseURL).toBe("https://example.com/v1");
+    expect(row?.baseURL).toBe(publicBase);
     db.close();
   });
 
@@ -313,5 +318,139 @@ describe("自定义 provider：可见性与路由可达性（2026-09-21 修复�
     const res = (await handleApiKeys(ctx)) as Response;
     expect(res.status).toBe(404);
     db.close();
+  });
+});
+
+/**
+ * P1.2：BYOK 用户可控端点的 SSRF 守卫必须在**落库 / 注入 key 之前**完成。
+ * 覆盖：自定义 provider 注册、内置 provider 的 baseURL override、/test 连通性测试；
+ * 被拒时不得发请求（fetch 未调用），错误带 code + recovery（含 AXIOM_SSRF_ALLOWLIST）。
+ */
+describe("P1.2 SSRF：BYOK 端点在 key 注入之前被守卫", () => {
+  const LOOPBACK = "http://127.0.0.1:11434/v1";
+  const PUBLIC_LITERAL = "https://198.51.100.10/v1";
+
+  function ctxFor(
+    path: string,
+    method: string,
+    body: Record<string, unknown> | undefined,
+    db: Database,
+  ): RouteContext {
+    const ctx = makeCtx(body ?? {}, db);
+    (ctx as { url: URL }).url = new URL(`http://x${path}`);
+    (ctx as { req: Request }).req = new Request(`http://x${path}`, {
+      method,
+      headers: { "content-type": "application/json", "x-api-key": "test-token-16chars" },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return ctx;
+  }
+
+  it("POST /api-keys 自定义 provider + loopback baseURL → 400（code/recovery），且未注册、未落库", async () => {
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    const db = makeDb();
+    const res = (await handleApiKeys(
+      ctxFor(
+        "/api-keys",
+        "POST",
+        { provider: NAME, apiKey: KEY, baseURL: LOOPBACK, adapter: "openai" },
+        db,
+      ),
+    )) as Response;
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string; recovery?: string };
+    expect(body.code).toBe("ssrf-blocked");
+    expect(body.recovery).toContain("AXIOM_SSRF_ALLOWLIST");
+    expect(isCustomProvider(NAME)).toBe(false);
+    expect(loadApiKeyOverrides(db).some((p) => p.provider === NAME)).toBe(false);
+    db.close();
+  });
+
+  it("配置 AXIOM_SSRF_ALLOWLIST 后同一请求 200（本机 BYOK 显式放行）", async () => {
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    process.env.AXIOM_SSRF_ALLOWLIST = "127.0.0.1:11434";
+    const db = makeDb();
+    const res = (await handleApiKeys(
+      ctxFor(
+        "/api-keys",
+        "POST",
+        { provider: NAME, apiKey: KEY, baseURL: LOOPBACK, adapter: "openai" },
+        db,
+      ),
+    )) as Response;
+    expect(res.status).toBe(200);
+    expect(isCustomProvider(NAME)).toBe(true);
+    db.close();
+  });
+
+  it("POST /api-keys 内置 provider 的 loopback baseURL override → 400，且不落库（key 未注入）", async () => {
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    const db = makeDb();
+    const res = (await handleApiKeys(
+      ctxFor("/api-keys", "POST", { provider: "deepseek", apiKey: KEY, baseURL: LOOPBACK }, db),
+    )) as Response;
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { code?: string; recovery?: string };
+    expect(body.code).toBe("ssrf-blocked");
+    expect(body.recovery).toContain("AXIOM_SSRF_ALLOWLIST");
+    expect(loadApiKeyOverrides(db).length).toBe(0);
+    db.close();
+  });
+
+  it("POST /api-keys/:provider/test 对 loopback 生效端点 → 400 且 fetch 未被调用", async () => {
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    const db = makeDb();
+    registerCustomProvider({
+      provider: NAME, baseURL: PUBLIC_LITERAL, adapter: "openai", apiKey: KEY,
+    });
+    setApiKeyOverride(NAME, KEY, LOOPBACK);
+
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } });
+    }) as unknown as typeof fetch;
+    try {
+      const res = (await handleApiKeys(ctxFor(`/api-keys/${NAME}/test`, "POST", undefined, db))) as Response;
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { ok?: boolean; code?: string; recovery?: string };
+      expect(body.ok).toBe(false);
+      expect(body.code).toBe("ssrf-blocked");
+      expect(body.recovery).toContain("AXIOM_SSRF_ALLOWLIST");
+      expect(calls).toBe(0);
+    } finally {
+      globalThis.fetch = originalFetch;
+      db.close();
+    }
+  });
+
+  it("POST /api-keys/:provider/test 公网字面量端点仍正常调用 fetch（守卫不误伤）", async () => {
+    process.env.AXIOM_AUTH_TOKEN = "test-token-16chars";
+    const db = makeDb();
+    registerCustomProvider({
+      provider: NAME, baseURL: PUBLIC_LITERAL, adapter: "openai", apiKey: KEY,
+    });
+
+    const originalFetch = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response(JSON.stringify({ data: [{ id: "m1" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    try {
+      const res = (await handleApiKeys(ctxFor(`/api-keys/${NAME}/test`, "POST", undefined, db))) as Response;
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok?: boolean; modelCount?: number };
+      expect(body.ok).toBe(true);
+      expect(body.modelCount).toBe(1);
+      expect(calls).toBe(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+      db.close();
+    }
   });
 });

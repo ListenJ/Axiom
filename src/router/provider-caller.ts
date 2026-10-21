@@ -1,8 +1,9 @@
-﻿import { PROVIDER_CONFIG } from "./models.js";
+import { PROVIDER_CONFIG } from "./models.js";
 import type { ToolCall, ToolCallDef } from "../utils/tool-surface.js";
 import { getEffectiveApiKey, getEffectiveBaseURL } from "../utils/api-key-store.js";
 import { buildReasoningParams } from "./reasoning-effort.js";
 import { logger } from "../utils/logger.js";
+import { assertSafeOutboundUrl } from "../utils/url-safety.js";
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -109,6 +110,9 @@ export async function callProvider(
       headers["HTTP-Referer"] = "https://axiom-runtime.ai";
       headers["X-Title"] = "Axiom Agent";
     }
+
+    // P1.3：chat 主出站统一守卫 —— 携带 Bearer 的请求发出前判定；被拒抛含恢复路径的错误。
+    await assertSafeOutboundUrl(`${baseURL}/chat/completions`);
 
     const res = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
@@ -218,6 +222,9 @@ export async function callProviderNativeStream(
   }
 
   try {
+    // P1.3：native stream 出站同样在携带凭证的请求发出前守卫。
+    await assertSafeOutboundUrl(`${baseURL}/chat/completions`);
+
     const res = await fetchFn(`${baseURL}/chat/completions`, {
       method: "POST",
       headers,

@@ -35,9 +35,9 @@
       "env": "AXIOM_SECOND_FACTOR_TOKEN",
       "currentDefault": false,
       "secureDefault": true,
-      "impact": "未配置时终端 / git / health 等写路由的第二因子校验直接放行。",
-      "enforcedAt": "src/routes/terminal.ts:23 / src/routes/git.ts:24 / src/routes/health.ts:31",
-      "closingChange": "未配置时拒绝写路由（fail-closed），或把该开关纳入启动期强制检查"
+      "impact": "未配置时写路由（git commit/push、/config POST、/permissions/mode POST、终端创建/输入/关闭）已按 P1.4 收紧为 fail-closed 403（code=second-factor-unconfigured，带 recovery）；只读终端视图（stream/会话列表）仍放行并每进程 warn 一次 —— 缺口只剩只读侧。",
+      "enforcedAt": "src/routes/route-auth.ts:requireSecondFactorToken（write tier 403 / read tier 放行+warn）",
+      "closingChange": "只读视图也纳入强制（需前端/CLI 默认携带二因子），或启动期强制要求配置该变量"
     },
     {
       "env": "EDGE_RISK_FAIL_CLOSED",

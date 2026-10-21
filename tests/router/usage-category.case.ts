@@ -23,6 +23,9 @@ process.env.TOKEN_USAGE_DB = join(DB_DIR, "token-usage.db");
 process.env.DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY ?? "test-key-for-usage-category";
 process.env.SILICONFLOW_API_KEY = process.env.SILICONFLOW_API_KEY ?? "test-key-for-usage-category";
 process.env.LOCAL_EMBED_API_KEY = "test-key-for-usage-category";
+// P1.3：embeddings 默认走本机 local-embed（127.0.0.1:9001），SSRF 守卫默认拒绝 loopback。
+// 本用例要覆盖"嵌入用量落库"这条正路径，故显式放行（真实部署同样需要 AXIOM_SSRF_ALLOWLIST）。
+process.env.AXIOM_SSRF_ALLOWLIST = process.env.AXIOM_SSRF_ALLOWLIST ?? "127.0.0.1:9001";
 // embedding 角色在发布默认下**无候选**（devOnly 闸门），本用例显式放行以覆盖 dev/test 路径
 process.env.AXIOM_ALLOW_DEV_MODELS = "1";
 
