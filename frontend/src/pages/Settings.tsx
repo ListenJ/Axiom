@@ -11,6 +11,8 @@ import { ACCENT_PRESETS, SHELL_TONES, CANVAS_TONES, type AccentId, type ShellTon
 import { useChatPrefs, type ChatPrefs } from '@/state/useChatPrefs'
 import { api, endpoints } from '@/lib/api'
 import SettingsSearch from '@/components/settings/SettingsSearch'
+import CatalogInfoCards from '@/components/settings/CatalogInfoCards'
+import ThemeModeCard from '@/components/settings/ThemeModeCard'
 import ModelManagementSection from '@/components/settings/models-section'
 import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
@@ -46,10 +48,6 @@ function EngineStatusList() {
 }
 
 /* ───────── 强调色选择器（外观分区） ───────── */
-
-function themeLabel(t: 'system' | 'dark' | 'light'): string {
-  return t === 'system' ? '系统' : t === 'dark' ? '深色' : '浅色'
-}
 
 function AccentPicker({ highlight }: { highlight: boolean }) {
   const accent = useApp((s) => s.accent)
@@ -260,83 +258,16 @@ type SectionRenderer = (props: {
   setTerminalOverlay: (v: boolean) => void
 }) => ReactNode
 
-/**
- * 通用“后端配置项”信息卡（2026-10-22）：search / security 两个分区在后端
- * `src/core/settings-catalog.ts` 中有条目（type=panel），但它们的实际编辑入口在
- * `config/web-search.yaml` / 模型配置里，不在本页。此前前端既无分区也无条目 ⇒ 设置搜索
- * 能命中、点击却没有任何可见反馈（“点不动”）。这里为这些条提供可定位、可高亮的说明卡，
- * 保证“搜索结果 → 分区展开 → 目标项可见”的闭环成立（编辑仍指向配置文件/模型页）。
- */
-function CatalogInfoCards({ sectionId, highlightKey }: { sectionId: string; highlightKey: string | null }) {
-  const items = SETTINGS_CATALOG.filter((i) => i.section === sectionId)
-  if (items.length === 0) return null
-  return (
-    <>
-      {items.map((item) => (
-        <ShimmerCard
-          key={item.key}
-          padding="md"
-          className={highlightKey === item.key ? 'ring-2 ring-[var(--accent)]' : undefined}
-        >
-          <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap items-baseline gap-2">
-              <h3 className="text-sm font-medium text-[var(--text)]">{item.label}</h3>
-              <code className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-2xs text-[var(--text-muted)]">
-                {item.key}
-              </code>
-            </div>
-            <p className="text-xs text-[var(--text-secondary)]">{item.desc}</p>
-            <p className="text-2xs text-[var(--text-muted)]">
-              编辑位置：<code className="font-mono">config/web-search.yaml</code> 或「模型」分区（改后重启/重载生效）
-            </p>
-          </div>
-        </ShimmerCard>
-      ))}
-    </>
-  )
-}
+
 
 const sectionRenderers: Record<string, SectionRenderer> = {
   appearance: ({ highlightKey, theme, setTheme }) => (
     <div className="stagger space-y-3">
-      <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            {theme === 'system' ? (
-              <Monitor className="size-5" />
-            ) : theme === 'dark' ? (
-              <Moon className="size-5" />
-            ) : (
-              <Sun className="size-5 text-[var(--warning)]" />
-            )}
-          </div>
-          <div className="min-w-[10rem] flex-1 sm:min-w-0">
-            <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              当前：{themeLabel(theme)}；跟随系统时随系统深/浅实时切换。
-            </p>
-          </div>
-          <div
-            role="radiogroup"
-            aria-label="主题切换"
-            className="flex gap-1 rounded-lg bg-[var(--bg-tertiary)] p-1"
-          >
-            {(['system', 'dark', 'light'] as const).map((t) => (
-              <Button
-                key={t}
-                size="sm"
-                variant={theme === t ? 'primary' : 'ghost'}
-                onClick={() => setTheme(t)}
-                role="radio"
-                aria-checked={theme === t}
-                aria-label={`${themeLabel(t)}主题`}
-              >
-                {themeLabel(t)}
-              </Button>
-            ))}
-          </div>
-        </div>
-      </ShimmerCard>
+      <ThemeModeCard
+        theme={theme}
+        setTheme={setTheme}
+        highlight={highlightKey === 'appearance.theme'}
+      />
       <AccentPicker highlight={highlightKey === 'appearance.accent'} />
       <LayerTonePicker highlight={highlightKey === 'appearance.layer'} />
       <PanelOpacityPicker highlight={highlightKey === 'appearance.panelOpacity'} />
