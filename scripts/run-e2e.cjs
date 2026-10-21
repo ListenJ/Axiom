@@ -44,6 +44,24 @@ async function waitHealth(timeoutMs) {
 
   // 后端生命周期管理：健康检查通过则复用；否则自动拉起并在结束时关闭
   let child = null;
+  /** 结束后端：Linux/macOS 上必须**连进程组一起杀**（2026-10-21 修复）。
+   *  原因：后端会再拉起若干子进程（npx 形式的 MCP server 等）。只 kill 直接子进程时，
+   *  这些孙进程会变成孤儿并继续存活，GitHub Actions 会一直等待步骤进程树收尾
+   *  → 表现为「E2E 步骤 10 分钟超时、但用例其实早就跑完了」。
+   *  因此非 Windows 用 detached 启动（自成进程组），结束时 SIGKILL 整个组。 */
+  const killBackend = () => {
+    if (!child) return;
+    try {
+      if (process.platform !== 'win32' && child.pid) {
+        process.kill(-child.pid, 'SIGKILL'); // 负 pid = 整个进程组
+      } else {
+        child.kill('SIGKILL');
+      }
+    } catch (e) {
+      try { child.kill('SIGKILL'); } catch (e2) {}
+    }
+    child = null;
+  };
   if (!(await healthOk())) {
     console.log('[e2e] Backend not reachable, starting `bun run src/main.ts` ...');
     child = spawn('bun', ['run', 'src/main.ts'], {
@@ -51,12 +69,13 @@ async function waitHealth(timeoutMs) {
       env: { ...process.env, AXIOM_AUTH_TOKEN: AUTH_TOKEN },
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
+      detached: process.platform !== 'win32',
     });
     child.stdout.on('data', (d) => process.stdout.write('[server] ' + d));
     child.stderr.on('data', (d) => process.stderr.write('[server-err] ' + d));
     if (!(await waitHealth(120000))) {
       console.error('[e2e] Backend failed to start within 120s');
-      try { child.kill(); } catch (e) {}
+      killBackend();
       process.exit(1);
     }
     console.log('[e2e] Backend ready.');
@@ -97,12 +116,13 @@ async function waitHealth(timeoutMs) {
     }
   }
 
-  if (child) {
-    try { child.kill(); } catch (e) {}
-  }
+  killBackend();
+  // 显式退出（2026-10-21）：即便回收了子进程组，事件循环里仍可能残留定时器/句柄
+  // （健康探测的 http agent、子进程 pipe 等），显式 exit 才能保证 CI 步骤立即收尾。
   if (failed > 0) {
     console.error(`\n${failed} test file(s) failed.`);
     process.exit(1);
   }
   console.log('\nAll E2E tests passed!');
+  process.exit(0);
 })();
