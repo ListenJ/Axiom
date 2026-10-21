@@ -19,7 +19,7 @@ import ModelManagementSection from '@/components/settings/models-section'
 import MotionPreview from '@/components/settings/MotionPreview'
 import DiagnosticsSection from '@/components/settings/DiagnosticsSection'
 import DebugPanelsSection from '@/components/settings/DebugPanelsSection'
-import { SETTINGS_CATALOG, SETTING_SECTIONS } from '@/components/settings/settings-data'
+import { SETTINGS_CATALOG, SETTING_SECTIONS, type SettingSectionId } from '@/components/settings/settings-data'
 
 /* ───────── 搜索引擎可用状态（抓取分区） ───────── */
 
@@ -262,7 +262,9 @@ type SectionRenderer = (props: {
 
 
 
-const sectionRenderers: Record<string, SectionRenderer> = {
+// P4（2026-10-22 架构收口）：渲染器注册表按 `SettingSectionId` 联合类型**编译期完备**——
+// 新增 settings 分区却忘记注册渲染器会直接 tsc 失败，而不是静默退化为只读卡片（防「点不动」复发）。
+const sectionRenderers: Record<SettingSectionId, SectionRenderer> = {
   appearance: ({ highlightKey, theme, setTheme }) => (
     <div className="stagger space-y-3">
       <ThemeModeCard

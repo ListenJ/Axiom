@@ -20,8 +20,27 @@ export interface SettingItem {
   source: 'app' | 'local' | 'chat' | 'backend'
 }
 
+/**
+ * 设置分区 id 的**单一类型来源**（P4：与后端 `src/core/settings-catalog.ts` 的 SETTING_SECTIONS 一一对应）。
+ *
+ * 用途：`Settings.tsx` 的渲染器注册表用 `Record<SettingSectionId, SectionRenderer>` 类型化，
+ * 新增分区若忘记注册渲染器会**编译失败**（而不是静默退化为只读说明卡）——防止「点不动」复发。
+ * 后端新增分区而前端未跟进时，运行时仍由 CatalogInfoCards 兜底渲染（新增分区不会完全不可见）。
+ */
+export type SettingSectionId =
+  | 'appearance'
+  | 'behavior'
+  | 'data'
+  | 'models'
+  | 'agent'
+  | 'gateway'
+  | 'search'
+  | 'security'
+  | 'crawler'
+  | 'diagnostics'
+
 export interface SettingSectionMeta {
-  id: string
+  id: SettingSectionId
   label: string
   icon: ComponentType<{ className?: string }>
   defaultOpen: boolean
