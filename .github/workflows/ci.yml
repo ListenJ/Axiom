@@ -54,6 +54,14 @@ jobs:
       - name: Type check (tsc --noEmit)
         run: bun run lint
 
+      # 2026-10-22 审计修复：前端不再只做 vite build（esbuild 转译不查类型）；
+      # frontend 的 lint（tsc+eslint）与 vitest 必须进入阻断门禁。
+      - name: Frontend lint (tsc + eslint)
+        run: cd frontend && bun run lint
+
+      - name: Frontend unit tests (vitest)
+        run: cd frontend && bun run test:run
+
       - name: Run unit tests
         run: bun run test:full
         env:

@@ -32,7 +32,7 @@ vi.mock('@/lib/api', async () => {
       get: vi.fn((url: string) => {
         if (url === '/config') return Promise.resolve({ gateway: { port: 18789 } })
         if (url.startsWith('/vault')) return Promise.resolve({ results: [] })
-        return (actual.api as any).get(url)
+        return (actual.api.get as (u: string) => Promise<unknown>)(url)
       }),
       clearCache: vi.fn(),
     },

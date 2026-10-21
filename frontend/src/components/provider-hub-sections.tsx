@@ -176,13 +176,13 @@ export function TokensSection() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : '读取 Token 数据失败')
     }
-  }, [reloadToken])
+  }, [])
 
   useEffect(() => {
     void fetchData()
     const interval = setInterval(() => void fetchData(), 10000)
     return () => clearInterval(interval)
-  }, [fetchData])
+  }, [fetchData, reloadToken])
 
   const modelChartData = (data?.perModel ?? []).map(m => ({
     label: m.model.length > 15 ? m.model.slice(0, 12) + '…' : m.model,

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database, BarChart3 } from 'lucide-react'
+import { ArrowLeft, Coins, Activity, ArrowUp, ArrowDown, Clock, HardDrive, Database, BarChart3, AlertTriangle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Button from '@/components/ui/Button'
 import PageHeader from '@/components/ui/PageHeader'
@@ -8,6 +8,7 @@ import BarChart from '@/components/ui/BarChart'
 import Collapsible from '@/components/ui/Collapsible'
 import InlineEmptyState from '@/components/ui/InlineEmptyState'
 import { formatClockTime, formatNumber } from '@/lib/format'
+import { endpoints } from '@/lib/api'
 
 interface TokenDetail {
   perModel: Array<{ model: string; calls: number; promptTokens: number; completionTokens: number; avgLatency: number }>
@@ -20,23 +21,34 @@ interface TokenDetail {
 /** Token 用量面板（设置页「调试与检查」嵌入用，不含页头） */
 export function TokensPanel() {
   const [data, setData] = useState<TokenDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     try {
-      // 2026-10-22 修复（E2E 发现）：原实现两处缺陷
-      //  ① 裸 fetch 不带鉴权头 → 后端恒 401，面板永远空；
-      //  ② 未校验响应形状就 setData → 后端返回错误体（401/429 的 JSON）时
-      //     `data.overall` 为 undefined，渲染期抛 TypeError 并被错误边界整页接管。
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/token-details?days=7', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) return // 非 2xx：保留上一轮数据，下一轮轮询重试
-      const json = await res.json()
-      if (json && typeof json === 'object' && json.overall && json.cacheStats) {
+      // 走 api 封装（endpoints.tokenDetails 带鉴权拦截器/超时/错误映射），不再裸 fetch。
+      // 裸 fetch 不带 Authorization ⇒ 后端恒 401；且未校验形状就 setData 会把错误 JSON
+      // 当数据渲染 ⇒ `data.overall` 为 undefined 抛 TypeError（2026-10-22 E2E 发现）。
+      const json = await endpoints.tokenDetails(7)
+      // 形状校验：仅当 overall/cacheStats 存在且 perModel/recentCalls 为数组才 setData，
+      // 避免渲染期对非数组 .map 崩溃。
+      if (
+        json &&
+        typeof json === 'object' &&
+        'overall' in json &&
+        'cacheStats' in json &&
+        Array.isArray((json as TokenDetail).perModel) &&
+        Array.isArray((json as TokenDetail).recentCalls)
+      ) {
         setData(json as TokenDetail)
+        setError(null) // 下一次成功自动清错
+      } else {
+        // 形状异常：保留上一轮成功数据，提示格式异常
+        setError('Token 数据格式异常（缺少 overall/cacheStats 或 perModel/recentCalls 数组）')
       }
-    } catch { /* 轮询失败静默，下一轮重试 */ }
+    } catch (reason) {
+      // 保留上一轮成功数据（不清空）；错误可见，下一轮轮询/重试再取
+      setError(reason instanceof Error ? reason.message : '读取 Token 数据失败')
+    }
   }, [])
 
   useEffect(() => {
@@ -52,6 +64,17 @@ export function TokensPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      {error && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--danger)]/40 bg-[var(--danger-soft,var(--surface))] px-4 py-3">
+          <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]">
+            <AlertTriangle className="size-4" />{error}
+          </p>
+          <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => void fetchData()}>
+            重试
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="总 Token" value={data ? formatNumber(data.overall.totalTokens) : '—'} icon={<Coins className="size-5" />} accent="info" />
         <StatCard label="总调用" value={data ? formatNumber(data.overall.totalCalls) : '—'} icon={<Activity className="size-5" />} accent="success" />

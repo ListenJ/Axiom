@@ -4,9 +4,10 @@
  * Usage: bun run scripts/backup.ts [options]
  */
 
-import { readdir, copyFile, mkdir, stat } from "fs/promises";
+import { readdir, copyFile, mkdir, stat, unlink, rmdir } from "fs/promises";
 import { join, dirname } from "path";
 import { existsSync } from "fs";
+import { Database } from "bun:sqlite";
 
 interface BackupOptions {
   sourceDb: string;
@@ -17,12 +18,29 @@ interface BackupOptions {
 }
 
 const DEFAULT_OPTIONS: BackupOptions = {
-  sourceDb: process.env.DATABASE_URL?.replace("sqlite:", "") || "./data/axiom.db",
+  sourceDb:
+    process.env.DATABASE_PATH ||
+    process.env.DATABASE_URL?.replace("sqlite:", "") ||
+    "./data/agent.db",
   sourceVault: process.env.VAULT_PATH || "./axiom-memory",
   backupDir: process.env.BACKUP_DIR || "./backups",
   keepBackups: parseInt(process.env.KEEP_BACKUPS || "7", 10),
   compress: process.env.COMPRESS_BACKUPS !== "false",
 };
+
+async function checkpointSourceDb(sourceDb: string): Promise<void> {
+  try {
+    const db = new Database(sourceDb);
+    try {
+      db.run("PRAGMA wal_checkpoint(TRUNCATE)");
+    } finally {
+      db.close();
+    }
+    console.log(`✓ WAL checkpoint (TRUNCATE) done: ${sourceDb}`);
+  } catch (error) {
+    console.warn(`[警告] WAL checkpoint failed, continuing with file copy: ${sourceDb}`, error);
+  }
+}
 
 async function createBackup(options: BackupOptions): Promise<void> {
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -36,9 +54,26 @@ async function createBackup(options: BackupOptions): Promise<void> {
   // Backup database
   if (existsSync(options.sourceDb)) {
     const dbBackupPath = join(backupPath, "database.db");
+
+    // Flush WAL into the main db file before copying (best-effort).
+    await checkpointSourceDb(options.sourceDb);
+
     await mkdir(dirname(dbBackupPath), { recursive: true });
     await copyFile(options.sourceDb, dbBackupPath);
     console.log(`✓ Database backed up: ${options.sourceDb}`);
+
+    // If WAL/SHM sidecar files still exist (e.g. another live connection),
+    // copy them too so the backup stays consistent.
+    const walSource = `${options.sourceDb}-wal`;
+    const shmSource = `${options.sourceDb}-shm`;
+    if (existsSync(walSource)) {
+      await copyFile(walSource, `${dbBackupPath}-wal`);
+      console.log(`✓ WAL sidecar backed up: ${walSource} -> database.db-wal`);
+    }
+    if (existsSync(shmSource)) {
+      await copyFile(shmSource, `${dbBackupPath}-shm`);
+      console.log(`✓ SHM sidecar backed up: ${shmSource} -> database.db-shm`);
+    }
   } else {
     console.warn(`[警告] Database not found: ${options.sourceDb}`);
   }
@@ -100,6 +135,26 @@ async function copyVault(source: string, dest: string): Promise<void> {
   }
 }
 
+// Delete a backup directory strictly entry-by-entry (no shell rm -rf,
+// no directory-level recursive delete): recurse via readdir(withFileTypes),
+// unlink each file, then rmdir the now-empty directory.
+async function deletePathTree(target: string): Promise<void> {
+  const entries = await readdir(target, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const entryPath = join(target, entry.name);
+    if (entry.isDirectory()) {
+      await deletePathTree(entryPath);
+    } else {
+      await unlink(entryPath);
+      console.log(`  Deleted file: ${entryPath}`);
+    }
+  }
+
+  await rmdir(target);
+  console.log(`  Deleted directory: ${target}`);
+}
+
 async function cleanupOldBackups(options: BackupOptions): Promise<void> {
   if (!existsSync(options.backupDir)) return;
 
@@ -126,8 +181,8 @@ async function cleanupOldBackups(options: BackupOptions): Promise<void> {
   // Remove oldest backups
   const toRemove = sorted.slice(0, sorted.length - options.keepBackups);
   for (const backup of toRemove) {
-    console.log(`Removing old backup: ${backup.name}`);
-    await Bun.$`rm -rf ${backup.path}`;
+    console.log(`Removing old backup: ${backup.path}`);
+    await deletePathTree(backup.path);
   }
 }
 
@@ -189,7 +244,8 @@ Commands:
   help      Show this help message
 
 Environment Variables:
-  DATABASE_URL      Database file path (default: ./data/axiom.db)
+  DATABASE_PATH     Database file path (default: ./data/agent.db)
+  DATABASE_URL      Legacy fallback for the database path ("sqlite:" prefix stripped)
   VAULT_PATH        Vault directory path (default: ./axiom-memory)
   BACKUP_DIR        Backup destination (default: ./backups)
   KEEP_BACKUPS      Number of backups to keep (default: 7)

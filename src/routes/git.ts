@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Git service routes — exposes git operations as HTTP API.
  * Allows users to perform git commit/push/status from the frontend.
  */
@@ -116,10 +116,12 @@ async function handleGitPush(ctx: RouteContext): Promise<Response | null> {
     return ctx.jsonResponse({ success: false, error: "invalid JSON body" }, 400, ctx.baseHeaders);
   }
 
+  // force 语义收紧：只接受 JSON 真正的布尔 true。truthy 值（"false"、1、"yes"）
+  // 不得触发 --force-with-lease —— 强推开关不能被字符串/数字冒充。
   const result = await gitPush(REPO_PATH, {
     remote: body.remote,
     branch: body.branch,
-    force: body.force,
+    force: body.force === true,
   });
   return ctx.jsonResponse(result, result.success ? 200 : 500, ctx.baseHeaders);
 }

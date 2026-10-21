@@ -547,7 +547,9 @@ export async function gitPush(
     };
   }
 
-  const forceFlag = options?.force ? " --force-with-lease" : "";
+  // force 语义收紧：=== true 才加强推开关。options 来自 JSON（MCP/HTTP 边界），
+  // "false"/1 这类 truthy 值若走 truthy 判定会误开 --force-with-lease（规则 9）。
+  const forceFlag = options?.force === true ? " --force-with-lease" : "";
   const pushResult = await executeCommand(
     `git push ${safeRemote} ${safeBranch}${forceFlag}`,
     { cwd: repoPath, timeout: 30000 }

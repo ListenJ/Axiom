@@ -62,13 +62,29 @@ export function normalizePromMetrics(text: string): PerfMetrics | null {
   }
 }
 
+/**
+ * Eval 页数据形状（2026-10-22 契约修复）。
+ *
+ * 真实后端契约（来源：src/eval/model-eval-service.ts rowToEvalResult / dynamic-model-assigner.ts）：
+ *   GET /eval/results     → ModelEvalResult[]：{ modelId, provider, evaluatedAt(ISO),
+ *                            scores:{ capability, speed, cost, safety, overall } }（**0-100 整数**）
+ *   GET /eval/assignments → DynamicAssignment[]：{ modelId, provider, model, assignedRoles[],
+ *                            evalScore(0-100), priority, reason, evaluatedAt(ISO) }
+ *   GET /eval/models      → OpenRouterModelInfo[]：{ id, name, pricing:{prompt,completion}(USD 字符串),
+ *                            context_length, ... }
+ * 前端展示层统一使用 0-100 的 `overall/quality/speed/cost/score`。
+ */
 export interface EvalResult {
   id: string
   provider: string
+  /** 0-100（后端 scores.overall） */
   overall: number
+  /** 0-100（后端 scores.capability） */
   quality: number
   speed: number
   cost: number
+  /** 0-100（后端 scores.safety；仅用于排序展示） */
+  safety: number
   lastEvaluated: string
 }
 
@@ -77,6 +93,7 @@ export interface EvalAssignment {
   role: string
   model: string
   provider: string
+  /** 0-100（后端 evalScore） */
   score: number
   lastAssigned: string
 }
@@ -157,25 +174,102 @@ export function normalizeMetrics(raw: unknown): PerfMetrics | null {
   }
 }
 
-// --- Eval normalizers (mirrors Eval.tsx) ---
+// --- Eval normalizers：把后端真实形状映射为前端展示形状（2026-10-22 修复）---
 
+const toFiniteNumber = (v: unknown): number =>
+  typeof v === 'number' && Number.isFinite(v) ? v : 0
+
+/** 宽松数值解析：后端 pricing 是 USD 字符串（如 "0.00001"），也接受 number。 */
+const toNumber = (v: unknown): number => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v)
+    return Number.isFinite(n) ? n : 0
+  }
+  return 0
+}
+
+/** ModelEvalResult[] → EvalResult[]（模型名取 modelId，质量取 scores.capability）。 */
 export function normalizeEvalResults(raw: unknown): EvalResult[] {
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((item) => (item && typeof item === 'object' ? (item as EvalResult) : null))
-    .filter((r): r is EvalResult => Boolean(r && r.id && typeof r.overall === 'number'))
+  const out: EvalResult[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const r = item as {
+      modelId?: unknown
+      provider?: unknown
+      evaluatedAt?: unknown
+      scores?: { overall?: unknown; capability?: unknown; speed?: unknown; cost?: unknown; safety?: unknown }
+    }
+    if (typeof r.modelId !== 'string' || !r.modelId) continue
+    const scores = r.scores && typeof r.scores === 'object' ? r.scores : {}
+    out.push({
+      id: r.modelId,
+      provider: typeof r.provider === 'string' ? r.provider : '',
+      overall: toFiniteNumber(scores.overall),
+      quality: toFiniteNumber(scores.capability),
+      speed: toFiniteNumber(scores.speed),
+      cost: toFiniteNumber(scores.cost),
+      safety: toFiniteNumber(scores.safety),
+      lastEvaluated: typeof r.evaluatedAt === 'string' ? r.evaluatedAt : '',
+    })
+  }
+  return out
 }
 
+/** DynamicAssignment[] → EvalAssignment[]（role 由 assignedRoles 连接，score 取 evalScore）。 */
 export function normalizeEvalAssignments(raw: unknown): EvalAssignment[] {
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((item) => (item && typeof item === 'object' ? (item as EvalAssignment) : null))
-    .filter((a): a is EvalAssignment => Boolean(a && a.id && typeof a.score === 'number'))
+  const out: EvalAssignment[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const a = item as {
+      modelId?: unknown
+      provider?: unknown
+      model?: unknown
+      assignedRoles?: unknown
+      evalScore?: unknown
+      evaluatedAt?: unknown
+    }
+    if (typeof a.modelId !== 'string' || !a.modelId) continue
+    const roles = Array.isArray(a.assignedRoles)
+      ? a.assignedRoles.filter((r): r is string => typeof r === 'string')
+      : []
+    out.push({
+      id: a.modelId,
+      role: roles.join(' / '),
+      model: typeof a.model === 'string' ? a.model : a.modelId,
+      provider: typeof a.provider === 'string' ? a.provider : '',
+      score: toFiniteNumber(a.evalScore),
+      lastAssigned: typeof a.evaluatedAt === 'string' ? a.evaluatedAt : '',
+    })
+  }
+  return out
 }
 
+/** OpenRouterModelInfo[] → EvalModel[]（pricing 字符串转 number，context_length → contextLength）。 */
 export function normalizeEvalModels(raw: unknown): EvalModel[] {
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((item) => (item && typeof item === 'object' ? (item as EvalModel) : null))
-    .filter((m): m is EvalModel => Boolean(m && m.id && typeof m.contextLength === 'number'))
+  const out: EvalModel[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const m = item as {
+      id?: unknown
+      name?: unknown
+      pricing?: { prompt?: unknown; completion?: unknown }
+      context_length?: unknown
+    }
+    if (typeof m.id !== 'string' || !m.id) continue
+    out.push({
+      id: m.id,
+      name: typeof m.name === 'string' ? m.name : m.id,
+      provider: m.id.includes('/') ? m.id.split('/')[0] : '',
+      contextLength: toNumber(m.context_length),
+      pricing: {
+        prompt: toNumber(m.pricing?.prompt),
+        completion: toNumber(m.pricing?.completion),
+      },
+    })
+  }
+  return out
 }

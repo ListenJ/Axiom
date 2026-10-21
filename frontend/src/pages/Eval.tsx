@@ -42,6 +42,9 @@ function normalizeEvalStats(d: unknown): EvalStats | null {
   }
 }
 
+/** 前端排序键（EvalResult 字段）；请求后端时把 quality → capability（后端枚举）。 */
+type EvalSortBy = 'overall' | 'quality' | 'speed' | 'cost' | 'safety'
+
 export function EvalPanel() {
   const [stats, setStats] = useState<EvalStats | null>(null)
   const [results, setResults] = useState<EvalResult[]>([])
@@ -50,22 +53,31 @@ export function EvalPanel() {
   const [error, setError] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [activeTab, setActiveTab] = useState<'results' | 'assignments' | 'models'>('results')
-  const [sortBy, setSortBy] = useState<'overall' | 'quality' | 'speed' | 'cost'>('overall')
+  const [sortBy, setSortBy] = useState<EvalSortBy>('overall')
   const [days, setDays] = useState(7)
 
   useEffect(() => {
+    // 2026-10-22 审计修复：原实现在每个 promise 内层 `.catch(() => null/[])`，导致
+    // allSettled 永远不会 rejected，下面的 `find(rejected)` 是死代码 —— 后端 500/401 时
+    // 页面只显示「暂无数据」。现在让 allSettled 真正承载失败，并在任何一路失败时给出可见错误。
     Promise.allSettled([
-      endpoints.eval.stats().then((d) => d as EvalStats).catch(() => null),
-      endpoints.eval.results({ days, sortBy, limit: 50 }).then((d) => normalizeEvalResults(d)).catch(() => []),
-      endpoints.eval.assignments().then((d) => normalizeEvalAssignments(d)).catch(() => []),
-      endpoints.eval.models({ limit: 50 }).then((d) => normalizeEvalModels(d)).catch(() => []),
+      endpoints.eval.stats(),
+      endpoints.eval.results({ days, sortBy: sortBy === 'quality' ? 'capability' : sortBy, limit: 50 }),
+      endpoints.eval.assignments(),
+      endpoints.eval.models({ limit: 50 }),
     ]).then(([s, r, a, m]) => {
       setStats(s.status === 'fulfilled' ? normalizeEvalStats(s.value) : null)
-      setResults(r.status === 'fulfilled' ? r.value : [])
-      setAssignments(a.status === 'fulfilled' ? a.value : [])
-      setModels(m.status === 'fulfilled' ? m.value : [])
-      const failed = [s, r, a, m].find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined
-      if (failed) setError(String(failed.reason?.message ?? failed.reason))
+      setResults(r.status === 'fulfilled' ? normalizeEvalResults(r.value) : [])
+      setAssignments(a.status === 'fulfilled' ? normalizeEvalAssignments(a.value) : [])
+      setModels(m.status === 'fulfilled' ? normalizeEvalModels(m.value) : [])
+      const failures = [s, r, a, m].filter((x) => x.status === 'rejected') as PromiseRejectedResult[]
+      if (failures.length === 4) {
+        setError('模型评估服务全部不可用（统计 / 结果 / 分配 / 模型列表均读取失败）')
+      } else if (failures.length > 0) {
+        setError(String(failures[0].reason?.message ?? failures[0].reason))
+      } else {
+        setError(null)
+      }
     })
   }, [days, sortBy])
 
@@ -77,7 +89,7 @@ export function EvalPanel() {
         endpoints.eval.stats(),
         endpoints.eval.results({ days, sortBy, limit: 50 }),
       ])
-      if (s.status === 'fulfilled') setStats(s.value as EvalStats)
+      if (s.status === 'fulfilled') setStats(normalizeEvalStats(s.value))
       if (r.status === 'fulfilled') setResults(normalizeEvalResults(r.value))
     } catch (e) {
       setError(String(e))
@@ -102,9 +114,10 @@ export function EvalPanel() {
   const loading = stats === null
   const sortedResults = [...results].sort((a, b) => b[sortBy] - a[sortBy])
 
+  /** 分数统一为 0-100（后端契约）。 */
   const getScoreColor = (score: number) => {
-    if (score >= 0.8) return 'text-[var(--success)]'
-    if (score >= 0.6) return 'text-[var(--warning)]'
+    if (score >= 80) return 'text-[var(--success)]'
+    if (score >= 60) return 'text-[var(--warning)]'
     return 'text-[var(--danger)]'
   }
 
@@ -153,6 +166,7 @@ export function EvalPanel() {
                 <option value="quality">质量</option>
                 <option value="speed">速度</option>
                 <option value="cost">成本</option>
+                <option value="safety">安全</option>
               </Select>
               <Select
                 value={days}
@@ -196,7 +210,7 @@ export function EvalPanel() {
             <Skeleton className="mt-2" width="4rem" height="2rem" rounded="md" />
           ) : (
             <p className={`mt-1 text-3xl font-bold ${getScoreColor(stats?.avgScore ?? 0)}`}>
-              {stats?.avgScore !== undefined ? `${(stats.avgScore * 100).toFixed(1)}%` : '—'}
+              {stats?.avgScore !== undefined ? `${stats.avgScore.toFixed(1)}%` : '—'}
             </p>
           )}
         </ShimmerCard>
@@ -256,11 +270,11 @@ export function EvalPanel() {
                       <td className="py-3 font-medium">{r.id}</td>
                       <td className="py-3 text-[var(--text-muted)]">{r.provider}</td>
                       <td className={`py-3 font-bold ${getScoreColor(r.overall)}`}>
-                        {(r.overall * 100).toFixed(1)}%
+                        {r.overall.toFixed(1)}%
                       </td>
-                      <td className="py-3">{(r.quality * 100).toFixed(1)}%</td>
-                      <td className="py-3">{(r.speed * 100).toFixed(1)}%</td>
-                      <td className="py-3">{(r.cost * 100).toFixed(1)}%</td>
+                      <td className="py-3">{r.quality.toFixed(1)}%</td>
+                      <td className="py-3">{r.speed.toFixed(1)}%</td>
+                      <td className="py-3">{r.cost.toFixed(1)}%</td>
                       <td className="py-3 text-[var(--text-muted)]">
                         {formatDate(r.lastEvaluated)}
                       </td>

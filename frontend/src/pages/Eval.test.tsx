@@ -34,8 +34,9 @@ vi.mock('@/lib/api', async () => {
 describe('Eval page integration', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    // 真实契约（2026-10-22 修复）：stats 来自 getStats；results/assignments/models 用后端真实形状，
+    // 不再用前端臆造的扁平形状（旧 fixture 曾把「页面恒空」的 bug 锁成假绿）。
     mocks.stats.mockResolvedValue({
-      // model-eval-service getStats 真实返回形状
       totalEvaluations: 3,
       modelsEvaluated: 2,
       lastEvalAt: new Date().toISOString(),
@@ -43,32 +44,32 @@ describe('Eval page integration', () => {
     })
     mocks.results.mockResolvedValue([
       {
-        id: 'r1',
+        modelId: 'r1',
         provider: 'openai',
-        overall: 0.9,
-        quality: 0.88,
-        speed: 0.92,
-        cost: 0.8,
-        lastEvaluated: new Date().toISOString(),
+        evaluatedAt: new Date().toISOString(),
+        scores: { capability: 88, speed: 92, cost: 80, safety: 90, overall: 90 },
+        benchmarks: [],
+        metadata: {},
       },
     ])
     mocks.assignments.mockResolvedValue([
       {
-        id: 'a1',
-        role: 'coder',
-        model: 'gpt-4',
+        modelId: 'a1',
         provider: 'openai',
-        score: 0.85,
-        lastAssigned: new Date().toISOString(),
+        model: 'gpt-4',
+        assignedRoles: ['coder'],
+        evalScore: 85,
+        priority: 1,
+        reason: 'test fixture',
+        evaluatedAt: new Date().toISOString(),
       },
     ])
     mocks.models.mockResolvedValue([
       {
-        id: 'm1',
+        id: 'openai/gpt-4',
         name: 'gpt-4',
-        provider: 'openai',
-        contextLength: 128000,
-        pricing: { prompt: 0.01, completion: 0.03 },
+        pricing: { prompt: '0.00001', completion: '0.00003' },
+        context_length: 128000,
       },
     ])
   })
@@ -116,9 +117,41 @@ describe('Eval page integration', () => {
   })
 
   it('filters out empty result objects from the backend', async () => {
-    mocks.results.mockResolvedValue([{}, { id: 'r2', provider: 'x', overall: 0.5, quality: 0.5, speed: 0.5, cost: 0.5, lastEvaluated: new Date().toISOString() }])
+    mocks.results.mockResolvedValue([
+      {},
+      {
+        modelId: 'r2',
+        provider: 'x',
+        evaluatedAt: new Date().toISOString(),
+        scores: { capability: 50, speed: 50, cost: 50, safety: 50, overall: 50 },
+        benchmarks: [],
+        metadata: {},
+      },
+      { modelId: '', provider: 'bad' },
+      null,
+    ])
     renderPage()
     await waitFor(() => expect(screen.queryByText('NaN')).not.toBeInTheDocument())
     expect(screen.getByText('x')).toBeInTheDocument()
+  })
+
+  it('后端契约字段变化时不再静默清空：真实形状可渲染', async () => {
+    renderPage()
+    await waitFor(() => expect(screen.getByText('openai')).toBeInTheDocument())
+    // r1 的 scores.overall=90 → 展示 90.0%（0-100 刻度）
+    await waitFor(() => expect(screen.getByText('90.0%')).toBeInTheDocument())
+    expect(screen.getByText('r1')).toBeInTheDocument()
+  })
+
+  it('全部端点失败时显示可见错误（旧实现这里是死代码）', async () => {
+    mocks.stats.mockRejectedValue(new Error('stats down'))
+    mocks.results.mockRejectedValue(new Error('results down'))
+    mocks.assignments.mockRejectedValue(new Error('assignments down'))
+    mocks.models.mockRejectedValue(new Error('models down'))
+    renderPage()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('模型评估服务全部不可用')
+    // 失败时不再永久骨架屏（loading 以 stats 为准，这里只断言错误可见与标题仍在）
+    expect(screen.getByText('模型评估')).toBeInTheDocument()
   })
 })

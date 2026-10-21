@@ -104,66 +104,111 @@ describe('normalizeMetrics', () => {
 })
 
 
-describe('normalizeEvalResults', () => {
+describe('normalizeEvalResults（后端 ModelEvalResult 形状）', () => {
   it('returns [] for non-arrays', () => {
     expect(normalizeEvalResults(null)).toEqual([])
     expect(normalizeEvalResults({})).toEqual([])
     expect(normalizeEvalResults('x')).toEqual([])
   })
 
-  it('filters out items missing id or overall', () => {
+  it('maps modelId/scores/evaluatedAt into the display shape', () => {
     const input = [
-      { id: '1', provider: 'p', overall: 80, quality: 0, speed: 0, cost: 0, lastEvaluated: '' },
-      { id: '2', provider: 'p' /* missing overall */ },
-      { id: '3', overall: 'not a number' },
+      {
+        modelId: 'deepseek/deepseek-v4',
+        provider: 'deepseek',
+        evaluatedAt: '2026-10-21T00:00:00.000Z',
+        scores: { capability: 88, speed: 92, cost: 80, safety: 95, overall: 90 },
+        benchmarks: [],
+        metadata: {},
+      },
+    ]
+    expect(normalizeEvalResults(input)).toEqual([
+      {
+        id: 'deepseek/deepseek-v4',
+        provider: 'deepseek',
+        overall: 90,
+        quality: 88,
+        speed: 92,
+        cost: 80,
+        safety: 95,
+        lastEvaluated: '2026-10-21T00:00:00.000Z',
+      },
+    ])
+  })
+
+  it('filters items without a usable modelId, tolerates missing scores fields', () => {
+    const input = [
+      { modelId: 'm1', provider: 'p', evaluatedAt: 'x', scores: { overall: 75 } },
+      { modelId: '' },
+      { provider: 'p' },
       null,
       'string',
     ]
     const result = normalizeEvalResults(input)
     expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('1')
-  })
-
-  it('keeps items with valid id and numeric overall', () => {
-    const item = { id: 'x', provider: 'p', overall: 0, quality: 0, speed: 0, cost: 0, lastEvaluated: '' }
-    expect(normalizeEvalResults([item])).toEqual([item])
+    expect(result[0]).toMatchObject({ id: 'm1', overall: 75, quality: 0, speed: 0, cost: 0 })
   })
 })
 
-describe('normalizeEvalAssignments', () => {
+describe('normalizeEvalAssignments（后端 DynamicAssignment 形状）', () => {
   it('returns [] for non-arrays', () => {
     expect(normalizeEvalAssignments(null)).toEqual([])
     expect(normalizeEvalAssignments({})).toEqual([])
   })
 
-  it('filters out items missing id or score', () => {
+  it('maps modelId/assignedRoles/evalScore into the display shape', () => {
     const input = [
-      { id: '1', role: 'r', model: 'm', provider: 'p', score: 90, lastAssigned: '' },
-      { id: '2' /* missing score */ },
-      { id: '3', score: 'not a number' },
+      {
+        modelId: 'glm-5.3',
+        provider: 'zhipu',
+        model: 'glm-5.3',
+        assignedRoles: ['coder', 'reviewer'],
+        evalScore: 85,
+        priority: 1,
+        reason: 'best capability',
+        evaluatedAt: '2026-10-21T00:00:00.000Z',
+      },
+      { modelId: '' },
       null,
     ]
-    const result = normalizeEvalAssignments(input)
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('1')
+    expect(normalizeEvalAssignments(input)).toEqual([
+      {
+        id: 'glm-5.3',
+        role: 'coder / reviewer',
+        model: 'glm-5.3',
+        provider: 'zhipu',
+        score: 85,
+        lastAssigned: '2026-10-21T00:00:00.000Z',
+      },
+    ])
   })
 })
 
-describe('normalizeEvalModels', () => {
+describe('normalizeEvalModels（后端 OpenRouterModelInfo 形状）', () => {
   it('returns [] for non-arrays', () => {
     expect(normalizeEvalModels(null)).toEqual([])
     expect(normalizeEvalModels({})).toEqual([])
   })
 
-  it('filters out items missing id or contextLength', () => {
+  it('maps id/context_length/pricing into the display shape', () => {
     const input = [
-      { id: '1', name: 'm', provider: 'p', contextLength: 8192, pricing: { prompt: 0, completion: 0 } },
-      { id: '2' /* missing contextLength */ },
-      { id: '3', contextLength: '8192' },
+      {
+        id: 'openai/gpt-4',
+        name: 'gpt-4',
+        pricing: { prompt: '0.00001', completion: '0.00003' },
+        context_length: 128000,
+      },
+      { name: 'missing-id' },
       null,
     ]
-    const result = normalizeEvalModels(input)
-    expect(result).toHaveLength(1)
-    expect(result[0].id).toBe('1')
+    expect(normalizeEvalModels(input)).toEqual([
+      {
+        id: 'openai/gpt-4',
+        name: 'gpt-4',
+        provider: 'openai',
+        contextLength: 128000,
+        pricing: { prompt: 0.00001, completion: 0.00003 },
+      },
+    ])
   })
 })
