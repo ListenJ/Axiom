@@ -19,8 +19,8 @@ describe('NAV_SECTIONS', () => {
 describe('NAV_ITEMS', () => {
   it('contains the expected core pages', () => {
     const paths = NAV_ITEMS.map((i) => i.path)
-    // 首页与对话合并：/ 不再是一级导航，由 /chat 承担
-    expect(paths).toContain('/chat')
+    expect(paths).toContain('/agents')
+    expect(paths).not.toContain('/chat')
     expect(paths).toContain('/search')
     expect(paths).toContain('/settings')
     expect(paths).toContain('/vault')

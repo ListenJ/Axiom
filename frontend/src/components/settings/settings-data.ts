@@ -8,7 +8,7 @@
  */
 import type { ComponentType } from 'react'
 import {
-  Activity, Palette, Settings2, Database, Box, Bot, Server, Globe,
+  Activity, Palette, Settings2, Database, Box, Bot, Server, Globe, Search, Shield,
 } from 'lucide-react'
 export interface SettingItem {
   key: string
@@ -34,6 +34,8 @@ export const SETTING_SECTIONS: SettingSectionMeta[] = [
   { id: 'models', label: '模型', icon: Box, defaultOpen: false },
   { id: 'agent', label: 'Agent 适配', icon: Bot, defaultOpen: false },
   { id: 'gateway', label: '网关', icon: Server, defaultOpen: false },
+  { id: 'search', label: '搜索', icon: Search, defaultOpen: false },
+  { id: 'security', label: '安全', icon: Shield, defaultOpen: false },
   { id: 'crawler', label: '抓取', icon: Globe, defaultOpen: false },
   { id: 'diagnostics', label: '调试与检查', icon: Activity, defaultOpen: false },
 ]
@@ -42,6 +44,11 @@ export const SETTINGS_CATALOG: SettingItem[] = [
   { key: 'appearance.theme', section: 'appearance', label: '主题', desc: '切换深色/浅色主题，选择后立即生效并持久化保存。', keywords: ['深色', '浅色', '夜间', '白天', '外观', '亮色', '暗色'], type: 'choice', source: 'app' },
   { key: 'appearance.motion', section: 'appearance', label: '动效强度', desc: '控制界面动画强度：跟随系统、减少动画或完全关闭；影响页面过渡、折叠与按压反馈。', keywords: ['动画', '动效', '过渡', '减少', '关闭', 'motion', 'reduced'], type: 'choice', source: 'app' },
   { key: 'appearance.accent', section: 'appearance', label: '强调色', desc: '界面强调色预设（琥珀/天青/紫罗兰/翡翠/玫瑰/靛蓝），深色浅色各自适配，选择后立即生效。', keywords: ['颜色', '强调', '主题色', 'accent', '色板', '自定义'], type: 'choice', source: 'app' },
+  // 2026-10-22：这两个是**前端本地外观偏好**（层级配色 / 面板透明度），后端 catalog 不包含它们。
+  // 之前 UI 里有控件、catalog 里没有条目 ⇒ 客户端兜底搜索永远搜不到，且 handleSearchSelect 的
+  // 高亮 key 与目录脱节（永不命中）。补进目录后高亮与兜底搜索都能工作。
+  { key: 'appearance.layer', section: 'appearance', label: '层级配色', desc: '为不同信息层级（外壳/面板/浮层）选择沉稳或高对比的配色方案。', keywords: ['层级', '配色', '颜色', '对比', '外壳', '面板'], type: 'choice', source: 'app' },
+  { key: 'appearance.panelOpacity', section: 'appearance', label: '面板透明度', desc: '调整浮层/侧栏面板的背景不透明度，兼顾可读性与空间感。', keywords: ['透明度', '不透明', '面板', '浮层', '背景', 'opacity'], type: 'choice', source: 'app' },
   { key: 'behavior.notifications', section: 'behavior', label: '桌面通知', desc: '启用后，任务完成、审批请求、搜索结果等事件会弹出系统桌面通知。', keywords: ['提醒', '消息', '弹窗', '通知', 'notify'], type: 'toggle', source: 'local' },
   { key: 'privacy.safeMode', section: 'behavior', label: '隐私模式', desc: '本地优先：数据不离开设备。关闭后允许使用云端模型与外部服务。', keywords: ['隐私', '安全', '本地', '脱敏', '私有', '外发'], type: 'toggle', source: 'local' },
   { key: 'chat.showThinking', section: 'behavior', label: '显示思考过程', desc: '在对话中展开显示 Agent 的推理轨迹（reasoning trace），便于理解决策依据；默认关闭。', keywords: ['思考', '推理', 'reasoning', '过程', '轨迹', 'trace'], type: 'toggle', source: 'chat' },
@@ -56,6 +63,13 @@ export const SETTINGS_CATALOG: SettingItem[] = [
   { key: 'agent.status', section: 'agent', label: 'Agent 可用状态', desc: '展示 OpenCode / Hermes / Kimi Code 等编码 Agent 的安装与可用状态，便于定位缺失组件。', keywords: ['agent', '智能体', '状态', 'opencode', 'hermes', 'kimi'], type: 'display', source: 'backend' },
   { key: 'gateway.port', section: 'gateway', label: '网关端口', desc: 'HTTP 服务监听端口，默认 18789；修改后需重启服务生效。', keywords: ['端口', '网关', '服务', '监听', 'port'], type: 'number', source: 'backend' },
   { key: 'gateway.bind', section: 'gateway', label: '绑定地址', desc: '默认绑定 127.0.0.1 仅本机可访问；公网部署必须配合反向代理与 TLS。', keywords: ['绑定', '地址', 'IP', '公网', '安全', 'bind'], type: 'text', source: 'backend' },
+  // 2026-10-22 补齐（前后端目录漂移修复）：以下 5 条在后端 src/core/settings-catalog.ts 中存在，
+  // 前端此前缺分区与条目 ⇒ 设置搜索命中后点击无任何可见反馈（“点不动”）。此处按后端契约同步。
+  { key: 'search.engines', section: 'search', label: '搜索引擎池', desc: '管理用于联网检索的引擎：匿名引擎（DuckDuckGo / Bing / 维基 / arXiv / Crossref / Hacker News 等）无需 Key 即可用；标有「需 Key」的服务（Tavily / Brave / Jina / Google CSE / Serper）填入密钥后启用。改动写回 config/web-search.yaml。', keywords: ['搜索', '引擎', 'search', 'engine', 'duckduckgo', 'bing', 'tavily', 'brave', '匿名', '免key'], type: 'panel', source: 'backend' },
+  { key: 'search.searxng', section: 'search', label: 'SearXNG 自建实例', desc: '自建元搜索引擎：聚合多家上游、不受第三方限流与条款影响，是搜索池的首选通道。开启「安装时自动部署」会随产品在本机拉起本地实例（默认 127.0.0.1:8080）；未部署时该引擎自动跳过，不影响其他引擎。', keywords: ['searxng', '自建', '元搜索', '实例', '部署', '8080', '聚合'], type: 'panel', source: 'backend' },
+  { key: 'search.aggregate', section: 'search', label: '结果聚合与缓存', desc: '控制返回条数、单引擎候选数、单引擎超时、URL 去重、相同查询的缓存时长与相关性过滤阈值。缓存可显著减少对外请求；超时过短会让慢引擎（如 arXiv）总是拿不到结果。', keywords: ['聚合', '条数', '超时', '缓存', '去重', '相关性', 'aggregate', 'ttl'], type: 'panel', source: 'backend' },
+  { key: 'search.policy', section: 'search', label: '抓取礼貌策略', desc: '对目标站点的请求约束：是否遵守 robots.txt、最大并发数、同一站点请求间隔与 User-Agent。默认面向低并发个人/研究用途；调高并发可能触发对方封禁。', keywords: ['robots', '并发', '限流', '间隔', 'ua', '礼貌', '爬取'], type: 'panel', source: 'backend' },
+  { key: 'security.approver', section: 'security', label: '高危操作审批模型', desc: '沙箱执行高危命令（如 rm -rf、mkfs 等）时，由一个独立模型复核后才放行。审批模型跟随你的模型配置：只配一个模型时系统直接用它；配多个时可在此指定专门审批模型，不指定则按 review → decision 角色顺序自动挑选。审批人不可用时 fail-closed 一律拒绝。', keywords: ['审批', '审稿', '高危', '沙箱', 'approver', 'review', '模型', 'rm -rf', 'fail-closed'], type: 'panel', source: 'backend' },
   { key: 'crawler.maxConcurrent', section: 'crawler', label: '最大并发抓取', desc: '控制搜索/爬取的最大并发数（默认 3），防止对目标站点造成压力。', keywords: ['并发', '爬取', '搜索', '限流', '压力', 'concurrent'], type: 'number', source: 'backend' },
   { key: 'diagnostics.health', section: 'diagnostics', label: '服务健康检查', desc: '检查网关、沙箱、OCR、代码图谱与 Agent 等核心服务的可用状态，帮助定位故障模块。', keywords: ['健康', '检查', '诊断', '服务', '状态', 'health'], type: 'display', source: 'backend' },
   { key: 'diagnostics.runtime', section: 'diagnostics', label: '运行环境', desc: '识别 Web / Tauri 桌面 / Android 运行环境与视口、触控等平台信息，用于跨平台排障。', keywords: ['环境', '运行', '平台', 'tauri', 'android', 'web', '跨平台'], type: 'display', source: 'app' },

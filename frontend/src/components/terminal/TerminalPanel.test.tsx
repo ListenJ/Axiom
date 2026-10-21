@@ -112,11 +112,29 @@ describe('TerminalPanel', () => {
     expect(h.clear).toHaveBeenCalledTimes(1)
   })
 
-  it('创建失败时显示错误状态并写入提示', async () => {
+  it('创建失败后可重试，并在重试期间显示连接状态', async () => {
     const adapter = fakeAdapter()
-    adapter.create = vi.fn().mockRejectedValue(new Error('session limit'))
+    let resolveRetry: ((value: { sessionId: string }) => void) | undefined
+    adapter.create = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('session limit'))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveRetry = resolve
+      }))
+
     render(<TerminalPanel adapter={adapter} />)
-    await waitFor(() => expect(screen.getByText('连接失败')).toBeVisible())
+
+    const retry = await screen.findByRole('button', { name: '重试连接' })
+    expect(screen.getByText('连接失败')).toBeVisible()
     expect(h.write).toHaveBeenCalledWith(expect.stringContaining('session limit'))
+
+    fireEvent.click(retry)
+    expect(screen.getByText('正在连接…')).toBeVisible()
+    expect(retry).toBeDisabled()
+    await waitFor(() => expect(adapter.create).toHaveBeenCalledTimes(2))
+
+    resolveRetry?.({ sessionId: 's2' })
+    await waitFor(() => expect(screen.getByText('交互终端 · 常驻会话')).toBeVisible())
+    expect(screen.queryByRole('button', { name: '重试连接' })).not.toBeInTheDocument()
   })
 })

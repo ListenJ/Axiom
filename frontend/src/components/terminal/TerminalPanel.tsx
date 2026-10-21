@@ -5,7 +5,7 @@
  * onData 经 /terminal/session/:id/input 写回 stdin。
  * 卸载/关闭时停止流并关闭会话，避免 shell 子进程残留。
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -43,6 +43,8 @@ function readInitialHeight(): number {
 export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: TerminalPanelProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Terminal | null>(null)
+  const clientRef = useRef<PtyTerminal | null>(null)
+  const disposedRef = useRef(false)
   const [state, setState] = useState<ConnState>('connecting')
   const [height, setHeight] = useState(readInitialHeight)
   // 跟随全局主题（dark/light）与强调色（accent）：变化时重建 xterm 配色
@@ -98,10 +100,35 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     term.options.theme = buildTerminalTheme(cssVarReader())
   }, [theme, accent])
 
+  const connect = useCallback(async () => {
+    const term = termRef.current
+    if (!term || disposedRef.current) return
+
+    setState('connecting')
+    await clientRef.current?.dispose()
+    if (disposedRef.current) return
+    const client = new PtyTerminal(adapter)
+    clientRef.current = client
+    try {
+      await client.start((chunk) => {
+        if (!disposedRef.current && clientRef.current === client) term.write(chunk)
+      })
+      if (!disposedRef.current && clientRef.current === client) {
+        setState('connected')
+        term.focus?.()
+      }
+    } catch (e) {
+      if (disposedRef.current || clientRef.current !== client) return
+      setState('error')
+      term.write(`\r\n[terminal] 启动失败: ${String((e as Error)?.message ?? e)}\r\n`)
+    }
+  }, [adapter])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
 
+    disposedRef.current = false
     const term = new Terminal({
       cursorBlink: true,
       fontSize: 12,
@@ -116,27 +143,8 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     term.focus?.()
     termRef.current = term
 
-    const client = new PtyTerminal(adapter)
-    const onData = term.onData((data) => client.send(data))
-    let disposed = false
-
-    const onChunk = (chunk: string) => {
-      if (!disposed) term.write(chunk)
-    }
-
-    client
-      .start(onChunk)
-      .then(() => {
-        if (!disposed) {
-          setState('connected')
-          term.focus?.()
-        }
-      })
-      .catch((e) => {
-        if (disposed) return
-        setState('error')
-        term.write(`\r\n[terminal] 启动失败: ${String((e as Error)?.message ?? e)}\r\n`)
-      })
+    const onData = term.onData((data) => clientRef.current?.send(data))
+    void connect()
 
     const onResize = () => {
       try {
@@ -148,15 +156,16 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
     window.addEventListener('resize', onResize)
 
     return () => {
-      disposed = true
+      disposedRef.current = true
       window.removeEventListener('resize', onResize)
       onData.dispose()
-      void client.dispose()
+      void clientRef.current?.dispose()
+      clientRef.current = null
       fit.dispose()
       term.dispose()
       termRef.current = null
     }
-  }, [adapter])
+  }, [connect])
 
   const statusLabel =
     state === 'connecting' ? '正在连接…' : state === 'error' ? '连接失败' : '交互终端 · 常驻会话'
@@ -181,7 +190,17 @@ export function TerminalPanel({ onClose, adapter = defaultPtyTerminalAdapter }: 
       <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border)] bg-[var(--surface)]/60 px-3">
         <TerminalIcon size={14} className="text-[var(--accent)]" />
         <span className="text-xs font-medium text-[var(--text)]">终端</span>
-        <span className="text-2xs text-[var(--text-muted)]">{statusLabel}</span>
+        <span className="text-2xs text-[var(--text-muted)]" aria-live="polite">{statusLabel}</span>
+        {state !== 'connected' && (
+          <button
+            type="button"
+            onClick={() => void connect()}
+            disabled={state === 'connecting'}
+            className="press min-h-7 rounded-md border border-[var(--border)] px-2 text-xs text-[var(--text)] transition-colors hover:bg-[var(--surface-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-wait disabled:opacity-50"
+          >
+            重试连接
+          </button>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <button
             type="button"

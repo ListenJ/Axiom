@@ -251,17 +251,60 @@ type SectionRenderer = (props: {
   togglePermissionMode: (next: boolean) => Promise<void>
   clearCache: () => void
   prefs: ChatPrefs
+  /** 2026-10-22：主题与终端显示改为**订阅式**传入（此前渲染器内部直接 useApp.getState()，
+   *  不订阅 store、靠父组件连带刷新，属隐式耦合；一旦父组件不再因相关状态重渲染，
+   *  单选/开关的选中态就会停在旧值）。 */
+  theme: 'system' | 'dark' | 'light'
+  setTheme: (t: 'system' | 'dark' | 'light') => void
+  terminalOverlay: boolean
+  setTerminalOverlay: (v: boolean) => void
 }) => ReactNode
 
+/**
+ * 通用“后端配置项”信息卡（2026-10-22）：search / security 两个分区在后端
+ * `src/core/settings-catalog.ts` 中有条目（type=panel），但它们的实际编辑入口在
+ * `config/web-search.yaml` / 模型配置里，不在本页。此前前端既无分区也无条目 ⇒ 设置搜索
+ * 能命中、点击却没有任何可见反馈（“点不动”）。这里为这些条提供可定位、可高亮的说明卡，
+ * 保证“搜索结果 → 分区展开 → 目标项可见”的闭环成立（编辑仍指向配置文件/模型页）。
+ */
+function CatalogInfoCards({ sectionId, highlightKey }: { sectionId: string; highlightKey: string | null }) {
+  const items = SETTINGS_CATALOG.filter((i) => i.section === sectionId)
+  if (items.length === 0) return null
+  return (
+    <>
+      {items.map((item) => (
+        <ShimmerCard
+          key={item.key}
+          padding="md"
+          className={highlightKey === item.key ? 'ring-2 ring-[var(--accent)]' : undefined}
+        >
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-baseline gap-2">
+              <h3 className="text-sm font-medium text-[var(--text)]">{item.label}</h3>
+              <code className="rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-2xs text-[var(--text-muted)]">
+                {item.key}
+              </code>
+            </div>
+            <p className="text-xs text-[var(--text-secondary)]">{item.desc}</p>
+            <p className="text-2xs text-[var(--text-muted)]">
+              编辑位置：<code className="font-mono">config/web-search.yaml</code> 或「模型」分区（改后重启/重载生效）
+            </p>
+          </div>
+        </ShimmerCard>
+      ))}
+    </>
+  )
+}
+
 const sectionRenderers: Record<string, SectionRenderer> = {
-  appearance: ({ highlightKey }) => (
+  appearance: ({ highlightKey, theme, setTheme }) => (
     <div className="stagger space-y-3">
       <ShimmerCard variant="accent" padding="md" className={highlightKey === 'appearance.theme' ? 'ring-2 ring-[var(--accent)]' : undefined}>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex size-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)]">
-            {useApp.getState().theme === 'system' ? (
+            {theme === 'system' ? (
               <Monitor className="size-5" />
-            ) : useApp.getState().theme === 'dark' ? (
+            ) : theme === 'dark' ? (
               <Moon className="size-5" />
             ) : (
               <Sun className="size-5 text-[var(--warning)]" />
@@ -270,7 +313,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
           <div className="min-w-[10rem] flex-1 sm:min-w-0">
             <h3 className="text-sm font-medium text-[var(--text)]">主题</h3>
             <p className="text-xs text-[var(--text-secondary)]">
-              当前：{themeLabel(useApp.getState().theme)}；跟随系统时随系统深/浅实时切换。
+              当前：{themeLabel(theme)}；跟随系统时随系统深/浅实时切换。
             </p>
           </div>
           <div
@@ -282,10 +325,10 @@ const sectionRenderers: Record<string, SectionRenderer> = {
               <Button
                 key={t}
                 size="sm"
-                variant={useApp.getState().theme === t ? 'primary' : 'ghost'}
-                onClick={() => useApp.getState().setTheme(t)}
+                variant={theme === t ? 'primary' : 'ghost'}
+                onClick={() => setTheme(t)}
                 role="radio"
-                aria-checked={useApp.getState().theme === t}
+                aria-checked={theme === t}
                 aria-label={`${themeLabel(t)}主题`}
               >
                 {themeLabel(t)}
@@ -301,7 +344,7 @@ const sectionRenderers: Record<string, SectionRenderer> = {
     </div>
   ),
 
-  behavior: ({ toast, highlightKey, permMode, togglePermissionMode, prefs }) => (
+  behavior: ({ toast, highlightKey, permMode, togglePermissionMode, prefs, terminalOverlay, setTerminalOverlay }) => (
     <div className="stagger space-y-3">
       <ToggleRow
         icon={<Bell className="size-5" />}
@@ -324,7 +367,11 @@ const sectionRenderers: Record<string, SectionRenderer> = {
         label="显示思考过程"
         desc="在对话中展开显示 Agent 的推理轨迹（reasoning trace）；默认关闭。"
         checked={prefs.showThinking}
-        onChange={() => { prefs.toggleShowThinking(); toast(`思考过程已${!prefs.showThinking ? '开启' : '关闭'}`, 'info') }}
+        onChange={() => {
+          const next = !prefs.showThinking
+          prefs.toggleShowThinking()
+          toast(`思考过程已${next ? '开启' : '关闭'}`, 'info')
+        }}
         highlight={highlightKey === 'chat.showThinking'}
       />
       <ToggleRow
@@ -347,10 +394,10 @@ const sectionRenderers: Record<string, SectionRenderer> = {
         icon={<TerminalSquare className="size-5" />}
         label="终端覆盖显示"
         desc="终端以浮层覆盖显示（不占位、不推挤内容）；关闭后内嵌于内容区底部。"
-        checked={useApp.getState().terminalOverlay}
+        checked={terminalOverlay}
         onChange={() => {
-          const next = !useApp.getState().terminalOverlay
-          useApp.getState().setTerminalOverlay(next)
+          const next = !terminalOverlay
+          setTerminalOverlay(next)
           toast(`终端已切换为${next ? '覆盖' : '内嵌'}显示`, 'info')
         }}
         highlight={highlightKey === 'chat.terminalOverlay'}
@@ -498,12 +545,29 @@ const sectionRenderers: Record<string, SectionRenderer> = {
       <DebugPanelsSection />
     </div>
   ),
+
+  // 2026-10-22 补齐（前后端目录漂移）：后端 catalog 存在 search.* / security.approver，
+  // 前端此前无分区 ⇒ 设置搜索命中后无任何可见反馈。用可定位/可高亮的说明卡闭环。
+  search: ({ highlightKey }) => (
+    <div className="stagger space-y-3">
+      <CatalogInfoCards sectionId="search" highlightKey={highlightKey} />
+    </div>
+  ),
+
+  security: ({ highlightKey }) => (
+    <div className="stagger space-y-3">
+      <CatalogInfoCards sectionId="security" highlightKey={highlightKey} />
+    </div>
+  ),
 }
 
 /* ───────── 设置页 ───────── */
 
 export default function Settings() {
   const theme = useApp((s) => s.theme)
+  const setTheme = useApp((s) => s.setTheme)
+  const terminalOverlay = useApp((s) => s.terminalOverlay)
+  const setTerminalOverlay = useApp((s) => s.setTerminalOverlay)
   const toast = useApp((s) => s.toast)
   const prefs = useChatPrefs()
 
@@ -587,6 +651,8 @@ export default function Settings() {
           agent: { description: '编码 Agent 可用状态与权限行为（与后端配置一一对应）' },
           gateway: { description: 'HTTP 服务监听配置（读取自 /config，修改需重启生效）' },
           crawler: { description: '爬取并发上限与搜索引擎可用状态（读取自 /config、/engines）' },
+          search: { description: '搜索引擎池、SearXNG 实例、聚合缓存与抓取策略（编辑于 config/web-search.yaml）' },
+          security: { description: '高危操作审批模型（沙箱命令复核；编辑于模型配置）' },
           diagnostics: { description: '运行环境与核心服务健康检查、性能/Token/路由/代理/评估面板，可一键复制诊断快照' },
         }[section.id]
 
@@ -608,6 +674,10 @@ export default function Settings() {
               togglePermissionMode,
               clearCache,
               prefs,
+              theme,
+              setTheme,
+              terminalOverlay,
+              setTerminalOverlay,
             })}
           </Collapsible>
         )

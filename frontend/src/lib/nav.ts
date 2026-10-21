@@ -3,7 +3,7 @@ import {
   Search,
   Code2,
   Folder,
-  MessageSquare,
+  Bot,
   Boxes,
   Cog,
   GitBranch,
@@ -39,7 +39,7 @@ export const NAV_SECTIONS: NavSection[] = [
 ]
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'chat',      path: '/chat',      label: '对话',   shortcut: '1', icon: MessageSquare, mobilePrimary: true,  visible: true, section: 'workspace' },
+  { id: 'chat',      path: '/agents',    label: '工作区', shortcut: '1', icon: Bot,           mobilePrimary: true,  visible: true, section: 'workspace' },
   { id: 'search',    path: '/search',    label: '搜索',   shortcut: '2', icon: Search,        mobilePrimary: true,  visible: true, section: 'workspace' },
   { id: 'code',      path: '/code',      label: '代码',   shortcut: '3', icon: Code2,         mobilePrimary: true,  visible: true, section: 'workspace' },
   { id: 'vault',     path: '/vault',     label: '知识',   shortcut: '4', icon: Folder,        mobilePrimary: false, visible: true, section: 'knowledge' },

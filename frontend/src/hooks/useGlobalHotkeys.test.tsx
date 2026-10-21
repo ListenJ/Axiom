@@ -11,7 +11,7 @@ function App() {
     <Routes>
       <Route path="/" element={<div>Home</div>} />
       <Route path="/search" element={<div>Search</div>} />
-      <Route path="/chat" element={<div>Chat</div>} />
+      <Route path="/agents" element={<div>Agents</div>} />
       <Route path="*" element={<div>{useLocation().pathname}</div>} />
     </Routes>
   )
@@ -92,9 +92,8 @@ describe('useGlobalHotkeys', () => {
 
   it('navigates via number keys based on visible nav items', async () => {
     renderHook('/')
-    // 首页与对话合并后：1 号快捷键跳转 /chat
     press('1')
-    await waitFor(() => expect(screen.getByText('Chat')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Agents')).toBeInTheDocument())
   })
 
   it('does not hijack shortcuts inside inputs', async () => {

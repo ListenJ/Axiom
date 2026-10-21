@@ -65,23 +65,22 @@ export default function Layout() {
         <main id="main" tabIndex={-1} className="canvas-surface flex min-h-0 flex-1 flex-col">
           <div className="min-w-0 flex-1 overflow-y-auto">
             <div className="h-full px-4 py-4 md:px-6 md:py-6">
-              {/* 路由级页面过渡：全站唯一入口（mode="wait" 先退场再入场），
-                  消费 MOTION_PRESETS.pageEnter；off/reduced 时静态渲染 */}
+              {/* 路由级页面过渡（2026-10-22 修复，E2E 发现）：
+                  原实现 `<AnimatePresence mode="wait">` 要等旧页面**退场动画结束**才挂载新页面，且每次导航整棵
+                  子树 remount ⇒ 用户导航后立即输入会落进即将被丢弃的子树、被静默清空；
+                  改为 `mode="popLayout"` 后实测又出现**双页并存**（旧的退出元素与新的都用当前 Outlet 渲染，
+                  过渡期间 DOM 里同一页面出现两份 h1/输入框）。
+                  最终方案：**不用 AnimatePresence 做路由过渡**，改为「立即挂载 + CSS 入场动画」：
+                  新页面同步挂载、立刻可交互、不丢状态；没有退出阶段 ⇒ 不会双页并存。
+                  动效强度 off / reduced 由 `pageMotionEnabled` 与 CSS 的 data-motion 规则双重关闭。 */}
               {pageMotionEnabled ? (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={location.pathname}
-                    className="h-full"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={MOTION_PRESETS.pageEnter}
-                  >
-                    <Outlet />
-                  </motion.div>
-                </AnimatePresence>
+                <div key={location.pathname} className="page-enter h-full">
+                  <Outlet />
+                </div>
               ) : (
-                <Outlet />
+                <div key={location.pathname} className="h-full">
+                  <Outlet />
+                </div>
               )}
             </div>
           </div>
