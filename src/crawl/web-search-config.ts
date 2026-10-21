@@ -9,13 +9,29 @@
  * 真实值走 .env / GUI 输入 → api-key-store。这样配置文件可以安全地进版本库。
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { getEffectiveApiKey, getProviderConfig } from "../utils/api-key-store.js";
 import { readString } from "../utils/env.js";
 import { logger } from "../utils/logger.js";
 
-export const WEB_SEARCH_CONFIG_PATH = "./config/web-search.yaml";
+/** 默认配置路径（保持不变；测试可通过 env 覆盖，见 resolveWebSearchConfigPath）。 */
+export const DEFAULT_WEB_SEARCH_CONFIG_PATH = "./config/web-search.yaml";
+
+/**
+ * 生效的配置文件路径。
+ *
+ * 默认值**严格不变**：未设置 `AXIOM_WEB_SEARCH_CONFIG` 时与历史行为完全一致。
+ * 该 env 仅用于**隔离临时配置的集成测试**（测试把配置指向 mkdtemp 目录），
+ * 生产代码不得据此做业务分支（2026-10-22 P1 审计 A5；D3 决策约束）。
+ */
+export function resolveWebSearchConfigPath(): string {
+  // 统一经 utils/env.ts 读取（架构门禁要求 src 内 env 访问集中；env-example 完整性测试覆盖）
+  const override = readString("AXIOM_WEB_SEARCH_CONFIG", "").trim();
+  return override.length > 0 ? override : DEFAULT_WEB_SEARCH_CONFIG_PATH;
+}
 
 export type EngineKind = "html" | "api" | "rss";
 
@@ -146,7 +162,7 @@ function mergeWithDefaults(raw: Partial<WebSearchConfig>): WebSearchConfig {
 }
 
 /** 读取配置；文件不存在或损坏时回落到默认值（**不抛异常**，保证搜索功能不因此不可用） */
-export function loadWebSearchConfig(path = WEB_SEARCH_CONFIG_PATH): WebSearchConfig {
+export function loadWebSearchConfig(path = resolveWebSearchConfigPath()): WebSearchConfig {
   try {
     if (!existsSync(path)) {
       logger.info("[WebSearchConfig] 配置文件不存在，使用内置默认值", { path });
@@ -163,15 +179,326 @@ export function loadWebSearchConfig(path = WEB_SEARCH_CONFIG_PATH): WebSearchCon
   }
 }
 
-/** 写回配置（GUI 修改后调用）。写入前把已解析的密钥**还原为 `${ENV_VAR}` 占位**，避免密钥落盘。 */
-export function saveWebSearchConfig(cfg: WebSearchConfig, path = WEB_SEARCH_CONFIG_PATH): void {
+// ══════════════════════════════════════════════════════════════════
+// 并发安全（2026-10-22 P1）：内容修订号 + 原子写 + 乐观并发（CAS）
+// ══════════════════════════════════════════════════════════════════
+
+/** 文件不存在时的固定修订号哨兵（保证"新建文件"也能参与 CAS，而不是每次随机）。 */
+export const MISSING_CONFIG_REVISION = "missing";
+
+/** 配置内容修订号：对**文件原始文本**取 sha256（前 16 hex）。任何字节变化都会换修订号。 */
+export function computeWebSearchRevision(rawText: string | null): string {
+  if (rawText === null) return MISSING_CONFIG_REVISION;
+  return createHash("sha256").update(rawText, "utf8").digest("hex").slice(0, 16);
+}
+
+function readRawConfig(path: string): string | null {
   try {
-    writeFileSync(path, stringifyYaml(cfg, { lineWidth: 100 }), "utf-8");
-    logger.info("[WebSearchConfig] 已保存", { path });
+    return existsSync(path) ? readFileSync(path, "utf-8") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 读配置 + 当前修订号（GUI 用 revision 做 If-Match 乐观并发；文件缺失/损坏时 revision 仍可用）。 */
+export function loadWebSearchConfigWithRevision(
+  path = resolveWebSearchConfigPath(),
+): { config: WebSearchConfig; revision: string } {
+  const rawText = readRawConfig(path);
+  return { config: loadWebSearchConfig(path), revision: computeWebSearchRevision(rawText) };
+}
+
+/** 并发冲突：客户端持有的修订号与磁盘当前内容不一致（HTTP 层映射为 409）。 */
+export class WebSearchConfigConflictError extends Error {
+  readonly code = "revision-conflict";
+  constructor(
+    readonly expectedRevision: string,
+    readonly actualRevision: string,
+  ) {
+    super(`配置已被其他请求修改（期望修订 ${expectedRevision}，磁盘当前 ${actualRevision}），请刷新后重试`);
+    this.name = "WebSearchConfigConflictError";
+  }
+}
+
+/** 补丁校验失败（HTTP 层映射为 400；拒绝未知/非法字段，避免污染配置文件）。 */
+export class WebSearchConfigValidationError extends Error {
+  readonly code = "invalid-patch";
+  constructor(message: string) {
+    super(message);
+    this.name = "WebSearchConfigValidationError";
+  }
+}
+
+export interface ApplyWebSearchPatchResult {
+  config: WebSearchConfig;
+  /** 实际生效的字段（`section.key` 形式）；未知字段不会出现在这里，而是直接 400 */
+  applied: string[];
+}
+
+const AGGREGATE_RULES = {
+  max_results: { kind: "int", min: 1, max: 50 },
+  per_engine: { kind: "int", min: 1, max: 20 },
+  timeout_ms: { kind: "int", min: 100, max: 120_000 },
+  dedupe: { kind: "bool" },
+  cache_ttl_sec: { kind: "int", min: 0, max: 86_400 },
+  min_relevance: { kind: "num", min: 0, max: 1 },
+} as const;
+
+const SEARXNG_RULES = {
+  enabled: { kind: "bool" },
+  auto_deploy: { kind: "bool" },
+  base_url: { kind: "url" },
+  bind: { kind: "string", maxLen: 128 },
+  port: { kind: "int", min: 1, max: 65_535 },
+  secret_key_env: { kind: "string", maxLen: 128 },
+  fallback_instances: { kind: "urlArray" },
+  fallback_timeout_ms: { kind: "int", min: 100, max: 120_000 },
+} as const;
+
+const POLICY_RULES = {
+  respect_robots: { kind: "bool" },
+  max_concurrency: { kind: "int", min: 1, max: 32 },
+  request_delay_ms: { kind: "int", min: 0, max: 60_000 },
+  user_agent: { kind: "string", maxLen: 256 },
+} as const;
+
+type Rule = {
+  kind: "int" | "num" | "bool" | "string" | "url" | "urlArray";
+  min?: number;
+  max?: number;
+  maxLen?: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function validateRule(label: string, rule: Rule, value: unknown): string | number | boolean | string[] {
+  switch (rule.kind) {
+    case "bool":
+      if (typeof value !== "boolean") throw new WebSearchConfigValidationError(`${label} 必须是布尔值`);
+      return value;
+    case "int":
+    case "num": {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new WebSearchConfigValidationError(`${label} 必须是数字`);
+      }
+      if (rule.kind === "int" && !Number.isInteger(value)) {
+        throw new WebSearchConfigValidationError(`${label} 必须是整数`);
+      }
+      if (rule.min !== undefined && value < rule.min) {
+        throw new WebSearchConfigValidationError(`${label} 不能小于 ${rule.min}`);
+      }
+      if (rule.max !== undefined && value > rule.max) {
+        throw new WebSearchConfigValidationError(`${label} 不能大于 ${rule.max}`);
+      }
+      return value;
+    }
+    case "string": {
+      if (typeof value !== "string") throw new WebSearchConfigValidationError(`${label} 必须是字符串`);
+      if (rule.maxLen !== undefined && value.length > rule.maxLen) {
+        throw new WebSearchConfigValidationError(`${label} 长度不能超过 ${rule.maxLen}`);
+      }
+      if (/[\r\n]/.test(value)) throw new WebSearchConfigValidationError(`${label} 不能包含换行`);
+      return value;
+    }
+    case "url": {
+      if (typeof value !== "string") throw new WebSearchConfigValidationError(`${label} 必须是字符串`);
+      let parsed: URL;
+      try {
+        parsed = new URL(value);
+      } catch {
+        throw new WebSearchConfigValidationError(`${label} 不是合法 URL`);
+      }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new WebSearchConfigValidationError(`${label} 只支持 http/https`);
+      }
+      return value;
+    }
+    case "urlArray": {
+      if (!Array.isArray(value)) throw new WebSearchConfigValidationError(`${label} 必须是数组`);
+      return value.map((item, i) => validateRule(`${label}[${i}]`, { kind: "url" }, item) as string);
+    }
+  }
+}
+
+function applySection(
+  source: Record<string, unknown>,
+  rules: Record<string, Rule>,
+  target: Record<string, unknown>,
+  section: string,
+  applied: string[],
+  unknownKeys: string[],
+): void {
+  for (const [key, value] of Object.entries(source)) {
+    const rule = rules[key];
+    if (!rule) {
+      unknownKeys.push(`${section}.${key}`);
+      continue;
+    }
+    target[key] = validateRule(`${section}.${key}`, rule, value);
+    applied.push(`${section}.${key}`);
+  }
+}
+
+/**
+ * 把 POST 补丁应用到当前配置：**只接受已知字段并做类型/范围校验**。
+ * 未知字段（含未知 engine id）**拒绝**（D3 决策调整：不做静默忽略），返回 400。
+ * 纯函数（不改入参），供路由与单测共用；任何非法值抛 `WebSearchConfigValidationError`。
+ */
+export function applyWebSearchPatch(current: WebSearchConfig, patch: unknown): ApplyWebSearchPatchResult {
+  if (!isRecord(patch)) {
+    throw new WebSearchConfigValidationError("请求体必须是 JSON 对象");
+  }
+  const next = structuredClone(current) as unknown as {
+    aggregate: Record<string, unknown>;
+    searxng: Record<string, unknown>;
+    policy: Record<string, unknown>;
+    engines: WebSearchEngineConfig[];
+  };
+  const applied: string[] = [];
+  const unknownKeys: string[] = [];
+
+  // engines：只允许 { id, enabled?, weight? }；未知 id 视为非法（拒绝，不做静默忽略）
+  if (patch.engines !== undefined) {
+    if (!Array.isArray(patch.engines)) {
+      throw new WebSearchConfigValidationError("engines 必须是数组");
+    }
+    for (const raw of patch.engines) {
+      if (!isRecord(raw) || typeof raw.id !== "string") {
+        throw new WebSearchConfigValidationError("engines 每项必须是 { id, enabled?, weight? }");
+      }
+      const engine = next.engines.find((e) => e.id === raw.id);
+      if (!engine) {
+        unknownKeys.push(`engines.${raw.id}`);
+        continue;
+      }
+      if (raw.enabled !== undefined) {
+        engine.enabled = validateRule(`engines.${raw.id}.enabled`, { kind: "bool" }, raw.enabled) as boolean;
+        applied.push(`engines.${raw.id}.enabled`);
+      }
+      if (raw.weight !== undefined) {
+        engine.weight = validateRule(`engines.${raw.id}.weight`, { kind: "num", min: 0, max: 10 }, raw.weight) as number;
+        applied.push(`engines.${raw.id}.weight`);
+      }
+    }
+  }
+
+  if (patch.aggregate !== undefined) {
+    if (!isRecord(patch.aggregate)) throw new WebSearchConfigValidationError("aggregate 必须是对象");
+    applySection(patch.aggregate, AGGREGATE_RULES as Record<string, Rule>, next.aggregate, "aggregate", applied, unknownKeys);
+  }
+  if (patch.searxng !== undefined) {
+    if (!isRecord(patch.searxng)) throw new WebSearchConfigValidationError("searxng 必须是对象");
+    applySection(patch.searxng, SEARXNG_RULES as Record<string, Rule>, next.searxng, "searxng", applied, unknownKeys);
+  }
+  if (patch.policy !== undefined) {
+    if (!isRecord(patch.policy)) throw new WebSearchConfigValidationError("policy 必须是对象");
+    applySection(patch.policy, POLICY_RULES as Record<string, Rule>, next.policy, "policy", applied, unknownKeys);
+  }
+
+  // 顶层未知字段同样拒绝（白名单语义：只允许 engines/aggregate/searxng/policy，以及 ifRevision）
+  for (const key of Object.keys(patch)) {
+    if (key === "engines" || key === "aggregate" || key === "searxng" || key === "policy") continue;
+    if (key === "ifRevision") continue; // 并发控制元数据，由路由消费
+    unknownKeys.push(key);
+  }
+
+  if (unknownKeys.length > 0) {
+    throw new WebSearchConfigValidationError(
+      `未知配置字段（已拒绝写入）：${unknownKeys.join("、")}`,
+    );
+  }
+
+  return { config: next as unknown as WebSearchConfig, applied };
+}
+
+export interface SaveWebSearchConfigOptions {
+  /**
+   * 乐观并发：期望的磁盘当前修订号（来自 `loadWebSearchConfigWithRevision`）。
+   * 传入且与磁盘不一致 → 抛 `WebSearchConfigConflictError`（HTTP 409）。
+   * 不传 = 旧行为（最后写入者胜；仅为兼容既有调用点保留）。
+   */
+  expectedRevision?: string;
+}
+
+/**
+ * 写回配置（GUI 修改后调用）。返回**写入后**的新修订号。
+ *
+ * 2026-10-22 P1 改造（审计 A1/A2）：
+ *   1. **原子写**：同目录临时文件 → `rename` 替换，崩溃/磁盘满不会留下半截 YAML；
+ *      替换前尽力保留 `${path}.bak`（上一份可解析内容），失败不阻断主流程。
+ *   2. **CAS**：传入 `expectedRevision` 时先比对磁盘当前内容修订号，不一致拒绝写入。
+ *
+ * 注意（审计 A4，原注释声称"写入前把已解析密钥还原为 ${ENV_VAR} 占位"——实现从未如此）：
+ *   `loadWebSearchConfig` 会把 `${VAR}` 解析成实际值，且解析不可逆；因此**回写到本文件的字段
+ *   不应使用 `${VAR}`**（本文件密钥一律用 `api_key_env` 变量名）。该限制已登记为债务。
+ */
+export function saveWebSearchConfig(
+  cfg: WebSearchConfig,
+  path = resolveWebSearchConfigPath(),
+  opts: SaveWebSearchConfigOptions = {},
+): string {
+  const previousRaw = readRawConfig(path);
+  const actualRevision = computeWebSearchRevision(previousRaw);
+  if (opts.expectedRevision !== undefined && opts.expectedRevision !== actualRevision) {
+    throw new WebSearchConfigConflictError(opts.expectedRevision, actualRevision);
+  }
+
+  const serialized = stringifyYaml(cfg, { lineWidth: 100 });
+  const dir = dirname(path);
+  mkdirSync(dir, { recursive: true });
+
+  // 备份轮换（A1）：先把旧内容写到 .bak.tmp，**成功 rename 之后**再转动到 .bak。
+  // 这样：写入失败时 .bak 保持上一份完好内容；.bak 永远只有最近 1 份，不会无限增长。
+  const bakTmp = `${path}.bak.tmp`;
+  if (previousRaw !== null) {
+    try {
+      copyFileSync(path, bakTmp);
+    } catch (e) {
+      logger.warn("[WebSearchConfig] 备份旧配置失败（继续原子写入）", {
+        path,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  const tmp = `${path}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    writeFileSync(tmp, serialized, "utf-8");
+    renameSync(tmp, path);
   } catch (e) {
+    for (const leftover of [tmp, bakTmp]) {
+      try {
+        rmSync(leftover, { force: true });
+      } catch {
+        /* 清理失败不影响抛错 */
+      }
+    }
     logger.error("[WebSearchConfig] 保存失败", e as Error);
     throw e;
   }
+
+  // 主文件已原子替换成功 → 轮换备份（旧内容成为 .bak，覆盖更早的 .bak）
+  if (previousRaw !== null) {
+    try {
+      renameSync(bakTmp, `${path}.bak`);
+    } catch (e) {
+      logger.warn("[WebSearchConfig] 备份轮换失败（忽略，不影响主写入）", {
+        path,
+        error: e instanceof Error ? e.message : String(e),
+      });
+      try {
+        rmSync(bakTmp, { force: true });
+      } catch {
+        /* 忽略 */
+      }
+    }
+  }
+
+  const newRevision = computeWebSearchRevision(serialized);
+  logger.info("[WebSearchConfig] 已保存", { path, revision: newRevision });
+  return newRevision;
 }
 
 /**
@@ -208,7 +535,7 @@ export interface EngineStatus {
 }
 
 /** 供 GUI「设置 → 网络搜索」展示的引擎状态表 */
-export function listEngineStatus(path = WEB_SEARCH_CONFIG_PATH): EngineStatus[] {
+export function listEngineStatus(path = resolveWebSearchConfigPath()): EngineStatus[] {
   const cfg = loadWebSearchConfig(path);
   return cfg.engines.map((e) => {
     const hasKey = Boolean(resolveEngineKey(e));
@@ -233,18 +560,18 @@ export function listEngineStatus(path = WEB_SEARCH_CONFIG_PATH): EngineStatus[] 
   });
 }
 
-/** 开关某个引擎并写回文件。返回是否成功（id 不存在则 false） */
-export function setEngineEnabled(id: string, enabled: boolean, path = WEB_SEARCH_CONFIG_PATH): boolean {
-  const cfg = loadWebSearchConfig(path);
-  const engine = cfg.engines.find((e) => e.id === id);
+/** 开关某个引擎并写回文件（2026-10-22：改为 CAS 写入，避免与 GUI 并发保存互相覆盖）。返回是否成功（id 不存在则 false） */
+export function setEngineEnabled(id: string, enabled: boolean, path = resolveWebSearchConfigPath()): boolean {
+  const { config, revision } = loadWebSearchConfigWithRevision(path);
+  const engine = config.engines.find((e) => e.id === id);
   if (!engine) return false;
   engine.enabled = enabled;
-  saveWebSearchConfig(cfg, path);
+  saveWebSearchConfig(config, path, { expectedRevision: revision });
   return true;
 }
 
 /** 汇总：给 GUI / 文档用的一句话现状说明 */
-export function describeWebSearchSetup(path = WEB_SEARCH_CONFIG_PATH): {
+export function describeWebSearchSetup(path = resolveWebSearchConfigPath()): {
   engineCount: number;
   usableCount: number;
   anonymousCount: number;

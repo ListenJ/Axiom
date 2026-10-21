@@ -14,10 +14,13 @@ import { searchSettings } from "../core/settings-search.js";
 import { router } from "../router/model-router.js";
 import { createConsentedEmbedder } from "../knowledge/embedding-consent.js";
 import {
+  applyWebSearchPatch,
   describeWebSearchSetup,
   listEngineStatus,
-  loadWebSearchConfig,
+  loadWebSearchConfigWithRevision,
   saveWebSearchConfig,
+  WebSearchConfigConflictError,
+  WebSearchConfigValidationError,
 } from "../crawl/web-search-config.js";
 import { describeApproverSetup, listConfiguredModels } from "../agents/approver-model.js";
 import { readString, writeString } from "../utils/env.js";
@@ -36,15 +39,35 @@ export async function handleSettingsCatalog(ctx: RouteContext): Promise<Response
 // 网络搜索面板
 // ══════════════════════════════════════════════════════════════════
 
-export async function handleWebSearchSettings(ctx: RouteContext): Promise<Response | null> {
+/** 网络搜索面板的可注入依赖（仅用于隔离临时配置的集成测试；生产调用不传 → 使用默认配置路径）。 */
+export interface WebSearchSettingsDeps {
+  configPath?: string;
+}
+
+/**
+ * GET/POST /settings/web-search
+ *
+ * 2026-10-22 P1（审计 A2/A3）：
+ *   - GET 额外返回 `revision`（配置文件内容修订号）；
+ *   - POST 支持 `If-Match` 头（或 body.ifRevision）做**乐观并发**：磁盘内容已变 → **409**
+ *     `{ code: "revision-conflict", revision }`，不再静默覆盖别人的保存；
+ *   - 请求体经 `applyWebSearchPatch` **白名单 + 类型/范围校验**，未知字段忽略并回传 `ignored`；
+ *   - 保存为原子写（见 web-search-config.ts），响应回传新 `revision` 供前端继续 CAS。
+ */
+export async function handleWebSearchSettings(
+  ctx: RouteContext,
+  deps: WebSearchSettingsDeps = {},
+): Promise<Response | null> {
   if (ctx.url.pathname !== "/settings/web-search") return null;
+  const configPath = deps.configPath;
 
   if (ctx.req.method === "GET") {
-    const cfg = loadWebSearchConfig();
+    const { config: cfg, revision } = loadWebSearchConfigWithRevision(configPath);
     return ctx.jsonResponse(
       {
-        summary: describeWebSearchSetup(),
-        engines: listEngineStatus(),
+        revision,
+        summary: describeWebSearchSetup(configPath),
+        engines: listEngineStatus(configPath),
         aggregate: cfg.aggregate,
         searxng: cfg.searxng,
         policy: cfg.policy,
@@ -56,27 +79,46 @@ export async function handleWebSearchSettings(ctx: RouteContext): Promise<Respon
 
   if (ctx.req.method === "POST") {
     try {
-      const body = (await ctx.req.json()) as {
-        engines?: Array<{ id: string; enabled?: boolean; weight?: number }>;
-        aggregate?: Record<string, unknown>;
-        searxng?: Record<string, unknown>;
-        policy?: Record<string, unknown>;
-      };
-      const cfg = loadWebSearchConfig();
+      const body = (await ctx.req.json()) as unknown;
+      const ifMatchHeader = ctx.req.headers.get("if-match");
+      const bodyRevision =
+        body && typeof body === "object" && typeof (body as { ifRevision?: unknown }).ifRevision === "string"
+          ? (body as { ifRevision: string }).ifRevision
+          : null;
+      const expectedFromClient = (ifMatchHeader ?? bodyRevision ?? "").replace(/^"|"$/g, "") || undefined;
 
-      for (const patch of body.engines ?? []) {
-        const engine = cfg.engines.find((e) => e.id === patch.id);
-        if (!engine) continue;
-        if (typeof patch.enabled === "boolean") engine.enabled = patch.enabled;
-        if (typeof patch.weight === "number") engine.weight = patch.weight;
-      }
-      if (body.aggregate) Object.assign(cfg.aggregate, body.aggregate);
-      if (body.searxng) Object.assign(cfg.searxng, body.searxng);
-      if (body.policy) Object.assign(cfg.policy, body.policy);
-
-      saveWebSearchConfig(cfg);
-      return ctx.jsonResponse({ ok: true, engines: listEngineStatus() }, 200, ctx.baseHeaders);
+      const current = loadWebSearchConfigWithRevision(configPath);
+      const { config, applied } = applyWebSearchPatch(current.config, body);
+      // 客户端未带修订号时以"服务端最新值"为基线（等价旧行为，但整个读改写仍在同一次调用内完成）
+      const revision = saveWebSearchConfig(config, configPath, {
+        expectedRevision: expectedFromClient ?? current.revision,
+      });
+      return ctx.jsonResponse(
+        { ok: true, revision, engines: listEngineStatus(configPath), applied },
+        200,
+        ctx.baseHeaders,
+      );
     } catch (e) {
+      if (e instanceof WebSearchConfigConflictError) {
+        const latest = loadWebSearchConfigWithRevision(configPath);
+        logger.warn("[Settings] 网络搜索配置写入冲突（409）", {
+          expected: e.expectedRevision,
+          actual: e.actualRevision,
+        });
+        return ctx.jsonResponse(
+          {
+            error: e.message,
+            code: "revision-conflict",
+            revision: latest.revision,
+            engines: listEngineStatus(configPath),
+          },
+          409,
+          ctx.baseHeaders,
+        );
+      }
+      if (e instanceof WebSearchConfigValidationError) {
+        return ctx.jsonResponse({ error: e.message, code: "invalid-patch" }, 400, ctx.baseHeaders);
+      }
       logger.warn("[Settings] 网络搜索配置写入失败", { error: (e as Error).message });
       return ctx.jsonResponse({ error: (e as Error).message }, 400, ctx.baseHeaders);
     }

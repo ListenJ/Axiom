@@ -42,6 +42,8 @@ type Policy = {
 }
 
 type Payload = {
+  /** 配置文件内容修订号（后端 GET 返回；用于保存时 If-Match 乐观并发） */
+  revision?: string
   summary: { hint: string }
   engines: Engine[]
   aggregate: Aggregate
@@ -79,12 +81,32 @@ export default function SearchSettingsSection({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  /** 当前配置修订号：保存时通过 If-Match 带给后端，做乐观并发控制（409 = 别人先改了）。 */
+  const [revision, setRevision] = useState<string | undefined>(undefined)
+  /** 递增以触发重新加载（加载失败重试 / 用户选择「重新加载最新值」）。 */
+  const [reloadToken, setReloadToken] = useState(0)
+  /** 409 冲突时服务端最新修订号；非空表示冲突未解决——**用户未保存的修改仍保留在表单里**。 */
+  const [conflictRevision, setConflictRevision] = useState<string | null>(null)
+  /** 「强制覆盖」需二次确认：第一次点击进入确认态，第二次才真正提交。 */
+  const [forcing, setForcing] = useState(false)
+
+  const reload = () => {
+    setConflictRevision(null)
+    setForcing(false)
+    setReloadToken((n) => n + 1)
+  }
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
     api.get<Payload>('/settings/web-search', { cache: false })
       .then((value) => {
-        if (!cancelled) setData(value)
+        if (cancelled) return
+        setData(value)
+        setRevision(value.revision)
+        setError(null)
+        setConflictRevision(null)
+        setForcing(false)
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(errorMessage(reason, '读取搜索设置失败'))
@@ -93,7 +115,7 @@ export default function SearchSettingsSection({
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [reloadToken])
 
   const updateNumber = (section: 'aggregate' | 'searxng' | 'policy', key: string, value: number) => {
     setData((current) => current ? {
@@ -104,7 +126,7 @@ export default function SearchSettingsSection({
     setSuccess(null)
   }
 
-  const save = async () => {
+  const save = async (force = false) => {
     if (!data) return
     for (const field of numericFields) {
       const value = (data[field.section] as unknown as Record<string, unknown>)[field.key]
@@ -124,16 +146,39 @@ export default function SearchSettingsSection({
       searxng: data.searxng,
       policy: data.policy,
     }
+    // 强制覆盖必须显式带**最新** revision（409 响应里拿到的），而不是旧值
+    const ifMatch = force ? (conflictRevision ?? revision) : revision
     try {
-      const response = await api.post<{ ok?: boolean; engines?: Engine[] }>('/settings/web-search', body)
+      const response = await api.post<{ ok?: boolean; engines?: Engine[]; revision?: string }>(
+        '/settings/web-search',
+        body,
+        ifMatch ? { ifMatch } : undefined,
+      )
       if (response.ok !== true) throw new Error('后端未确认保存成功')
       setData((current) => current ? { ...current, engines: response.engines ?? current.engines } : current)
-      setSuccess('搜索设置已保存')
-      toast?.('搜索设置已保存', 'success')
+      if (response.revision) setRevision(response.revision)
+      setConflictRevision(null)
+      setForcing(false)
+      const message = force ? '已强制覆盖保存（他人修改已被覆盖）' : '搜索设置已保存'
+      setSuccess(message)
+      toast?.(message, 'success')
     } catch (reason) {
-      const message = errorMessage(reason, '保存搜索设置失败')
-      setError(message)
-      toast?.(`保存失败：${message}`, 'error')
+      const status = (reason as { status?: number } | null)?.status
+      if (status === 409) {
+        // 乐观并发冲突：别人先保存了。**不静默覆盖、也不丢弃用户未保存的编辑**——
+        // 保留表单内容，给两个明确动作：重新加载最新值 / 强制覆盖（二次确认）。
+        const latest = (reason as { data?: { revision?: string } } | null)?.data?.revision ?? null
+        setConflictRevision(latest)
+        setForcing(false)
+        const message =
+          '配置已被其他窗口/请求修改：你的未保存修改仍保留。可「重新加载最新值」丢弃修改，或二次确认后「强制覆盖」。'
+        setError(message)
+        toast?.(message, 'error')
+      } else {
+        const message = errorMessage(reason, '保存搜索设置失败')
+        setError(message)
+        toast?.(`保存失败：${message}`, 'error')
+      }
     } finally {
       setSaving(false)
     }
@@ -171,12 +216,38 @@ export default function SearchSettingsSection({
               ))}
             </fieldset>
             <div className="flex items-center justify-between gap-3">
-              <div aria-live="polite">{success && <p className="text-xs text-[var(--success)]">{success}</p>}{error && <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]"><AlertTriangle className="size-4" />{error}</p>}</div>
+              <div aria-live="polite">
+                {success && <p className="text-xs text-[var(--success)]">{success}</p>}
+                {error && <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]"><AlertTriangle className="size-4" />{error}</p>}
+                {conflictRevision && (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button size="sm" variant="secondary" onClick={reload}>重新加载最新值（丢弃我的修改）</Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      loading={saving}
+                      disabled={saving}
+                      onClick={() => {
+                        if (!forcing) { setForcing(true); return }
+                        void save(true)
+                      }}
+                    >
+                      {forcing ? '确认强制覆盖（将覆盖他人修改）' : '强制覆盖（需二次确认）'}
+                    </Button>
+                    {forcing && <Button size="sm" variant="ghost" onClick={() => setForcing(false)}>取消</Button>}
+                  </div>
+                )}
+              </div>
               <Button loading={saving} disabled={saving} icon={<Save />} onClick={() => void save()}>保存</Button>
             </div>
           </>
         )}
-        {!data && error && <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]"><AlertTriangle className="size-4" />{error}</p>}
+        {!data && error && (
+          <div className="flex flex-wrap items-center gap-3">
+            <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]"><AlertTriangle className="size-4" />{error}</p>
+            <Button size="sm" variant="secondary" onClick={reload}>重试</Button>
+          </div>
+        )}
       </div>
     </ShimmerCard>
   )

@@ -25,6 +25,8 @@ interface RequestOptions {
   cache?: boolean | CacheOptions
   timeout?: number
   signal?: AbortSignal
+  /** 乐观并发：附带到 `If-Match` 头的资源修订号（后端不匹配时返回 409）。 */
+  ifMatch?: string
 }
 
 class HttpError extends Error {
@@ -215,7 +217,7 @@ export class APIClient {
   }
 
   async request<T = unknown>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-    const { params, body, headers, cache, timeout = this.timeout } = options
+    const { params, body, headers, cache, timeout = this.timeout, ifMatch } = options
     const fullURL = this.buildURL(path, params)
     const cacheKey = `${method}:${fullURL}`
 
@@ -229,7 +231,12 @@ export class APIClient {
     let config: RequestConfig = {
       method,
       url: fullURL,
-      headers: { ...this.defaultHeaders, ...(headers ?? {}) },
+      headers: {
+        ...this.defaultHeaders,
+        ...(headers ?? {}),
+        // RFC 7232：If-Match 的值需加引号（后端按引号剥离后比较内容修订号）
+        ...(ifMatch ? { 'If-Match': `"${ifMatch}"` } : {}),
+      },
       body: body !== undefined ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined,
       timeout,
     }

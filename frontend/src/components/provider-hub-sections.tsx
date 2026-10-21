@@ -13,7 +13,7 @@ import {
 import {
   ShimmerCard, StatCard, PageHeader, InlineEmptyState, Skeleton, BarChart,
 } from '@/components/ui'
-import { endpoints } from '@/lib/api'
+import { endpoints, api } from '@/lib/api'
 import { normalizeMetrics, type PerfMetrics } from '@/lib/normalize'
 import { formatClockTime, formatNumber } from '@/lib/format'
 
@@ -141,18 +141,28 @@ interface TokenDetail {
 
 export function TokensSection() {
   const [data, setData] = useState<TokenDetail | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/token-details?days=7')
-      const json = await res.json()
+      // C1（2026-10-22 审计）：/api/token-details 不在 PUBLIC_PATHS（src/utils/auth-check.ts:43）
+      // ⇒ 必须走 api 封装带 Authorization；裸 fetch 恒 401，且把错误 JSON 当数据渲染会崩。
+      const json = await api.get<TokenDetail>('/api/token-details?days=7', { cache: false })
+      if (!json || typeof json !== 'object' || !json.overall || !json.cacheStats) {
+        setError('Token 数据格式异常（缺少 overall/cacheStats），已停止渲染以避免崩溃')
+        return
+      }
       setData(json)
-    } catch { /* 轮询失败静默，下一轮重试 */ }
-  }, [])
+      setError(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '读取 Token 数据失败')
+    }
+  }, [reloadToken])
 
   useEffect(() => {
-    fetchData()
-    const interval = setInterval(fetchData, 10000)
+    void fetchData()
+    const interval = setInterval(() => void fetchData(), 10000)
     return () => clearInterval(interval)
   }, [fetchData])
 
@@ -164,6 +174,14 @@ export function TokensSection() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader icon={<Coins className="size-5" />} title="Token 消耗分析" description="实时监控模型调用、Token 消耗和缓存命中率" />
+
+      {/* C1：读取失败可见（此前空 catch 静默 ⇒ 页面像"没有数据"） */}
+      {error && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--danger)]/40 bg-[var(--danger-soft,var(--surface))] px-4 py-3">
+          <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]"><AlertTriangle className="size-4" />{error}</p>
+          <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => setReloadToken((n) => n + 1)}>重试</button>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="总 Token" value={data ? formatNumber(data.overall.totalTokens) : '—'} icon={<Coins className="size-5" />} accent="info" />
