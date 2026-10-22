@@ -121,7 +121,6 @@ describe("P3.4 备份校验和与完整性", () => {
         sourceVault,
         backupDir,
         keepBackups: 7,
-        compress: false,
       });
       const created = fs.readdirSync(backupDir).filter((n) => n.startsWith("backup-"));
       expect(created.length).toBe(1);
@@ -133,7 +132,7 @@ describe("P3.4 备份校验和与完整性", () => {
       const badSource = path.join(root, "bad-source.db");
       fs.writeFileSync(badSource, "not-a-db".repeat(50));
       await expect(
-        createBackup({ sourceDb: badSource, sourceVault, backupDir, keepBackups: 7, compress: false }),
+        createBackup({ sourceDb: badSource, sourceVault, backupDir, keepBackups: 7 }),
       ).rejects.toThrow(/完整性校验未通过/);
     } finally {
       cleanup(root);

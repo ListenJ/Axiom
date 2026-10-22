@@ -15,7 +15,6 @@ export interface BackupOptions {
   sourceVault: string;
   backupDir: string;
   keepBackups: number;
-  compress: boolean;
 }
 
 export const DEFAULT_OPTIONS: BackupOptions = {
@@ -26,7 +25,6 @@ export const DEFAULT_OPTIONS: BackupOptions = {
   sourceVault: process.env.VAULT_PATH || "./axiom-memory",
   backupDir: process.env.BACKUP_DIR || "./backups",
   keepBackups: parseInt(process.env.KEEP_BACKUPS || "7", 10),
-  compress: process.env.COMPRESS_BACKUPS !== "false",
 };
 
 async function checkpointSourceDb(sourceDb: string): Promise<void> {
@@ -396,7 +394,6 @@ Environment Variables:
   VAULT_PATH        Vault directory path (default: ./axiom-memory)
   BACKUP_DIR        Backup destination (default: ./backups)
   KEEP_BACKUPS      Number of backups to keep (default: 7)
-  COMPRESS_BACKUPS  Enable compression (default: true)
 `);
     process.exit(0);
   } else {

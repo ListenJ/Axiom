@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RouteContext } from "../../src/routes/types.js";
@@ -134,5 +134,43 @@ describe("POST /settings/web-search 乐观并发（隔离临时配置）", () =>
     const { status } = await postJson("/settings/web-search", { aggregate: { max_results: 16 } });
     expect(status).toBe(200);
     expect(await searchCache.get("probe::router::default")).toBeUndefined();
+  });
+
+  test("R2：补丁值含 ${VAR} 占位 → 400 invalid-patch 且不写盘", async () => {
+    await postJson("/settings/web-search", { aggregate: { max_results: 9 } }); // 先落盘，确保有可比较的原文
+    const { revision } = loadWebSearchConfigWithRevision(cfgPath);
+    const before = readFileSync(cfgPath, "utf-8");
+    const res = await postJson(
+      "/settings/web-search",
+      { policy: { user_agent: "Axiom/${SECRET_AGENT}" } },
+      { "if-match": `"${revision}"` },
+    );
+    expect(res.status).toBe(400);
+    expect(res.json.code).toBe("invalid-patch");
+    expect(String(res.json.error)).toContain("占位");
+    expect(readFileSync(cfgPath, "utf-8")).toBe(before);
+  });
+
+  test("R2：磁盘配置值位置含 ${VAR} 占位 → GUI 保存被拒（防止解析值明文回写）", async () => {
+    writeFileSync(cfgPath, "searxng:\n  base_url: ${SEARXNG_INSTANCE_URL}\n", "utf-8");
+    const { revision } = loadWebSearchConfigWithRevision(cfgPath);
+    const before = readFileSync(cfgPath, "utf-8");
+    const res = await postJson(
+      "/settings/web-search",
+      { aggregate: { max_results: 17 } },
+      { "if-match": `"${revision}"` },
+    );
+    expect(res.status).toBe(400);
+    expect(res.json.code).toBe("invalid-patch");
+    expect(String(res.json.error)).toContain("明文落盘");
+    expect(readFileSync(cfgPath, "utf-8")).toBe(before);
+  });
+
+  test("R2 正路径：普通字符串（含 $ 与 URL）不被误伤，保存仍 200", async () => {
+    const { status, json } = await postJson("/settings/web-search", {
+      policy: { user_agent: "Axiom/1.0 (+https://axiom-runtime.ai; $HOME)" },
+    });
+    expect(status).toBe(200);
+    expect(json.ok).toBe(true);
   });
 });

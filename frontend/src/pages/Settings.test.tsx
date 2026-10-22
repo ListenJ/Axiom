@@ -88,4 +88,22 @@ describe('Settings page — usage scenarios', () => {
     await waitFor(() => expect(mocks.permSetMode).toHaveBeenCalledWith(true))
     expect(mocks.permGetMode).toHaveBeenCalled()
   })
+
+  it('load failure shows a visible alert and recovers after retry', async () => {
+    mocks.permGetMode.mockRejectedValueOnce(new Error('perm down'))
+    renderPage()
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/权限模式读取失败/)
+    const retry = screen.getByRole('button', { name: '重试' })
+    await userEvent.click(retry)
+
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  it('healthy load does not show the failure alert', async () => {
+    renderPage()
+    await waitFor(() => expect(mocks.permGetMode).toHaveBeenCalled())
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
 })

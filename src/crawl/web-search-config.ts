@@ -273,6 +273,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/**
+ * P5.1（复核 R2）：`${VAR}` 占位在 load 时被 `resolveEnvVars` 解析为实际值且不可逆。
+ * 因此写入路径必须拒绝占位，否则 GUI 回写会把解析值**明文落盘**（密钥泄露面）。
+ *  - 补丁值：任何字符串 / URL 值含占位 → 400 invalid-patch；
+ *  - 磁盘原文：值位置含占位 → 拒绝保存（提示直接编辑文件或改用 api_key_env）。
+ * 注释行里的占位不触发（避免配置头注释误伤）。
+ */
+const ENV_PLACEHOLDER_IN_VALUE_RE = /\$\{[A-Z][A-Z0-9_]*\}/;
+const ENV_PLACEHOLDER_IN_RAW_RE = /(^|\n)[ \t]*(?:-\s+|[^#\s][^:\n]*:\s+)[^\n]*\$\{[A-Z][A-Z0-9_]*\}/;
+
+function assertNoEnvPlaceholder(label: string, value: string): void {
+  if (ENV_PLACEHOLDER_IN_VALUE_RE.test(value)) {
+    throw new WebSearchConfigValidationError(
+      label + " 不支持 ${VAR} 占位（GUI 回写会把解析值明文落盘）；密钥请使用 api_key_env，或直接编辑配置文件",
+    );
+  }
+}
+
 function validateRule(label: string, rule: Rule, value: unknown): string | number | boolean | string[] {
   switch (rule.kind) {
     case "bool":
@@ -300,10 +318,12 @@ function validateRule(label: string, rule: Rule, value: unknown): string | numbe
         throw new WebSearchConfigValidationError(`${label} 长度不能超过 ${rule.maxLen}`);
       }
       if (/[\r\n]/.test(value)) throw new WebSearchConfigValidationError(`${label} 不能包含换行`);
+      assertNoEnvPlaceholder(label, value);
       return value;
     }
     case "url": {
       if (typeof value !== "string") throw new WebSearchConfigValidationError(`${label} 必须是字符串`);
+      assertNoEnvPlaceholder(label, value);
       let parsed: URL;
       try {
         parsed = new URL(value);
@@ -443,6 +463,14 @@ export function saveWebSearchConfig(
   const actualRevision = computeWebSearchRevision(previousRaw);
   if (opts.expectedRevision !== undefined && opts.expectedRevision !== actualRevision) {
     throw new WebSearchConfigConflictError(opts.expectedRevision, actualRevision);
+  }
+
+  // P5.1（复核 R2）：磁盘原文的值位置含 `${VAR}` 占位时拒绝回写——load 已把它解析成实际值，
+  // 直接保存会把解析值明文落盘。要求用户直接编辑文件或改用 api_key_env（密钥引用名）。
+  if (previousRaw !== null && ENV_PLACEHOLDER_IN_RAW_RE.test(previousRaw)) {
+    throw new WebSearchConfigValidationError(
+      "配置文件含 ${VAR} 占位：GUI 回写会把解析值明文落盘（已拒绝保存）。请直接编辑配置文件，或改用 api_key_env 后重试",
+    );
   }
 
   const serialized = stringifyYaml(cfg, { lineWidth: 100 });
