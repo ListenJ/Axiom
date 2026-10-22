@@ -8,9 +8,11 @@ import { ToolRegistry } from "../src/mcp/tool-registry.js";
 
 describe("SceneRouter", () => {
   const registry = new ToolRegistry();
-  // 注册所有场景需要的 mock 工具
+  // 注册所有场景需要的 mock 工具（P2.1：名字必须与 DEFAULT_SCENES 引用的一致 ——
+  // 旧夹具写的是 read_file，而 file_read 场景实际调用 fs_read；新预检会把"声明了但没注册"
+  // 的场景判为 unavailable 并拒绝执行，夹具漂移不再能被"Tool not found 也算 executed"掩盖）
   const mockHandlers: Array<{ name: string }> = [
-    { name: "read_file" }, { name: "git_status" },
+    { name: "fs_read" }, { name: "git_status" },
     { name: "constraint_check" }, { name: "constraint_list" }, { name: "constraint_stats" }, { name: "constraint_select_best" },
     { name: "mental_model_list" }, { name: "mental_model_match" }, { name: "mental_model_predict" },
     { name: "reasoning_build" }, { name: "reasoning_detect_gaps" }, { name: "reasoning_fill_gap" }, { name: "reasoning_result" },

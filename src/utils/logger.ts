@@ -42,6 +42,19 @@ interface LogRotationOptions {
   maxAge?: number;       // days
 }
 
+/**
+ * 常见密钥值模式（value-based 脱敏；key-based 由 sanitizeRequestBody 处理）。
+ * P2.3：抽到模块级并导出 `redactSecrets` —— 日志与**对外错误文案**复用同一份规则，
+ * 避免"日志脱敏了、响应体里还带 key"的两套口径。
+ */
+const SECRET_VALUE_RE =
+  /(sk-[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9._-]+|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20}|xoxb-[0-9A-Za-z-]+)/g;
+
+/** 对任意字符串做 value-based 脱敏（对外错误消息 / recovery 文案等复用）。 */
+export function redactSecrets(value: string): string {
+  return value.replace(SECRET_VALUE_RE, "[REDACTED]");
+}
+
 class Logger {
   private opts: Required<LoggerOptions>;
   private fileStream?: fs.WriteStream;
@@ -231,7 +244,7 @@ class Logger {
     // B3-Medium（2026-08-29）：errStr 与 JSON 路径（serialize）一致套用 SECRET_VALUE_RE，
     // 防止 error.stack/message 中的密钥值经 console 文本输出泄漏。
     const errStr = entry.error
-      ? `\n${(entry.error.stack || entry.error.message || "").replace(Logger.SECRET_VALUE_RE, "[REDACTED]")}`
+      ? `\n${(entry.error.stack || entry.error.message || "").replace(SECRET_VALUE_RE, "[REDACTED]")}`
       : "";
 
     return `${color}[${entry.timestamp.slice(11, 19)}] ${entry.level.toUpperCase().padEnd(5)}${reset} ${entry.message}${ctxStr}${errStr}`;
@@ -245,16 +258,12 @@ class Logger {
     this.currentSize += Buffer.byteLength(line, "utf8");
   }
 
-  /** 敏感值正则：捕获常见密钥格式（key-based 脱敏由 sanitizeRequestBody 处理，此处补 value-based） */
-  private static readonly SECRET_VALUE_RE =
-    /(sk-[A-Za-z0-9]{8,}|Bearer\s+[A-Za-z0-9._-]+|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|glpat-[A-Za-z0-9_-]{20}|xoxb-[0-9A-Za-z-]+)/g;
-
   /** 脱敏上下文：先按字段名递归脱敏（复用 security.ts），再按值扫描密钥模式 */
   private redactContext(ctx: Record<string, unknown>): Record<string, unknown> {
     const cleaned = sanitizeRequestBody(ctx) as Record<string, unknown>;
     for (const [k, v] of Object.entries(cleaned)) {
       if (typeof v === "string") {
-        cleaned[k] = v.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+        cleaned[k] = v.replace(SECRET_VALUE_RE, "[REDACTED]");
       }
     }
     return cleaned;
@@ -270,8 +279,8 @@ class Logger {
       obj.context = this.redactContext(entry.context);
     }
     if (entry.error) {
-      const msg = entry.error.message?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]") ?? "";
-      const stack = entry.error.stack?.replace(Logger.SECRET_VALUE_RE, "[REDACTED]");
+      const msg = entry.error.message?.replace(SECRET_VALUE_RE, "[REDACTED]") ?? "";
+      const stack = entry.error.stack?.replace(SECRET_VALUE_RE, "[REDACTED]");
       obj.error = { name: entry.error.name, message: msg, stack };
     }
     return obj;

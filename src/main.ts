@@ -377,10 +377,35 @@ healthMonitor.start();
 import { initPluginRoutes } from "./routes/plugin-adapter.js";
 import { initSceneRouter } from "./routes/scene-routes.js";
 import { ToolRegistry } from "./mcp/tool-registry.js";
-const pluginToolRegistry = new ToolRegistry();
-initPluginRoutes(db, pluginToolRegistry);
-initSceneRouter(pluginToolRegistry);
+import { registerExternalTools } from "./mcp/register-external-tools.js";
+import { adaptTools } from "./mcp/adapt-tool.js";
+import { readTool } from "./tools/read-tool.js";
+import { writeTool } from "./tools/write-tool.js";
+import { queryTool } from "./tools/query-tool.js";
+import { probeToolRuntimeDeps } from "./tools/runtime-deps.js";
+// P2.1：这份 registry 不再是「只装插件」的空表 —— SceneRouter 的 DEFAULT_SCENES 引用
+// git_status / fs_read / code_symbols 等真实工具，旧实现把它们注册在 MCP 服务进程里，
+// 网关侧场景执行只会得到一串 Tool not found 却仍回 200。现在先把外部工具与 pipeline
+// 适配工具装进同一实例，再交给 SceneRouter；仍然缺失的工具由预检 typed 告警 + 409 暴露，
+// 不再假装成功。
+const gatewayToolRegistry = new ToolRegistry();
+registerExternalTools(gatewayToolRegistry);
+for (const td of adaptTools([readTool, writeTool, queryTool])) gatewayToolRegistry.add(td);
+initPluginRoutes(db, gatewayToolRegistry);
+initSceneRouter(gatewayToolRegistry);
 logger.info("Plugin market initialized");
+
+// P2.1：启动期校验工具运行时关键依赖（vault / 统一搜索通道）。缺失不阻断启动，
+// 但必须 typed 告警且 /health 可见 —— 不允许"看起来正常、实际没接线"。
+void probeToolRuntimeDeps({ loadVault: async () => vault }, "startup").then(({ status }) => {
+  if (status.degraded.length > 0) {
+    logger.warn("[startup] 工具运行时依赖降级（/health.toolRuntime 可见）", {
+      reasons: status.degraded,
+      vault: status.vault,
+      searchEngine: status.searchEngine,
+    });
+  }
+});
 
 // 外部 MCP server 客户端连接 (R-015)：连接失败仅降级跳过，不影响启动
 // 可观测补强：失败仅 warn（含 failed 详情与耗时），不中断启动；超时经 MCP_CONNECT_TIMEOUT_MS 可配
@@ -393,7 +418,7 @@ const mcpStartMs = Date.now();
 void (async () => {
   try {
     const { connectExternalMcpServers } = await import("./mcp/client-connector.js");
-    const mcpSummary = await connectExternalMcpServers(pluginToolRegistry);
+    const mcpSummary = await connectExternalMcpServers(gatewayToolRegistry);
     if (mcpSummary.failed.length > 0) {
       logger.warn("[MCP] External MCP degraded — some servers failed", {
         failed: mcpSummary.failed,

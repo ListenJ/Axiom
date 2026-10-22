@@ -30,7 +30,7 @@
  *   - 用户仅需添加单个 API Key 即可使用对应变体服务
  */
 
-import { logger } from "./logger.js";
+import { logger, redactSecrets } from "./logger.js";
 import { assertSafeOutboundUrl, OutboundUrlBlockedError } from "./url-safety.js";
 
 type ApiAdapter = "openai" | "anthropic" | "gemini" | "opencode";
@@ -596,12 +596,14 @@ export async function testProviderConnection(
     } catch (e) {
       clearTimeout(timeout);
       if (e instanceof OutboundUrlBlockedError) {
+        // P2.3：recovery 属对外文案，统一过 value-based 脱敏（防御式：即便未来 reason 带入 URL 也不泄密）
+        const recovery = redactSecrets(e.recovery);
         return {
           ok: false,
           latency: Date.now() - start,
-          error: e.recovery,
+          error: recovery,
           code: e.code,
-          recovery: e.recovery,
+          recovery,
         };
       }
       throw e;
@@ -646,13 +648,19 @@ export async function testProviderConnection(
     if (response.status === 401 || response.status === 403) {
       errorMsg = `认证失败（${response.status}）：API Key 无效或权限不足`;
     }
-    return { ok: false, latency, error: errorMsg };
+    // P2.3：非 2xx 的上游 body 可能回显 key（如 gemini 的 ?key=），对外返回前统一脱敏
+    return { ok: false, latency, error: redactSecrets(errorMsg) };
   } catch (e) {
     clearTimeout(timeout);
     const latency = Date.now() - start;
     if (e instanceof Error && e.name === "AbortError") {
       return { ok: false, latency, error: "请求超时（8s），请检查网络或端点是否可达" };
     }
-    return { ok: false, latency, error: e instanceof Error ? e.message : String(e) };
+    // P2.3：网络错误消息可能带上完整 URL（gemini 的 key 在 query）——返回体必须脱敏
+    return {
+      ok: false,
+      latency,
+      error: redactSecrets(e instanceof Error ? e.message : String(e)),
+    };
   }
 }

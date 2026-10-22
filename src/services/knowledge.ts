@@ -10,7 +10,7 @@
  */
 import { queryTool } from "../tools/query-tool.js";
 import { readTool } from "../tools/read-tool.js";
-import { createToolContext } from "../tools/types.js";
+import { createInjectedToolContext } from "../tools/runtime-deps.js";
 import { runPipeline } from "../tools/pipeline.js";
 import { logger } from "../utils/logger.js";
 
@@ -26,6 +26,11 @@ export interface KnowledgeResult {
   sources: Array<{ source: string; title: string; url?: string }>;
   totalResults: number;
   pipelineError?: string;
+  /**
+   * P2.1：运行时依赖缺失导致的降级原因码（vault / 统一搜索通道）。
+   * 有值 ⇒ 本次 context 不完整（本地记忆腿或统一搜索腿被跳过），调用方不得当作完整结果。
+   */
+  degraded?: string[];
 }
 
 /**
@@ -51,39 +56,9 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
   }
 
-  // 创建工具管道
-  const ctx = createToolContext(`knowledge-${Date.now()}`);
-
-  // 注入 vault 实例（复用全局单例）
-  try {
-    const { getGlobalVault } = await import("../memory/vault-manager.js");
-    ctx.localStore.set("vaultManager", getGlobalVault());
-  } catch { /* vault 不可用 */ }
-
-  // 注入多引擎网络搜索通道（统一搜索：SearXNG > Bing > DDG + LRU/SQLite 缓存 + 相关性重排）。
-  // 无 key 也可用（SearXNG/DDG 免 key）；失败时 queryTool 回退裸 DDG。
-  try {
-    const { unifiedSearch } = await import("../crawl/unified-search.js");
-    ctx.localStore.set("searchEngine", {
-      async search(
-        query: string,
-        opts?: { limit?: number },
-      ): Promise<Array<{ title?: string; snippet?: string; content?: string; url?: string; link?: string }>> {
-        const results = await unifiedSearch.search({
-          query,
-          num: opts?.limit ?? 8,
-          cacheTtl: 30,
-        });
-        return results.map((r) => ({
-          title: r.title,
-          snippet: r.snippet,
-          content: r.snippet,
-          url: r.link,
-          link: r.link,
-        }));
-      },
-    });
-  } catch { /* 统一搜索不可用，queryTool 保持裸 DDG 回退 */ }
+  // 创建工具管道（P2.1）：依赖注入收敛到 createInjectedToolContext；缺依赖时 typed 原因
+  // 由 warn-once 日志 + queryTool 输出 `degraded` 暴露，不再用空 catch 静默跳过记忆腿。
+  const { context: ctx } = await createInjectedToolContext(`knowledge-${Date.now()}`);
 
   // 检索键 = 用户原始查询（确定性）：不经过 LLM 改写，同输入同输出。
   // （2026-09-17 移除 rewriteKnowledgeQueryWithEdge 链 —— LLM 改写引入非确定性，与
@@ -98,19 +73,38 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
 
   const result = await runPipeline(pipeline, ctx);
 
+  // P2.1：依赖降级原因（优先取 queryTool 实际输出，错误路径回退到上下文里记录的探测结果）
+  const runtimeStatus = ctx.localStore.get("runtimeDepsStatus") as
+    | { degraded?: string[] }
+    | undefined;
+
   if (result.error) {
     return {
       context: req.existingContext ?? "",
       sources: [],
       totalResults: 0,
       pipelineError: result.error,
+      ...(runtimeStatus?.degraded?.length ? { degraded: runtimeStatus.degraded } : {}),
     };
   }
 
   type KnowledgeQueryResult = { source: string; title: string; url?: string; snippet: string };
-  const queryOutput = result.stepResults[0] as { results: KnowledgeQueryResult[]; totalFound: number; scopeUsed: string };
+  const queryOutput = result.stepResults[0] as {
+    results: KnowledgeQueryResult[];
+    totalFound: number;
+    scopeUsed: string;
+    degraded?: string[];
+  };
+  const degraded = queryOutput?.degraded?.length
+    ? queryOutput.degraded
+    : runtimeStatus?.degraded;
   if (!queryOutput?.results?.length) {
-    return { context: req.existingContext ?? "", sources: [], totalResults: 0 };
+    return {
+      context: req.existingContext ?? "",
+      sources: [],
+      totalResults: 0,
+      ...(degraded?.length ? { degraded } : {}),
+    };
   }
 
   // 格式化为 AI 上下文
@@ -131,5 +125,10 @@ export async function retrieveKnowledge(req: KnowledgeRequest): Promise<Knowledg
     context += "\n";
   }
 
-  return { context, sources, totalResults: queryOutput.totalFound };
+  return {
+    context,
+    sources,
+    totalResults: queryOutput.totalFound,
+    ...(degraded?.length ? { degraded } : {}),
+  };
 }

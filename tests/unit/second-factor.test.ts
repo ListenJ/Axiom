@@ -9,9 +9,10 @@
  *  5. git 写路由（fake ctx，不真实执行 git）与 /permissions/mode 代表性拒绝路径。
  */
 import { describe, test, expect, afterEach, spyOn } from "bun:test";
-import { handlePermissionMode } from "../../src/routes/health.js";
+import { handlePermissionMode, handleHealth } from "../../src/routes/health.js";
 import { handleTerminalList } from "../../src/routes/terminal.js";
 import { handleGitRoutes } from "../../src/routes/git.js";
+import { getSecondFactorStatus } from "../../src/routes/route-auth.js";
 import { logger } from "../../src/utils/logger.js";
 import type { RouteContext } from "../../src/routes/types.js";
 
@@ -35,7 +36,7 @@ function makeCtx(
     vault: null,
     db: {} as never,
     pipeline: {} as never,
-    healthMonitor: {} as never,
+    healthMonitor: { checkAll: async () => [] } as never,
     fileWatcher: null,
     startupTime: Date.now(),
     baseHeaders: {},
@@ -143,5 +144,49 @@ describe("P1.4 第二因子 C：写 fail-closed / 读 fail-open", () => {
     expect(res.status).toBe(403);
     const body = (await res.json()) as { code?: string };
     expect(body.code).toBe("invalid-second-factor");
+  });
+});
+
+/**
+ * D3=C（2026-10-22 P2）：只读二因子维持 fail-open，但降级必须在 /health 可见。
+ * 断言的是「状态可观测」而不是把只读改成 fail-closed —— 拒绝语义保持不变（P1.4 已覆盖）。
+ */
+describe("D3=C 只读二因子降级可见性（/health）", () => {
+  test("getSecondFactorStatus：未配置时 configured=false + 暴露缺失 env；tier 语义不变", () => {
+    delete process.env.AXIOM_SECOND_FACTOR_TOKEN;
+    const missing = getSecondFactorStatus();
+    expect(missing.configured).toBe(false);
+    expect(missing.writeTier).toBe("fail-closed");
+    expect(missing.readTier).toBe("fail-open");
+    expect(missing.missingEnv).toBe("AXIOM_SECOND_FACTOR_TOKEN");
+
+    process.env.AXIOM_SECOND_FACTOR_TOKEN = SECOND;
+    const configured = getSecondFactorStatus();
+    expect(configured.configured).toBe(true);
+    expect(configured.missingEnv).toBeUndefined();
+    expect(configured.writeTier).toBe("fail-closed");
+    expect(configured.readTier).toBe("fail-open");
+  });
+
+  test("GET /health 暴露 security.secondFactor（未配置 → 只读降级可见）", async () => {
+    process.env.AXIOM_AUTH_TOKEN = AUTH;
+    delete process.env.AXIOM_SECOND_FACTOR_TOKEN;
+    const res = (await handleHealth(makeCtx("/health", "GET"))) as Response;
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      security?: {
+        secondFactor?: {
+          configured?: boolean;
+          writeTier?: string;
+          readTier?: string;
+          missingEnv?: string;
+        };
+      };
+    };
+    expect(body.security?.secondFactor).toBeDefined();
+    expect(body.security!.secondFactor!.configured).toBe(false);
+    expect(body.security!.secondFactor!.writeTier).toBe("fail-closed");
+    expect(body.security!.secondFactor!.readTier).toBe("fail-open");
+    expect(body.security!.secondFactor!.missingEnv).toBe("AXIOM_SECOND_FACTOR_TOKEN");
   });
 });

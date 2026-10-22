@@ -28,6 +28,27 @@ export interface Scene {
   priority?: number;
 }
 
+/** 场景执行失败码（P2.1：不再用 200 + 空 executed 冒充成功） */
+export type SceneFailureCode = "scene-not-matched" | "scene-tools-unavailable";
+
+/** 单个场景的可用性（P2.1） */
+export interface SceneAvailability {
+  sceneId: string;
+  /** 该场景声明的工具是否全部在注册表中（capability 已声明 = 已注册） */
+  available: boolean;
+  /** 注册表中缺失的工具名（available=false 时非空） */
+  missingTools: string[];
+}
+
+/** 场景路由整体预检（启动告警 / /health 共用） */
+export interface ScenePreflightStatus {
+  totalScenes: number;
+  availableScenes: number;
+  degraded: boolean;
+  /** 去重后的缺失工具名（跨场景） */
+  missingTools: string[];
+}
+
 /** 场景执行结果 */
 export interface SceneResult {
   sceneId: string;
@@ -39,6 +60,12 @@ export interface SceneResult {
     error?: string;
   }>;
   duration: number;
+  /** 明确失败码：未匹配 / 所需工具未注册。缺省 = 正常执行。 */
+  code?: SceneFailureCode;
+  /** code="scene-tools-unavailable" 时列出缺失工具 */
+  missingTools?: string[];
+  /** true = 本次结果不完整/未执行（不得当作成功） */
+  degraded?: boolean;
 }
 
 /** 场景路由器 */
@@ -112,6 +139,38 @@ export class SceneRouter {
     return this;
   }
 
+  /**
+   * 工具是否已注册：ToolRegistry 对未注册工具返回空 capability 数组，
+   * 而 I1 规定"空 capability = 不可注册"，故以非空 capability 作为注册判据。
+   */
+  private isRegistered(toolName: string): boolean {
+    return this.registry.getCapabilities(toolName).length > 0;
+  }
+
+  /**
+   * 逐场景可用性（P2.1）：把「这个场景在当前 registry 上是否真的跑得起来」变成可读数据，
+   * 供 `/mcp/scenes` 与启动预检使用；这是对"假 registry 仍返回成功"的直接处置。
+   */
+  getAvailability(): SceneAvailability[] {
+    return this.scenes.map((scene) => {
+      const missingTools = scene.tools.filter((t) => !this.isRegistered(t));
+      return { sceneId: scene.id, available: missingTools.length === 0, missingTools };
+    });
+  }
+
+  /** 场景路由预检汇总（启动告警 + `/health` 可见性的单一事实源）。 */
+  getPreflightStatus(): ScenePreflightStatus {
+    const availability = this.getAvailability();
+    const missing = new Set<string>();
+    for (const item of availability) for (const t of item.missingTools) missing.add(t);
+    return {
+      totalScenes: availability.length,
+      availableScenes: availability.filter((a) => a.available).length,
+      degraded: missing.size > 0,
+      missingTools: [...missing].sort(),
+    };
+  }
+
   /** 匹配场景 */
   match(input: string): Scene | null {
     const normalized = input.toLowerCase();
@@ -154,13 +213,30 @@ export class SceneRouter {
   async execute(input: string, context?: Record<string, unknown>): Promise<SceneResult> {
     const start = performance.now();
     const scene = this.match(input);
-    
+
     if (!scene) {
+      // P2.1：未匹配不是"执行成功"，用 typed 失败码区分（路由据此返回 404）
       return {
         sceneId: "none",
         sceneName: "未匹配",
         executed: [],
         duration: Math.round(performance.now() - start),
+        code: "scene-not-matched",
+        degraded: true,
+      };
+    }
+
+    // P2.1：所需工具未全部注册时**不执行**且不返回成功假象（旧实现会 200 + 一串 Tool not found）。
+    const missingTools = scene.tools.filter((t) => !this.isRegistered(t));
+    if (missingTools.length > 0) {
+      return {
+        sceneId: scene.id,
+        sceneName: scene.name,
+        executed: [],
+        duration: Math.round(performance.now() - start),
+        code: "scene-tools-unavailable",
+        missingTools,
+        degraded: true,
       };
     }
 
@@ -215,6 +291,7 @@ export class SceneRouter {
       sceneName: scene.name,
       executed,
       duration: Math.round(performance.now() - start),
+      degraded: false,
     };
   }
 

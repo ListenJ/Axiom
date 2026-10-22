@@ -5,6 +5,7 @@
  */
 import type { Tool, ToolInput, ToolOutput } from "./types.js";
 import { createToolOutput } from "./types.js";
+import type { ToolRuntimeDepReason } from "./runtime-deps.js";
 
 export interface QueryInput {
   query: string;
@@ -25,6 +26,11 @@ export interface QueryOutput {
   results: QueryResult[];
   totalFound: number;
   scopeUsed: string;
+  /**
+   * P2.1：本次查询因运行时依赖缺失而**不完整**时的 typed 原因码。
+   * 有值 ⇒ 调用方不得把这次结果当作「完整成功」（本地记忆腿 / 统一搜索腿被跳过）。
+   */
+  degraded?: ToolRuntimeDepReason[];
 }
 
 export const queryTool: Tool<QueryInput, QueryOutput> = {
@@ -49,6 +55,12 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
     const store = ctx.context.localStore;
     const vault = store.get("vaultManager") as import("../memory/vault-manager.js").VaultManager | undefined;
     const kg = store.get("knowledgeGraph") as { queryNL?(query: string): Promise<{ nodes?: Array<{ name?: string; id?: string; content?: string }> }> } | undefined;
+    // P2.1：记录依赖缺失（上下文已带 typed 状态；同时按实际可用键兜底派生，覆盖旧调用方）
+    const runtimeStatus = store.get("runtimeDepsStatus") as
+      | { degraded?: ToolRuntimeDepReason[] }
+      | undefined;
+    const degraded = new Set<ToolRuntimeDepReason>(runtimeStatus?.degraded ?? []);
+    if (!vault?.search) degraded.add("vault-unavailable");
 
     if (vault?.search) {
       try {
@@ -94,6 +106,8 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
         if (searchEngine?.search) {
           webResults = await searchEngine.search(query, { limit: maxResults });
         } else {
+          // 统一搜索通道未注入 ⇒ 走既有 DDG 回退，但这是**降级**，必须在输出里如实标注。
+          degraded.add("search-engine-unavailable");
           // 直连 DuckDuckGo (无需 API Key)
           const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
           const resp = await fetch(url, { signal: AbortSignal.timeout(5000) });
@@ -133,6 +147,8 @@ export const queryTool: Tool<QueryInput, QueryOutput> = {
       results: results.slice(0, maxResults),
       totalFound: results.length,
       scopeUsed: needWeb ? "web-enhanced" : scope,
+      // 只有真的缺依赖时才带该字段：健康路径输出形状与历史一致（不引入无谓的 key 漂移）
+      ...(degraded.size > 0 ? { degraded: [...degraded] } : {}),
     }, start);
   },
 };

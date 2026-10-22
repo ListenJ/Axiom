@@ -95,8 +95,14 @@ export async function runPipeline(
         computeUnits += output.metrics.computeUnits;
       }
 
-      // 写入缓存
-      if (context.cache && tool.name === "query" && output.data?.results?.length > 0) {
+      // 写入缓存（P2.1：降级结果不得入缓存 —— 否则一次缺依赖的查询会在 TTL 内
+      // 持续冒充「完整结果」，把静默降级放大成 5 分钟的假数据）
+      if (
+        context.cache &&
+        tool.name === "query" &&
+        output.data?.results?.length > 0 &&
+        !(output.data?.degraded?.length > 0)
+      ) {
         const cacheKey = `tool:${normalizeQuery(String(input.query))}`;
         context.cache.set(cacheKey, output.data, 300_000); // 5min TTL
       }

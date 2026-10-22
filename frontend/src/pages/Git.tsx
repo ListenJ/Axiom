@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { GitBranch, GitCommitVertical, Upload, RefreshCw, FileEdit, FilePlus, FileMinus, FileQuestion } from 'lucide-react'
+import { GitBranch, GitCommitVertical, Upload, RefreshCw, FileEdit, FilePlus, FileMinus, FileQuestion, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useApp } from '@/state/useApp'
 import ShimmerCard from '@/components/ui/ShimmerCard'
 import Button from '@/components/ui/Button'
+import Skeleton from '@/components/ui/Skeleton'
 import { Textarea } from '@/components/ui/Input'
 import EmptyState from '@/components/ui/EmptyState'
 import { formatDateTime } from '@/lib/format'
@@ -46,12 +47,28 @@ const FILE_ICONS = {
   untracked: { icon: FileQuestion, color: 'text-[var(--text-muted)]' },
 }
 
+/**
+ * 把页面级读取失败映射成持久、可区分的错误文案。
+ * api 已把超时/主动取消归一化为 HttpError.code，二者语义不同，
+ * 不能都落成「无数据/干净」；其它错误保留原始 message 便于定位。
+ */
+function describeLoadError(e: unknown): string {
+  const code = (e as { code?: string } | null)?.code
+  if (code === 'timeout') return 'Git 状态不可用：读取 Git 状态超时，请重试。'
+  if (code === 'canceled') return 'Git 状态不可用：读取 Git 状态已取消，请重试。'
+  const detail = e instanceof Error && e.message ? `（${e.message}）` : ''
+  return `Git 状态不可用：读取 Git 状态失败${detail}，请重试。`
+}
+
 export default function Git() {
   const toast = useApp((s) => s.toast)
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [log, setLog] = useState<GitLogResult | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
-  const [loading, setLoading] = useState(false)
+  // 初始即为加载中：首屏在请求返回前不得先渲染「干净/无数据」空态。
+  const [loading, setLoading] = useState(true)
+  // 页面级持久错误：读取失败必须可见且可重试，不能被渲染成干净工作区。
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [committing, setCommitting] = useState(false)
   const [pushing, setPushing] = useState(false)
 
@@ -64,12 +81,14 @@ export default function Git() {
       ])
       setStatus(statusRes)
       setLog(logRes)
-    } catch {
-      toast('加载 Git 状态失败', 'error')
+      setLoadError(null) // 仅重试成功才清错
+    } catch (e) {
+      // 读失败保留持久错误态（可重试），不得显示成「无变更 / 暂无提交记录」
+      setLoadError(describeLoadError(e))
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [])
 
   useEffect(() => {
     refresh()
@@ -124,9 +143,33 @@ export default function Git() {
   const hasChanges = allFiles.length > 0
   const ahead = status?.ahead || 0
   const behind = status?.behind || 0
+  // 骨架屏只属于「初始加载且尚无数据」，请求结束（成功或失败）后不得残留。
+  const initialLoading = loading && status === null && log === null
+  // 空态只在请求成功且确实为空时成立：git 明确 clean 且解析不到任何变更。
+  const filesEmpty = status?.clean === true && allFiles.length === 0
+  const commitsEmpty = Array.isArray(log?.commits) && log.commits.length === 0
 
   return (
     <div className="space-y-4">
+      {/* 读失败：持久可重试的错误态；不得伪装成「干净/无数据」正常态 */}
+      {loadError && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-4 py-3">
+          <p role="alert" className="flex items-center gap-1.5 text-xs text-[var(--danger)]">
+            <AlertTriangle className="size-4 shrink-0" />
+            {loadError}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw className="size-3.5" />}
+            onClick={refresh}
+            loading={loading}
+          >
+            重试
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <ShimmerCard variant="accent" padding="md">
         <div className="flex items-center justify-between gap-4">
@@ -139,9 +182,17 @@ export default function Git() {
                 {status?.branch || '—'}
               </h2>
               <p className="text-xs text-[var(--text-muted)]">
-                {status?.clean ? '工作区干净' : `${allFiles.length} 个变更`}
-                {ahead > 0 && ` · 领先 ${ahead}`}
-                {behind > 0 && ` · 落后 ${behind}`}
+                {loadError ? (
+                  <span className="text-[var(--warning)]">Git 状态不可用：未能读取仓库状态</span>
+                ) : initialLoading ? (
+                  <Skeleton data-testid="git-skeleton" width="9rem" height="0.75rem" />
+                ) : (
+                  <>
+                    {status?.clean === true ? '工作区干净' : `${allFiles.length} 个变更`}
+                    {ahead > 0 && ` · 领先 ${ahead}`}
+                    {behind > 0 && ` · 落后 ${behind}`}
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -151,6 +202,8 @@ export default function Git() {
             icon={<RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />}
             onClick={refresh}
             loading={loading}
+            aria-label="刷新 Git 状态"
+            title="刷新 Git 状态"
           />
         </div>
       </ShimmerCard>
@@ -162,7 +215,18 @@ export default function Git() {
           <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
             变更文件
           </h3>
-          {hasChanges ? (
+          {loadError ? (
+            <p className="flex items-start gap-2 text-xs text-[var(--warning)]">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              变更文件不可用：读取 Git 状态失败
+            </p>
+          ) : initialLoading ? (
+            <div className="space-y-1.5">
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} data-testid="git-skeleton" width={`${80 - i * 15}%`} height="1rem" />
+              ))}
+            </div>
+          ) : allFiles.length > 0 ? (
             <ul className="space-y-1.5 max-h-64 overflow-y-auto">
               {allFiles.map((file, i) => {
                 const cfg = FILE_ICONS[file.type]
@@ -175,12 +239,14 @@ export default function Git() {
                 )
               })}
             </ul>
-          ) : (
+          ) : filesEmpty ? (
             <EmptyState
               icon={<GitCommitVertical className="size-5" />}
               title="无变更"
               description="工作区干净，没有需要提交的修改"
             />
+          ) : (
+            <p className="text-xs text-[var(--text-muted)]">—</p>
           )}
         </ShimmerCard>
 
@@ -226,7 +292,7 @@ export default function Git() {
                 推送
               </Button>
             </div>
-            {ahead === 0 && (
+            {!loadError && !initialLoading && ahead === 0 && (
               <p className="text-xs text-[var(--text-muted)]">没有待推送的提交</p>
             )}
           </div>
@@ -238,7 +304,18 @@ export default function Git() {
         <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
           最近提交
         </h3>
-        {log?.commits && log.commits.length > 0 ? (
+        {loadError ? (
+          <p className="flex items-start gap-2 text-xs text-[var(--warning)]">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            最近提交不可用：读取提交记录失败
+          </p>
+        ) : initialLoading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} data-testid="git-skeleton" height="2rem" rounded="md" />
+            ))}
+          </div>
+        ) : log?.commits && log.commits.length > 0 ? (
           <ul className="space-y-2">
             {log.commits.map((commit, i) => (
               <li key={i} className="flex items-start gap-3 text-xs">
@@ -254,8 +331,10 @@ export default function Git() {
               </li>
             ))}
           </ul>
-        ) : (
+        ) : commitsEmpty ? (
           <p className="text-xs text-[var(--text-muted)]">暂无提交记录</p>
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">—</p>
         )}
       </ShimmerCard>
     </div>

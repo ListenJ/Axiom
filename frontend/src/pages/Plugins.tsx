@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Puzzle,
   Download,
@@ -8,6 +8,7 @@ import {
   Settings,
   Check,
   Globe,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   ShimmerCard,
@@ -28,19 +29,60 @@ import {
   type ActiveTool,
 } from '@/lib/normalize'
 
+type Marketplace = {
+  skills: Array<{ id: string; name: string; description: string; category: string; url: string; source?: string; package?: string }>
+  mcpServers: Array<{ id: string; name: string; description: string; category: string; url: string; type: string; endpoint?: string }>
+  registries: Array<{ id: string; name: string; description: string; url: string }>
+}
+
+/** 首屏四个数据源（与四个 tab 一一对应），用于按来源记录加载失败。 */
+type LoadSource = 'list' | 'available' | 'activeTools' | 'marketplace'
+
+/** 把请求/规范化失败转成用户可读文案，并区分超时与取消（api.ts 的 HttpError.code）。 */
+function toErrorMessage(reason: unknown): string {
+  const code = (reason as { code?: string } | null | undefined)?.code
+  if (code === 'timeout') return '请求超时'
+  if (code === 'canceled') return '请求已取消'
+  if (code === 'malformed') return '数据格式异常'
+  if (reason instanceof Error && reason.message) return reason.message
+  if (typeof reason === 'string' && reason) return reason
+  return '请求失败'
+}
+
+/** 形状异常（normalize 抛错）与网络/接口失败分开：前者标记为数据格式异常。 */
+function normalizeSafely<T>(raw: unknown, normalize: (raw: unknown) => T): T {
+  try {
+    return normalize(raw)
+  } catch {
+    throw Object.assign(new Error('数据格式异常'), { code: 'malformed' })
+  }
+}
+
+/** 广场数据兜底：非对象/缺字段按空集合处理（保持原有形状容错）。 */
+function toMarketplace(raw: unknown): Marketplace {
+  const mv = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null
+  return {
+    skills: Array.isArray(mv?.skills) ? (mv.skills as Marketplace['skills']) : [],
+    mcpServers: Array.isArray(mv?.mcpServers) ? (mv.mcpServers as Marketplace['mcpServers']) : [],
+    registries: Array.isArray(mv?.registries) ? (mv.registries as Marketplace['registries']) : [],
+  }
+}
+
 export default function Plugins() {
   const [installed, setInstalled] = useState<Plugin[]>([])
   const [available, setAvailable] = useState<AvailablePlugin[]>([])
   const [activeTools, setActiveTools] = useState<ActiveTool[]>([])
-  const [marketplace, setMarketplace] = useState<{
-    skills: Array<{ id: string; name: string; description: string; category: string; url: string; source?: string; package?: string }>
-    mcpServers: Array<{ id: string; name: string; description: string; category: string; url: string; type: string; endpoint?: string }>
-    registries: Array<{ id: string; name: string; description: string; url: string }>
-  }>({ skills: [], mcpServers: [], registries: [] })
+  const [marketplace, setMarketplace] = useState<Marketplace>({
+    skills: [],
+    mcpServers: [],
+    registries: [],
+  })
   const [marketLoading, setMarketLoading] = useState(true)
   const [installingMarket, setInstallingMarket] = useState<string | null>(null)
   const [marketNotice, setMarketNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** 首屏各数据源的加载失败（按 tab 独立展示；成功加载后清空） */
+  const [loadErrors, setLoadErrors] = useState<Partial<Record<LoadSource, string>>>({})
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'installed' | 'available' | 'tools' | 'marketplace'>('installed')
   const [installing, setInstalling] = useState<string | null>(null)
@@ -48,36 +90,51 @@ export default function Plugins() {
   const [configValues, setConfigValues] = useState<Record<string, string>>({})
 
   const tabs = [
-    { id: 'installed' as const, label: '已安装', icon: <Puzzle className="size-3.5" />, badge: installed.length },
-    { id: 'available' as const, label: '可用插件', icon: <Download className="size-3.5" />, badge: available.length },
-    { id: 'tools' as const, label: '活跃工具', icon: <Settings className="size-3.5" />, badge: activeTools.length },
-    { id: 'marketplace' as const, label: '广场', icon: <Globe className="size-3.5" />, badge: (marketplace.skills?.length ?? 0) + (marketplace.mcpServers?.length ?? 0) },
+    { id: 'installed' as const, label: '已安装', icon: <Puzzle className="size-3.5" />, badge: loadErrors.list ? '—' : installed.length },
+    { id: 'available' as const, label: '可用插件', icon: <Download className="size-3.5" />, badge: loadErrors.available ? '—' : available.length },
+    { id: 'tools' as const, label: '活跃工具', icon: <Settings className="size-3.5" />, badge: loadErrors.activeTools ? '—' : activeTools.length },
+    {
+      id: 'marketplace' as const,
+      label: '广场',
+      icon: <Globe className="size-3.5" />,
+      badge: loadErrors.marketplace
+        ? '—'
+        : (marketplace.skills?.length ?? 0) + (marketplace.mcpServers?.length ?? 0),
+    },
   ]
 
-  useEffect(() => {
-    Promise.allSettled([
-      endpoints.plugins.list().then(normalizeInstalled).catch(() => []),
-      endpoints.plugins.available().then(normalizeAvailable).catch(() => []),
-      endpoints.plugins.activeTools().then(normalizeTools).catch(() => []),
-      endpoints.marketplace.list().catch(() => ({ skills: [], mcpServers: [], registries: [] })),
-    ]).then(([i, a, t, m]) => {
-      setInstalled(i.status === 'fulfilled' ? i.value : [])
-      setAvailable(a.status === 'fulfilled' ? a.value : [])
-      setActiveTools(t.status === 'fulfilled' ? t.value : [])
-      if (m.status === 'fulfilled' && m.value && typeof m.value === 'object' && !Array.isArray(m.value)) {
-        const mv = m.value as Record<string, unknown>
-        setMarketplace((_prev) => ({
-          skills: Array.isArray(mv.skills) ? (mv.skills as typeof _prev.skills) : [],
-          mcpServers: Array.isArray(mv.mcpServers) ? (mv.mcpServers as typeof _prev.mcpServers) : [],
-          registries: Array.isArray(mv.registries) ? (mv.registries as typeof _prev.registries) : [],
-        }))
-      }
-      setMarketLoading(false)
-      const failed = [i, a, t].find((x) => x.status === 'rejected') as PromiseRejectedResult | undefined
-      if (failed) setError(String(failed.reason?.message ?? failed.reason))
-      setLoading(false)
-    })
+  /**
+   * 首屏加载（也是「重试」入口）：四个数据源各自独立结算。
+   * 不再用内层 `.catch(() => [])` 吞掉失败 —— 失败必须进入对应 tab 的错误态，
+   * 否则「后端挂掉」与「确实没有数据」在前端不可区分（静默假空态）。
+   */
+  const loadAll = useCallback(async () => {
+    setLoading(true)
+    setMarketLoading(true)
+    setLoadErrors({})
+    const [i, a, t, m] = await Promise.allSettled([
+      endpoints.plugins.list().then((raw) => normalizeSafely(raw, normalizeInstalled)),
+      endpoints.plugins.available().then((raw) => normalizeSafely(raw, normalizeAvailable)),
+      endpoints.plugins.activeTools().then((raw) => normalizeSafely(raw, normalizeTools)),
+      endpoints.marketplace.list().then(toMarketplace),
+    ])
+    setInstalled(i.status === 'fulfilled' ? i.value : [])
+    setAvailable(a.status === 'fulfilled' ? a.value : [])
+    setActiveTools(t.status === 'fulfilled' ? t.value : [])
+    if (m.status === 'fulfilled') setMarketplace(m.value)
+    const nextErrors: Partial<Record<LoadSource, string>> = {}
+    if (i.status === 'rejected') nextErrors.list = toErrorMessage(i.reason)
+    if (a.status === 'rejected') nextErrors.available = toErrorMessage(a.reason)
+    if (t.status === 'rejected') nextErrors.activeTools = toErrorMessage(t.reason)
+    if (m.status === 'rejected') nextErrors.marketplace = toErrorMessage(m.reason)
+    setLoadErrors(nextErrors)
+    setMarketLoading(false)
+    setLoading(false)
   }, [])
+
+  useEffect(() => {
+    void loadAll()
+  }, [loadAll])
 
   const handleMarketInstall = async (kind: 'skill' | 'mcp', id: string) => {
     setInstallingMarket(id)
@@ -90,7 +147,7 @@ export default function Plugins() {
           : await endpoints.marketplace.installMcp(id)
       setMarketNotice(res?.message ?? `已安装：${res?.name ?? id}`)
     } catch (e) {
-      setError(String(e))
+      setError(toErrorMessage(e))
     } finally {
       setInstallingMarket(null)
     }
@@ -107,7 +164,7 @@ export default function Plugins() {
       if (i.status === 'fulfilled') setInstalled(normalizeInstalled(i.value))
       if (a.status === 'fulfilled') setAvailable(normalizeAvailable(a.value))
     } catch (e) {
-      setError(String(e))
+      setError(toErrorMessage(e))
     } finally {
       setInstalling(null)
     }
@@ -120,7 +177,7 @@ export default function Plugins() {
       const a = await endpoints.plugins.available()
       setAvailable(normalizeAvailable(a))
     } catch (e) {
-      setError(String(e))
+      setError(toErrorMessage(e))
     }
   }
 
@@ -137,7 +194,7 @@ export default function Plugins() {
       const t = await endpoints.plugins.activeTools()
       setActiveTools(normalizeTools(t))
     } catch (e) {
-      setError(String(e))
+      setError(toErrorMessage(e))
     }
   }
 
@@ -149,7 +206,7 @@ export default function Plugins() {
       const i = await endpoints.plugins.list()
       setInstalled(normalizeInstalled(i))
     } catch (e) {
-      setError(String(e))
+      setError(toErrorMessage(e))
     }
   }
 
@@ -172,10 +229,32 @@ export default function Plugins() {
     </p>
   )
 
+  /** 单个 tab 的加载失败块：明确「加载失败」+ 重试入口，不得退化成「暂无…」空态。 */
+  const loadErrorBlock = (message: string) => (
+    <div className="space-y-3">
+      <p
+        role="alert"
+        className="flex items-center gap-2 rounded-lg border border-[var(--danger-soft)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]"
+      >
+        <AlertTriangle className="size-4 shrink-0" />
+        加载失败：{message}
+      </p>
+      <Button
+        size="sm"
+        variant="secondary"
+        className="min-h-11"
+        onClick={() => void loadAll()}
+      >
+        重试
+      </Button>
+    </div>
+  )
+
   const renderInstalled = () => {
+    if (loadErrors.list) return loadErrorBlock(loadErrors.list)
     if (loading) {
       return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="plugins-skeleton">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-20 w-full rounded-xl" />
           ))}
@@ -297,9 +376,10 @@ export default function Plugins() {
   }
 
   const renderAvailable = () => {
+    if (loadErrors.available) return loadErrorBlock(loadErrors.available)
     if (loading) {
       return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="plugins-skeleton">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}
@@ -343,9 +423,10 @@ export default function Plugins() {
   }
 
   const renderTools = () => {
+    if (loadErrors.activeTools) return loadErrorBlock(loadErrors.activeTools)
     if (loading) {
       return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="plugins-skeleton">
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} className="h-14 w-full rounded-xl" />
           ))}
@@ -386,9 +467,10 @@ export default function Plugins() {
   }
 
   const renderMarketplace = () => {
+    if (loadErrors.marketplace) return loadErrorBlock(loadErrors.marketplace)
     if (marketLoading) {
       return (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="plugins-skeleton">
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-16 w-full rounded-xl" />
           ))}

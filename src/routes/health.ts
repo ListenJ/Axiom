@@ -3,9 +3,11 @@
  */
 import type { RouteContext } from "./types.js";
 import { APP_VERSION } from "../version.js";
-import { requireSecondFactorToken } from "./route-auth.js";
+import { requireSecondFactorToken, getSecondFactorStatus } from "./route-auth.js";
 import { z } from "zod";
 import { readValidatedJson } from "./body-validation.js";
+import { getToolRuntimeDepsStatus } from "../tools/runtime-deps.js";
+import { getSceneRouterPreflight } from "./scene-routes.js";
 
 // R1 整改（轮 4/批 2）：权限检查/确认两端点原为 `as {...}` 断言（operation 未验证即
 // 传给 checkFilePermission）——补 zod 形状面。
@@ -38,6 +40,12 @@ export async function handleHealth(ctx: RouteContext): Promise<Response | null> 
       vault: vStats ? { notes: vStats.totalNotes, words: vStats.totalWords } : null,
       cache: { search: searchCache.stats(), crawl: crawlCache.stats() },
       websocket: wsManager.getStats(),
+      // P2.1：工具运行时依赖（vault / 统一搜索通道）与场景路由预检 —— 降级必须可见，
+      // 不能出现"接口 200、功能悄悄缺失"。结构与 getToolRuntimeDepsStatus 一致。
+      toolRuntime: getToolRuntimeDepsStatus(),
+      sceneRouter: getSceneRouterPreflight(),
+      // D3=C（2026-10-22 P2）：只读二因子仍 fail-open，但状态必须可观测（不改拒绝语义）。
+      security: { secondFactor: getSecondFactorStatus() },
     }, 200, ctx.baseHeaders);
   }
   return null;

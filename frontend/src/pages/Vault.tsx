@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Clock,
   FileText,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   ShimmerCard,
@@ -65,34 +66,75 @@ interface VaultStats {
 
 function NotesTab() {
   const [stats, setStats] = useState<VaultStats | null>(null)
-  const [tags, setTags] = useState<string[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const loading = stats === null
+  const [tags, setTags] = useState<string[] | null>(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [tagsError, setTagsError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [reloadToken, setReloadToken] = useState(0)
+  // 骨架只属于首屏：显式 loading 且尚未拿到 stats。加载结束（成功或失败）后必须消失。
+  const initialLoading = loading && stats === null
 
   useEffect(() => {
     let cancelled = false
-    Promise.allSettled([
-      endpoints.vault.stats().then((d) => d as VaultStats).catch(() => null),
-      endpoints.vault.tags().then((d) => toTags(d)).catch(() => []),
-    ]).then(([s, t]) => {
-      if (cancelled) return
-      setStats(s.status === 'fulfilled' ? s.value : null)
-      setTags(t.status === 'fulfilled' ? t.value : [])
-      const failed = [s, t].find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
-      if (failed) setError(String(failed.reason?.message ?? failed.reason))
-    })
-    return () => { cancelled = true }
-  }, [])
+    setLoading(true)
+    setStatsError(null)
+    setTagsError(null)
+    Promise.allSettled([endpoints.vault.stats(), endpoints.vault.tags()]).then(
+      ([statsResult, tagsResult]) => {
+        if (cancelled) return
+        if (statsResult.status === 'fulfilled') {
+          setStats((statsResult.value as VaultStats | null) ?? null)
+        } else {
+          setStatsError(formatError(statsResult.reason))
+        }
+        if (tagsResult.status === 'fulfilled') {
+          setTags(toTags(tagsResult.value))
+        } else {
+          setTagsError(formatError(tagsResult.reason))
+        }
+        setLoading(false)
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken])
+
+  const retry = () => setReloadToken((n) => n + 1)
 
   return (
     <div className="space-y-5">
-      {error && <p role="alert" className="rounded-lg border border-[var(--danger-soft)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{error}</p>}
+      {(statsError !== null || tagsError !== null) && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--danger-soft)] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]"
+        >
+          <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
+          <div className="min-w-0 flex-1 space-y-0.5">
+            {statsError !== null && <p>统计加载失败：{statsError}</p>}
+            {tagsError !== null && <p>标签不可用：{tagsError}</p>}
+          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={retry}
+            loading={loading}
+            icon={<RefreshCw className="size-3.5" />}
+          >
+            重试
+          </Button>
+        </div>
+      )}
 
       {/* Stats */}
-      <section className="stagger grid grid-cols-3 gap-3" aria-busy={loading}>
-        <StatCard label="笔记" value={stats?.notes ?? '—'} icon={<BookOpen className="size-4" />} accent="default" loading={loading} />
-        <StatCard label="标签" value={stats?.tags ?? '—'} icon={<Tag className="size-4" />} accent="info" loading={loading} />
-        <StatCard label="链接" value={stats?.links ?? '—'} icon={<NetworkIcon className="size-4" />} accent="success" loading={loading} />
+      <section
+        className="stagger grid grid-cols-3 gap-3"
+        aria-busy={initialLoading}
+        data-testid={initialLoading ? 'vault-skeleton' : undefined}
+      >
+        <StatCard label="笔记" value={stats?.notes ?? '—'} icon={<BookOpen className="size-4" />} accent="default" loading={initialLoading} />
+        <StatCard label="标签" value={stats?.tags ?? '—'} icon={<Tag className="size-4" />} accent="info" loading={initialLoading} />
+        <StatCard label="链接" value={stats?.links ?? '—'} icon={<NetworkIcon className="size-4" />} accent="success" loading={initialLoading} />
       </section>
 
       {/* Tags */}
@@ -101,7 +143,16 @@ function NotesTab() {
           <Tag className="size-4 text-[var(--accent)]" />
           标签
         </h2>
-        {tags.length === 0 ? (
+        {tagsError !== null ? (
+          <p className="text-sm text-[var(--text-secondary)]">
+            标签不可用，请点击上方「重试」重新加载。
+          </p>
+        ) : tags === null ? (
+          <div className="space-y-2">
+            <Skeleton width="5rem" height="1.5rem" rounded="full" />
+            <Skeleton width="8rem" height="1.5rem" rounded="full" />
+          </div>
+        ) : tags.length === 0 ? (
           <InlineEmptyState icon={<Tag className="size-5" />} title="暂无标签" />
         ) : (
           <div className="flex flex-wrap gap-2">
@@ -121,11 +172,9 @@ function NotesTab() {
           PARA 视图
         </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">在原生 Axiom 应用中查看 PARA 分类与反向链接。</p>
-        <div className="mt-3 flex items-center gap-2 text-2xs text-[var(--text-muted)]">
-          <Skeleton width="3rem" height="0.5rem" />
-          <Skeleton width="6rem" height="0.5rem" />
-          <Skeleton width="4rem" height="0.5rem" />
-        </div>
+        <p className="mt-1 text-2xs text-[var(--text-muted)]">
+          网页端仅展示概览，不在此处加载图谱数据。
+        </p>
       </ShimmerCard>
     </div>
   )
@@ -145,9 +194,11 @@ function ReviewTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState<string | null>(null)
+  const [reloadToken, setReloadToken] = useState(0)
   const toast = useApp((s) => s.toast)
 
-  const load = (cancelled = false) => {
+  useEffect(() => {
+    let cancelled = false
     setLoading(true)
     setError(null)
     endpoints.knowledge
@@ -157,15 +208,21 @@ function ReviewTab() {
         const data = d as { notes?: PendingNote[] }
         setNotes(data.notes ?? [])
       })
-      .catch((e) => { if (!cancelled) setError(String((e as Error)?.message ?? e)) })
-      .finally(() => { if (!cancelled) setLoading(false) })
-  }
+      .catch((e) => {
+        if (cancelled) return
+        setNotes([])
+        setError(formatError(e))
+      })
+      .finally(() => {
+        if (cancelled) return
+        setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reloadToken])
 
-  useEffect(() => {
-    let cancelled = false
-    void load(cancelled)
-    return () => { cancelled = true }
-  }, [])
+  const reload = () => setReloadToken((n) => n + 1)
 
   const act = async (file: string, action: 'approve' | 'reject') => {
     setProcessing(file)
@@ -185,7 +242,7 @@ function ReviewTab() {
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-[var(--text-secondary)]">审批或驳回待审核的原子笔记。</p>
         <Button
-          onClick={() => void load()}
+          onClick={reload}
           loading={loading}
           variant="secondary"
           size="sm"
@@ -195,21 +252,28 @@ function ReviewTab() {
         </Button>
       </div>
 
-      {error && (
-        <p
-          role="alert"
-          className="rounded-lg border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-3 py-2 text-sm text-[var(--warning)]"
-        >
-          加载待审核笔记失败：{error}
-        </p>
-      )}
-
       <ShimmerCard>
         {loading ? (
           <div className="space-y-3">
             {[0, 1, 2].map((i) => (
               <Skeleton key={i} className="h-20 w-full" />
             ))}
+          </div>
+        ) : error !== null ? (
+          <div
+            role="alert"
+            className="flex flex-col items-center justify-center gap-3 py-10 text-center"
+          >
+            <AlertTriangle className="size-5 text-[var(--warning)]" aria-hidden="true" />
+            <p className="text-sm text-[var(--text-secondary)]">加载待审核笔记失败：{error}</p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={reload}
+              icon={<RefreshCw className="size-3.5" />}
+            >
+              重试
+            </Button>
           </div>
         ) : notes.length === 0 ? (
           <InlineEmptyState
@@ -289,6 +353,15 @@ function ReviewTab() {
       )}
     </div>
   )
+}
+
+/** 把 API 错误折叠成可读文案；超时/取消必须与普通失败可区分（错误态三态修复）。 */
+function formatError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err ?? '未知错误')
+  const code = (err as { code?: string } | null | undefined)?.code
+  if (code === 'timeout') return `请求超时，请稍后重试（${message}）`
+  if (code === 'canceled') return `请求已取消（${message}）`
+  return message
 }
 
 function toTags(raw: unknown): string[] {

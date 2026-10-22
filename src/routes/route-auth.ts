@@ -35,6 +35,29 @@ const SECOND_FACTOR_RECOVERY = {
 } as const;
 
 /**
+ * 第二因子当前状态（D3=C，2026-10-22 P2）：**只读**暴露，不改变拒绝语义。
+ * `/health.security.secondFactor` 用它把「只读 tier 仍在 fail-open」这一降级变成可观测状态，
+ * 避免运维只能从一条 warn 日志里看到缺口。
+ */
+export interface SecondFactorStatus {
+  configured: boolean;
+  /** 写 tier 永远是 fail-closed（未配置 403） */
+  writeTier: "fail-closed";
+  /** 读 tier 在未配置时 fail-open（放行 + warn once） */
+  readTier: "fail-open";
+  /** 未配置时给出缺失的 env 名，便于直接定位 */
+  missingEnv?: string;
+}
+
+/** 读取第二因子状态（供 /health 与测试；不触发任何鉴权/告警副作用）。 */
+export function getSecondFactorStatus(): SecondFactorStatus {
+  const configured = readString(SECOND_FACTOR_ENV) !== "";
+  return configured
+    ? { configured, writeTier: "fail-closed", readTier: "fail-open" }
+    : { configured, writeTier: "fail-closed", readTier: "fail-open", missingEnv: SECOND_FACTOR_ENV };
+}
+
+/**
  * 第二因子分级守卫（D1=C，2026-10-22 P1.4）。
  *
  * - 未配置：
