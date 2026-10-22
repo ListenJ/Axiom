@@ -167,7 +167,7 @@ export function assertSafeCdpUrl(raw: unknown, opts?: { allowRemote?: boolean })
 }
 
 /** L13：解析后二次校验（缓解 DNS-rebinding 到私网）；解析失败不拦截，交由连接层报错。
- *  TOCTOU 残窗（校验后连接前再变）为已知局限，在 LIMITATIONS 披露。 */
+ *  TOCTOU 残窗（校验后连接前再变）为已知局限，已在 docs/LIMITATIONS.md §7.2 披露。 */
 export async function assertResolvedHostSafe(
   hostname: string,
   resolve: (h: string) => Promise<string[]> = async (h) =>

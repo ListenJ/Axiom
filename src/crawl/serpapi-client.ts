@@ -205,6 +205,8 @@ export class SerpApiClient {
           "User-Agent": "Axiom-Agent/1.0 (Bun)",
         },
         signal: controller.signal,
+        // P4.2（D5 第一步）：SerpAPI 走固定官方 host，仍显式启用守卫（防御式；被拒时不发请求）
+        ssrfGuard: true,
       });
 
       clearTimeout(timer);

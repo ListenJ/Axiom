@@ -132,8 +132,10 @@ export abstract class SearchEngine {
         headers: init.headers as Record<string, string>,
         body: init.body as string | null,
         signal: controller.signal,
-        // 本地/内网目标强制直连（proxy: null 覆盖自动检测），避免自建服务被送往外部代理
-        ...(local ? { proxy: null } : {}),
+        // P4.2（D5 第一步）：本机/内网目标强制直连（proxy: null），**不接** SSRF 守卫（自建 SearXNG 等
+        // 本地服务是设计内用法）；外部引擎目标则**显式启用**守卫（含重定向逐跳 + DNS rebinding 校验），
+        // 不再依赖 opt-in 默认值。
+        ...(local ? { proxy: null } : { ssrfGuard: true }),
       });
       clearTimeout(timer);
       return res;
