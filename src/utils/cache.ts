@@ -371,34 +371,53 @@ export class Cache<V = unknown> {
     }
   }
 
+  /**
+   * 清理过期条目（L1 内存 + L3 SQLite 本命名空间行），返回持久层实际删除行数。
+   * 供后台定时器与测试使用；后台维护是尽力而为，数据库不可用时不抛出。
+   */
+  pruneExpired(): number {
+    const now = Date.now();
+    for (const [key, entry] of this.store) {
+      if (now > entry.expiresAt) this.store.delete(key);
+    }
+    if (!this.db) return 0;
+    try {
+      const result = this.db.run(
+        "DELETE FROM cache_store WHERE namespace = ? AND expires_at < unixepoch()",
+        [this.opts.namespace],
+      );
+      return result.changes;
+    } catch {
+      // 数据库已关闭或不可用：本轮持久层清理跳过（内存侧已清理）
+      return 0;
+    }
+  }
+
   private scheduleCleanup() {
     // 每 5 分钟清理过期条目
     // unref：后台清理定时器不阻止进程自然退出（测试/脚本不会挂起）
     this.cleanupTimer = setInterval(() => {
-      const now = Date.now();
-      for (const [key, entry] of this.store) {
-        if (now > entry.expiresAt) this.store.delete(key);
-      }
-      // 后台维护是**尽力而为**：调用方若绕过 destroy() 直接关闭 db（历史写法存在），
-      // 这里会对已关闭连接抛 `Database has closed`。清理失败不应把未捕获异常
-      // 甩给当时正在跑的无关测试（2026-10-19 修复），故吞掉——内存侧过期条目已删除，
-      // 持久层的过期行留给下次可用连接或 destroy 时的清理。
-      try {
-        this.db?.run("DELETE FROM cache_store WHERE expires_at < unixepoch()");
-      } catch {
-        /* 数据库已关闭或不可用：本轮持久层清理跳过 */
-      }
+      this.pruneExpired();
     }, 5 * 60 * 1000);
     this.cleanupTimer.unref?.();
   }
 }
 
 /** 全局缓存实例 */
+/**
+ * P3.2：工具性缓存落点改为独立文件（原实现未指定 dbPath，L3 实际落在主库 `./data/agent.db` 的
+ * cache_store 表，与文档「保持独立文件、避免缓存抖动与主库写竞争」不符）。
+ * 行为变更：搜索/抓取缓存的持久层不再写主库；旧主库中的历史行不再被读写（保留原样，见交付记录债务）。
+ */
+export const SEARCH_CACHE_DB_PATH = "./data/search-cache.db";
+export const CRAWL_CACHE_DB_PATH = "./data/crawl-cache.db";
+
 export const searchCache = new Cache<unknown[]>({
   namespace: "search",
   maxSize: 500,
   defaultTtlMs: 10 * 60 * 1000, // 10min
   persistent: true,
+  dbPath: SEARCH_CACHE_DB_PATH,
 });
 
 export const crawlCache = new Cache<Record<string, unknown>>({
@@ -406,6 +425,7 @@ export const crawlCache = new Cache<Record<string, unknown>>({
   maxSize: 200,
   defaultTtlMs: 30 * 60 * 1000, // 30min
   persistent: true,
+  dbPath: CRAWL_CACHE_DB_PATH,
 });
 
 /**

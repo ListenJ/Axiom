@@ -140,11 +140,43 @@ if [ "$CAN_COMPARE" = "1" ]; then
   echo "基线..新提交 提交数 = $(git rev-list --count "$BASE..$COMMIT")（快进）"
 fi
 
-# ── 推送并复核（推完远端发布头必须正好等于该提交）────────────────────────────────
+# ── 发布面自检（P3.3：与 publish.ps1 对齐；2026-10-20 事故后新增）──────────────────
+# 背景：`data/`、`axiom-memory/` 曾被整目录剔除，发布面克隆后服务启动自检 critical、
+# E2E 必失败，而内部全量测试永远发现不了（内部两目录都在）。该自检把「发布面必须含什么 /
+# 绝不能在什么」变成可执行断言，由 verify-publish-surface.mjs 在**推送之前**校验。
+echo "发布面自检 ..."
+if ! command -v bun >/dev/null 2>&1; then
+  echo "发布面自检失败：缺少 bun（scripts/release/verify-publish-surface.mjs 需要）"
+  exit 1
+fi
+if ! bun run "$REPO_ROOT/scripts/release/verify-publish-surface.mjs" "$COMMIT"; then
+  echo "发布面自检未通过（见上方输出），已中止推送"
+  exit 1
+fi
+
+# ── 推送并复核（推完远端发布头必须正好等于该提交；最多重试 3 次）──────────────────
 git push "$REMOTE" "$COMMIT:$REMOTE_REF"
-REMOTE_SHA="$(git ls-remote "$REMOTE" "$REMOTE_REF" | awk 'NR==1 {print $1}')"
+# 2026-10-19 实测教训（与 publish.ps1 对齐）：ssh 偶发瞬时失败会让 ls-remote 返回空输出，
+# 此时若直接抛「校验不一致」会把**已成功的推送**误报为失败。故最多重试 3 次，只有全部重试后
+# 仍不一致才判失败，并区分「读取失败（空）」与「读到了但不相等」两种错误。
+REMOTE_SHA=""
+for attempt in 1 2 3; do
+  REMOTE_SHA="$(git ls-remote "$REMOTE" "$REMOTE_REF" 2>/dev/null | awk 'NR==1 && NF {print $1}' || true)"
+  if [ "$REMOTE_SHA" = "$COMMIT" ]; then break; fi
+  if [ "$attempt" -lt 3 ]; then
+    echo "ls-remote 复核未拿到预期结果（第 ${attempt} 次，远端='${REMOTE_SHA}'），1s 后重试"
+    sleep 1
+  fi
+done
 echo "远端 $REMOTE/$BRANCH = $REMOTE_SHA"
-[ "$REMOTE_SHA" = "$COMMIT" ] || { echo "推送后校验不一致：远端 $REMOTE_SHA，新提交 $COMMIT"; exit 1; }
+if [ -z "$REMOTE_SHA" ]; then
+  echo "推送后校验失败：ls-remote 连续 3 次未返回远端发布头（推送可能已成功，请手工核实 $REMOTE/$BRANCH）"
+  exit 1
+fi
+if [ "$REMOTE_SHA" != "$COMMIT" ]; then
+  echo "推送后校验不一致：远端 $REMOTE_SHA，新提交 $COMMIT"
+  exit 1
+fi
 if [ "$CAN_COMPARE" = "1" ]; then
   git merge-base --is-ancestor "$BASE" "$COMMIT" || { echo "推送后复核失败：$BASE 不是 $COMMIT 的祖先"; exit 1; }
 fi

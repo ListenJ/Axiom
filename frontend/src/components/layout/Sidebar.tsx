@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import {
   X, FolderOpen, MessageSquare, Clock, ChevronRight,
-  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check,
+  Settings, Keyboard, PanelLeftClose, PanelLeftOpen, Plus, Pencil, Trash2, Check, AlertTriangle,
 } from 'lucide-react'
 import { endpoints } from '@/lib/api'
+import { summarizeHealthDegradation, type HealthPayload } from '@/lib/health-degradation'
 import { useApp } from '@/state/useApp'
 import type { WorkspaceSummary, SessionSummary } from '@/lib/workspace-sessions'
 import { groupSessionsForWorkspace } from '@/lib/workspace-sessions'
@@ -92,7 +93,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
   const setHelpOpen = useApp((s) => s.setHelpOpen)
   const collapsed = useApp((s) => s.sidebarCollapsed)
   const toggleCollapsed = useApp((s) => s.toggleSidebarCollapsed)
-  const [health, setHealth] = useState<{ status?: string; version?: string; uptime?: number } | null>(null)
+  const [health, setHealth] = useState<HealthPayload | null>(null)
   const [healthError, setHealthError] = useState(false)
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([])
   const [sessions, setSessions] = useState<SessionSummary[]>([])
@@ -108,9 +109,10 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
     let alive = true
     const load = async () => {
       try {
-        const r = (await endpoints.system.health()) as { status?: string; version?: string; uptime?: number } | null
+        const r = (await endpoints.system.health()) as HealthPayload | null
         if (!alive) return
-        setHealth({ status: r?.status, version: r?.version, uptime: r?.uptime })
+        // P3.5C：保留 toolRuntime / sceneRouter / security.secondFactor 供降级徽标使用
+        setHealth(r ?? null)
         setHealthError(false)
       } catch {
         if (alive) setHealthError(true)
@@ -155,6 +157,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
 
 
   const online = !healthError && health?.status === 'ok'
+  const degradation = summarizeHealthDegradation(health)
   const sessionsByWorkspace = groupSessionsForWorkspace(workspaces, sessions, 100)
   const currentSession = new URLSearchParams(location.search).get('session')
 
@@ -484,6 +487,18 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
               </span>
             </span>
           </div>
+          {/* P3.5C：服务在线但存在降级（记忆库/统一搜索/场景/二因子）时可见；不制造新状态 */}
+          {online && degradation.degraded && (
+            <span
+              role="status"
+              title={degradation.summary}
+              aria-label={`服务降级：${degradation.summary}`}
+              className="flex h-6 shrink-0 items-center gap-1 rounded-full border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-2 text-2xs font-medium text-[var(--warning)]"
+            >
+              <AlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+              <span className={collapsed ? 'lg:hidden' : ''}>降级</span>
+            </span>
+          )}
           <button
             type="button"
             onClick={() => setHelpOpen(true)}

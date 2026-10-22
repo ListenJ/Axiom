@@ -35,13 +35,33 @@ export interface ArchiveOptions {
   dryRun?: boolean;
 }
 
+/**
+ * P3.1：原子写 / 索引注入接缝（测试可注入失败；生产走真实 fs + 全局 SQLiteMemory）。
+ * 只暴露回写与索引这两步——它们才是"移动之后仍可能失败"的位置。
+ */
+export interface MemoryArchiverDeps {
+  writeFileSync?: (filePath: string, content: string) => void;
+  renameSync?: (from: string, to: string) => void;
+  unlinkSync?: (filePath: string) => void;
+  syncIndex?: (notePath: string, archivePath: string) => boolean;
+}
+
+const DEFAULT_ARCHIVER_DEPS: Required<MemoryArchiverDeps> = {
+  writeFileSync: (filePath, content) => fs.writeFileSync(filePath, content, "utf-8"),
+  renameSync: (from, to) => fs.renameSync(from, to),
+  unlinkSync: (filePath) => fs.unlinkSync(filePath),
+  syncIndex: (notePath, archivePath) => getSqliteMemory().archiveNotePath(notePath, archivePath),
+};
+
 export class MemoryArchiver {
   private vaultPath: string;
   private archivePath: string;
+  private readonly deps: Required<MemoryArchiverDeps>;
 
-  constructor(vaultPath?: string) {
+  constructor(vaultPath?: string, deps?: MemoryArchiverDeps) {
     this.vaultPath = vaultPath || readString("OBSIDIAN_VAULT_PATH", "./axiom-memory");
     this.archivePath = path.join(this.vaultPath, "05-Archives");
+    this.deps = { ...DEFAULT_ARCHIVER_DEPS, ...deps };
   }
 
   /**
@@ -182,7 +202,7 @@ export class MemoryArchiver {
 
     // 执行归档
     try {
-      await this.moveToArchive(fileRel, frontmatter);
+      await this.moveToArchive(fileRel);
       result.archived.push(fileRel);
     } catch (e) {
       result.errors.push(`${fileRel}: ${e instanceof Error ? e.message : String(e)}`);
@@ -193,32 +213,31 @@ export class MemoryArchiver {
     if (!this.isPathWithinVault(fileRel)) return false;
     const fullPath = path.join(this.vaultPath, fileRel);
     if (!fs.existsSync(fullPath)) return false;
-    const frontmatter = this.parseFrontmatterSafe(fullPath);
-    await this.moveToArchive(fileRel, frontmatter);
+    await this.moveToArchive(fileRel);
     return true;
   }
 
-  private async moveToArchive(fileRel: string, frontmatter: Record<string, unknown>): Promise<void> {
-    // Fix 4：防御性边界检查（防路径穿越，与 VaultManager.resolveSafePath 同构）
-    if (!this.isPathWithinVault(fileRel)) {
-      throw new Error(`Path traversal blocked: ${fileRel}`);
+  /** 原子写：同目录 tmp → rename（既有 rename-first 之外，补上「回写标记」这一步的原子性）。 */
+  private atomicWriteFile(targetPath: string, content: string): void {
+    const tmpPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+    try {
+      this.deps.writeFileSync(tmpPath, content);
+      this.deps.renameSync(tmpPath, targetPath);
+    } catch (err) {
+      // 失败时清理 tmp（best-effort），绝不留半截文件
+      try {
+        this.deps.unlinkSync(tmpPath);
+      } catch {
+        /* tmp 可能尚未创建 */
+      }
+      throw err;
     }
+  }
 
-    const sourcePath = path.join(this.vaultPath, fileRel);
+  /** 生成带归档标记的最终内容（与原实现逐字一致，仅抽出以便重写路径复用）。 */
+  private buildArchivedContent(originalContent: string, fileRel: string): string {
     const now = new Date().toISOString();
-
-    // 构建归档路径：保持原有目录结构
-    const archiveRel = fileRel;
-    const archiveFullPath = path.join(this.archivePath, archiveRel);
-    const archiveDir = path.dirname(archiveFullPath);
-
-    if (!fs.existsSync(archiveDir)) {
-      fs.mkdirSync(archiveDir, { recursive: true });
-    }
-
-    // 读取原内容，添加归档标记
-    let content = fs.readFileSync(sourcePath, "utf-8");
-    const { frontmatter: oldFm, body } = this.parseFrontmatter(content);
+    const { frontmatter: oldFm, body } = this.parseFrontmatter(originalContent);
 
     const newFm = {
       ...oldFm,
@@ -237,36 +256,57 @@ export class MemoryArchiver {
     }
     fmLines.push("---");
 
-    const newContent = fmLines.join("\n") + "\n\n" + body;
+    return fmLines.join("\n") + "\n\n" + body;
+  }
+
+  private async moveToArchive(fileRel: string): Promise<void> {
+    // Fix 4：防御性边界检查（防路径穿越，与 VaultManager.resolveSafePath 同构）
+    if (!this.isPathWithinVault(fileRel)) {
+      throw new Error(`Path traversal blocked: ${fileRel}`);
+    }
+
+    const sourcePath = path.join(this.vaultPath, fileRel);
+    // 构建归档路径：保持原有目录结构
+    const archiveRel = fileRel;
+    const archiveFullPath = path.join(this.archivePath, archiveRel);
+    const archiveDir = path.dirname(archiveFullPath);
+
+    if (!fs.existsSync(archiveDir)) {
+      fs.mkdirSync(archiveDir, { recursive: true });
+    }
+
+    // 唯一副本暂存：用于任何失败分支把源恢复成**原始内容**（而不是带 markers 的版本）
+    const originalContent = fs.readFileSync(sourcePath, "utf-8");
+    const newContent = this.buildArchivedContent(originalContent, fileRel);
 
     // Fix 3：优先原子 rename（同文件系统内 renameSync 是原子操作，消除 copy-then-delete 窗口）。
-    // 跨文件系统（EXDEV）回退到写入临时文件 + 重命名。无论哪条路径，删除源文件都发生在
-    // 索引更新成功之后（Fix 1），确保不会出现“源已删、索引仍指向旧路径”的孤文件。
+    // 跨文件系统（EXDEV）回退到「同目录 tmp → rename」的原子写。
     let usedRename = false;
     try {
-      fs.renameSync(sourcePath, archiveFullPath);
+      this.deps.renameSync(sourcePath, archiveFullPath);
       usedRename = true;
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
-      // EXDEV：跨设备/跨目录无法原子 rename，回退为写入归档 + 重命名
       if (code === "EXDEV") {
-        const tmpPath = `${archiveFullPath}.${process.pid}.${Date.now()}.tmp`;
-        try {
-          fs.writeFileSync(tmpPath, newContent, "utf-8");
-          fs.renameSync(tmpPath, archiveFullPath);
-        } catch (writeErr) {
-          try { fs.unlinkSync(tmpPath); } catch {}
-          throw writeErr;
-        }
+        this.atomicWriteFile(archiveFullPath, newContent);
       } else {
         throw e;
       }
     }
 
-    // rename 成功：在 rename 路径下 sourcePath 已不复存在，归档内容即原文（含 archiver 标记需补写）。
-    // rename 不重写 frontmatter，为保证归档标记一致，rename 后回写标记 frontmatter。
+    // P3.1：rename 只会移动原文；标记 frontmatter 的回写必须**原子替换**，否则崩溃会截断唯一副本。
+    // 失败回滚：归档里仍是 rename 带过来的原文，移回源位置即可恢复（不丢内容、不污染源）。
     if (usedRename) {
-      fs.writeFileSync(archiveFullPath, newContent, "utf-8");
+      try {
+        this.atomicWriteFile(archiveFullPath, newContent);
+      } catch (err) {
+        try {
+          this.deps.renameSync(archiveFullPath, sourcePath);
+        } catch {
+          /* 回滚失败：原文仍在归档路径（未截断），错误如实上报 */
+        }
+        throw err;
+      }
     }
 
     // Fix 1：索引更新成功后才“删除”源。此时源在 rename 路径下已被移走；
@@ -274,10 +314,10 @@ export class MemoryArchiver {
     const sourceStillExists = fs.existsSync(sourcePath);
 
     const indexedArchivePath = path.relative(this.vaultPath, archiveFullPath).replace(/\\/g, "/");
-    // 索引更新——失败则回滚：rename 路径下把文件移回源位置；EXDEV 路径下删归档、保留源。
-    // 关键：源文件必须恢复原状，绝不留下“源已删/已移、索引无行”的孤文件。
+    // 索引更新——失败则回滚：rename 路径下把文件移回源位置**并原子恢复原始内容**；
+    // EXDEV 路径下删归档、保留源。关键：源文件必须恢复原状，绝不留下“带 markers 的源”。
     try {
-      getSqliteMemory().archiveNotePath(fileRel, indexedArchivePath);
+      this.deps.syncIndex(fileRel, indexedArchivePath);
     } catch (err) {
       logger.warn("[MemoryArchiver] SQLite archive index sync failed — rolling back", {
         from: fileRel,
@@ -285,18 +325,29 @@ export class MemoryArchiver {
         error: err instanceof Error ? err.message : String(err),
       });
       if (usedRename) {
-        // rename 路径：源已被移到 archiveFullPath，回滚 = 移回源位置
-        try { fs.renameSync(archiveFullPath, sourcePath); } catch {}
+        try {
+          this.deps.renameSync(archiveFullPath, sourcePath);
+        } catch {
+          /* 回滚失败：保留归档副本，错误如实上报 */
+        }
+        try {
+          this.atomicWriteFile(sourcePath, originalContent);
+        } catch {
+          /* 内容恢复失败：保留已移回的文件（含 markers），错误如实上报 */
+        }
       } else {
-        // EXDEV 路径：源仍在原位（完好），清理已写入的归档文件
-        try { fs.unlinkSync(archiveFullPath); } catch {}
+        try {
+          this.deps.unlinkSync(archiveFullPath);
+        } catch {
+          /* 归档清理失败：源仍完好，错误如实上报 */
+        }
       }
       throw err;
     }
 
     // 索引成功后才清理源文件（EXDEV 回退路径下源仍存在）
     if (sourceStillExists) {
-      fs.unlinkSync(sourcePath);
+      this.deps.unlinkSync(sourcePath);
     }
 
     logger.info("Archived note", { from: fileRel, to: archiveRel });
